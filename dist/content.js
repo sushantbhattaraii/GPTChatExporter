@@ -135,7 +135,7 @@
   }
   function liftImages(bs) {
     return bs.flatMap((b) => {
-      if (b.runs?.some((r) => r.image)) {
+      if (b.runs?.some((r) => r.image || r.diagram || r.widget)) {
         const out = [];
         let runs = [];
         const flush = () => {
@@ -143,7 +143,10 @@
           runs = [];
         };
         for (const run2 of b.runs) {
-          if (run2.image) {
+          if (run2.diagram || run2.widget) {
+            flush();
+            out.push(run2.diagram || run2.widget);
+          } else if (run2.image) {
             flush();
             out.push({ type: "image", image: run2.image, text: run2.text });
           } else runs.push(run2);
@@ -163,6 +166,106 @@
   var init_media = __esm({
     "src/modules/media.js"() {
       canvasIds = /* @__PURE__ */ new WeakMap();
+    }
+  });
+
+  // src/modules/diagram.js
+  function local(value, base) {
+    if (!value.includes("url(")) return value;
+    const match = /^url\(["']?([^"')]+)["']?\)$/.exec(value);
+    if (!match) return null;
+    const url = new URL(match[1], base);
+    return url.href.split("#")[0] === base.split("#")[0] && url.hash ? "url(" + url.hash + ")" : null;
+  }
+  function diagramSVG(root) {
+    const doc = root.ownerDocument, win = doc.defaultView;
+    const box = root.viewBox?.baseVal;
+    const width = box?.width || root.getBoundingClientRect().width;
+    const height = box?.height || root.getBoundingClientRect().height;
+    if (!(width > 0 && height > 0) || root.querySelectorAll("*").length > 12e3)
+      return null;
+    function clone(node) {
+      if (node.nodeType === 3) return doc.createTextNode(node.textContent);
+      if (node.nodeType !== 1) return null;
+      const css = win.getComputedStyle(node);
+      if (css.display === "none" || css.visibility === "hidden") return null;
+      if (node.localName === "foreignObject") {
+        const group = doc.createElementNS(namespace, "g");
+        const matrix = node.getScreenCTM()?.inverse();
+        if (!matrix) return null;
+        const walker = doc.createTreeWalker(node, 4);
+        while (walker.nextNode()) {
+          const n = walker.currentNode;
+          const style = win.getComputedStyle(n.parentElement);
+          for (const match of n.textContent.matchAll(/\S+/gu)) {
+            const range = doc.createRange();
+            range.setStart(n, match.index);
+            range.setEnd(n, match.index + match[0].length);
+            const rect = range.getBoundingClientRect();
+            if (!rect.width) continue;
+            const p = new win.DOMPoint(
+              rect.left,
+              rect.bottom - rect.height * 0.19
+            ).matrixTransform(matrix);
+            const t = doc.createElementNS(namespace, "text");
+            t.setAttribute("x", p.x);
+            t.setAttribute("y", p.y);
+            t.setAttribute("font-size", style.fontSize);
+            t.setAttribute("fill", style.color);
+            t.textContent = match[0];
+            group.append(t);
+          }
+        }
+        return group;
+      }
+      if (!tags.has(node.localName)) return null;
+      const copy = doc.createElementNS(namespace, node.localName);
+      for (const a of node.attributes) {
+        if (geometry.has(a.name) || a.localName === "href" && /^#[\w:.-]+$/.test(a.value))
+          copy.setAttribute(a.localName, a.value);
+      }
+      for (const prop of paint) {
+        const value = local(css.getPropertyValue(prop) || "", doc.URL);
+        if (prop === "stroke-dasharray" && value !== "none" && value?.split(/[ ,]+/).some((v) => !(parseFloat(v) > 0)))
+          continue;
+        if (value) copy.setAttribute(prop, value);
+      }
+      for (const child of node.childNodes) {
+        const c = clone(child);
+        if (c) copy.append(c);
+      }
+      return copy;
+    }
+    const svg = clone(root);
+    if (!svg) return null;
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+    if (!box?.width) svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    return {
+      type: "diagram",
+      svg: new XMLSerializer().serializeToString(svg),
+      width,
+      height,
+      text: root.getAttribute("aria-label") || [...root.querySelectorAll("title,text,foreignObject")].map((n) => n.textContent.trim()).filter(Boolean).join(" ").slice(0, 1200) || "Diagram"
+    };
+  }
+  var namespace, tags, geometry, paint;
+  var init_diagram = __esm({
+    "src/modules/diagram.js"() {
+      namespace = "http://www.w3.org/2000/svg";
+      tags = new Set(
+        "svg g defs marker path rect circle ellipse line polyline polygon text tspan title desc clipPath linearGradient radialGradient stop use".split(
+          " "
+        )
+      );
+      geometry = new Set(
+        "id viewBox preserveAspectRatio transform d x y x1 y1 x2 y2 dx dy r rx ry cx cy points width height refX refY markerWidth markerHeight markerUnits orient offset gradientUnits gradientTransform spreadMethod".split(
+          " "
+        )
+      );
+      paint = "fill stroke color stroke-width stroke-dasharray stroke-dashoffset stroke-linejoin stroke-linecap fill-rule fill-opacity stroke-opacity opacity text-anchor dominant-baseline font-size font-weight font-style marker-start marker-end marker-mid clip-path stop-color stop-opacity".split(
+        " "
+      );
     }
   });
 
@@ -421,9 +524,58 @@
     if (pos < text.length) runs.push({ text: text.slice(pos), ...style });
     return runs;
   }
+  function controlRun(el) {
+    const label = el.getAttribute("aria-label");
+    if (el.matches(
+      "input[type=checkbox], [role=checkbox],input[type=radio],[role=radio],[data-checked],svg.lucide-square-check,svg.lucide-square-check-big,svg.lucide-square"
+    )) {
+      const val = el.matches("input") ? el.indeterminate ? "mixed" : String(el.checked) : el.getAttribute("aria-checked") ?? el.getAttribute("data-checked") ?? String(
+        el.matches("svg.lucide-square-check,svg.lucide-square-check-big")
+      );
+      const radio = el.matches("input[type=radio],[role=radio]");
+      const mark = radio ? val === "true" ? "\u25C9" : "\u25CB" : val === "true" ? "\u2611" : val === "mixed" ? "\u229F" : "\u2610";
+      const children = el.matches("[data-checked],[role=checkbox],[role=radio]") ? el.textContent.trim() : "";
+      return {
+        text: mark + " " + (children || label || "") + (children || label ? " " : ""),
+        control: "check",
+        checked: val
+      };
+    }
+    if (el.matches("input[type=range],[role=slider],progress,meter")) {
+      const val = el.value ?? el.getAttribute("aria-valuenow");
+      const min = el.min || el.getAttribute("aria-valuemin") || 0;
+      const max = el.max || el.getAttribute("aria-valuemax") || (el.matches("progress,meter") ? 1 : 100);
+      const text = (label || (el.matches("progress,meter") ? "Progress" : "Slider")) + ": " + (el.getAttribute("aria-valuetext") || val || "0") + " (" + min + "\u2013" + max + ")";
+      const fraction = (Number(val) - Number(min)) / (Number(max) - Number(min));
+      return {
+        text,
+        widget: {
+          type: "slider",
+          text,
+          fraction: Number.isFinite(fraction) ? Math.min(1, Math.max(0, fraction)) : 0
+        }
+      };
+    }
+    if (el.matches("select,input[type=number]")) {
+      return {
+        text: (label ? label + ": " : "") + (el.matches("select") ? [...el.selectedOptions].map((o) => o.label).join(", ") : el.value)
+      };
+    }
+    return null;
+  }
+  function semanticRun(el) {
+    const control = controlRun(el);
+    if (control) return control;
+    if (el.matches("canvas")) return imageRef(el);
+    if (el.matches("svg") && !el.closest(".katex,mjx-container") && (el.matches("[aria-roledescription], [id*=mermaid i], [role=img]") || el.getBoundingClientRect().width >= 48 && el.getBoundingClientRect().height >= 32)) {
+      const diagram = diagramSVG(el);
+      if (diagram) return { text: diagram.text, diagram };
+    }
+    return null;
+  }
   function inline(node, style = {}, read = proseReader(node.parentElement || node)) {
     if (node.nodeType === 3) {
-      const parent = node.parentElement;
+      const parent = node.parentElement || node.getRootNode().host;
       const preserve = parent && (/pre|break-spaces/.test(
         parent.ownerDocument.defaultView.getComputedStyle(parent).whiteSpace
       ) || parent.closest(
@@ -435,8 +587,17 @@
       );
     }
     if (node.nodeType !== 1 || !visible(node)) return [];
+    const semantic = semanticRun(node);
+    if (semantic) return [semantic];
     if (node.matches('button,[role="button"]'))
-      return [...node.querySelectorAll("img")].filter((img) => visible(img) && meaningfulImage(img)).map(imageRef);
+      return [...node.querySelectorAll("img,canvas,svg")].flatMap((el) => {
+        if (!visible(el) && !(el.matches("svg[aria-hidden=true]") && visible(node) && el.getBoundingClientRect().width >= 48))
+          return [];
+        if (el.matches("img")) return meaningfulImage(el) ? [imageRef(el)] : [];
+        if (el.matches("svg") && el.getBoundingClientRect().width < 48) return [];
+        const run2 = semanticRun(el);
+        return run2 ? [run2] : [];
+      });
     if (node.matches(OMIT)) return [];
     if (node.matches(".katex-display"))
       return [{ ...equation(node), ...style, math: true, display: true }];
@@ -486,13 +647,30 @@
     }
     return r.filter((x) => x.text !== "");
   }
+  function listItem(el, read) {
+    const item = blocks(el, read);
+    const first = item[0]?.runs?.[0];
+    if (!first || first.control === "check") return item;
+    const literal = /^\[([ xX-])\]\s*/.exec(first.text);
+    const state = el.hasAttribute("data-checked") ? el.getAttribute("data-checked") : literal?.[1];
+    if (state != null) {
+      if (literal) first.text = first.text.slice(literal[0].length);
+      const mark = /^(true|x|checked)$/i.test(state) ? "\u2611" : /^(mixed|-)$/.test(state) ? "\u229F" : "\u2610";
+      item[0].runs.unshift({ text: mark + " ", control: "check" });
+    }
+    return item;
+  }
   function blocks(root, read = proseReader(root)) {
     const out = [];
     let pending = [];
     const flush = () => {
       const runs = trimmed(pending);
       if (runs.length)
-        out.push({ type: "paragraph", runs, alignment: textAlignment(root) });
+        out.push({
+          type: "paragraph",
+          runs,
+          alignment: textAlignment(root.host || root)
+        });
       pending = [];
     };
     for (const el of root.childNodes) {
@@ -501,11 +679,49 @@
         continue;
       }
       if (!visible(el)) continue;
+      if (el.shadowRoot && !el.matches("[data-cge]") && !el.shadowRoot.querySelector("slot")) {
+        flush();
+        out.push(...blocks(el.shadowRoot, read));
+        continue;
+      }
+      const semantic = semanticRun(el);
+      if (semantic) {
+        pending.push(semantic);
+        continue;
+      }
+      if (el.matches("iframe")) {
+        flush();
+        const body = el.contentDocument?.body;
+        const inner = body ? blocks(body) : [];
+        out.push(
+          ...inner.length ? inner : [
+            {
+              type: "paragraph",
+              runs: [
+                {
+                  text: "[" + (el.title || "Embedded widget") + ": frame contents unavailable to this page.]"
+                }
+              ]
+            }
+          ]
+        );
+        continue;
+      }
       if (el.matches('button,[role="button"]')) {
         pending.push(...inline(el, {}, read));
         continue;
       }
       if (el.matches(OMIT)) continue;
+      if (el.matches(
+        ".mermaid,[data-mermaid],code.language-mermaid,[data-mermaid-source]"
+      ) && !el.querySelector("svg,pre")) {
+        const source = el.getAttribute("data-mermaid-source") || el.getAttribute("data-mermaid") || el.textContent;
+        if (source.trim()) {
+          flush();
+          out.push({ type: "diagram", source, text: source });
+          continue;
+        }
+      }
       if (el.matches(
         ".katex-display,math[display=block],mjx-container[display=true]"
       ) || el.matches(equationSelector) && BLOCK.split(",").includes(el.tagName)) {
@@ -528,7 +744,9 @@
         });
       else if (tag === "PRE" || el.matches(".cm-content")) {
         const snippet = readCode(el), { text, language } = snippet;
-        if ((/^(math|latex|tex)$/i.test(language) || !language && /^\s*(?:\\\[[\s\S]*\\\]|\$\$[\s\S]*\$\$)\s*$/.test(text)) && !/\\(?:documentclass|usepackage|begin\{document\}|section|newcommand|textbf)/.test(
+        if (/^mermaid$/i.test(language) || !language && /^\s*(?:flowchart|graph)\s+(?:TD|TB|BT|RL|LR)\b/.test(text))
+          out.push({ type: "diagram", source: text, text });
+        else if ((/^(math|latex|tex)$/i.test(language) || !language && /^\s*(?:\\\[[\s\S]*\\\]|\$\$[\s\S]*\$\$)\s*$/.test(text)) && !/\\(?:documentclass|usepackage|begin\{document\}|section|newcommand|textbf)/.test(
           text
         ) && /^(?:\s*\\[([]|\s*\$\$)|[=^_]|\\(?:frac|sqrt|sum|int|begin\{(?:align|equation|matrix))/.test(
           text
@@ -539,8 +757,11 @@
         out.push({
           type: "list",
           ordered: tag === "OL",
-          start: Number(el.getAttribute("start")) || 1,
-          items: [...el.children].filter((n) => n.tagName === "LI" && visible(n)).map((n) => blocks(n, read))
+          start: tag === "OL" ? el.hasAttribute("start") ? el.start : el.reversed ? el.children.length : 1 : 1,
+          reversed: !!el.reversed,
+          listType: el.ownerDocument.defaultView.getComputedStyle(el).listStyleType,
+          counters: [...el.children].filter((n) => n.tagName === "LI" && visible(n)).map((n) => n.hasAttribute("value") ? n.value : null),
+          items: [...el.children].filter((n) => n.tagName === "LI" && visible(n)).map((n) => listItem(n, read))
         });
       } else if (tag === "TABLE") {
         const rows = [...el.rows].filter(visible).map(
@@ -572,10 +793,11 @@
   var OMIT, BLOCK, equationSelector;
   var init_normalize = __esm({
     "src/modules/normalize.js"() {
+      init_diagram();
       init_pdf_style();
       init_media();
       OMIT = 'button,nav,[data-conversation-role]:is(h1,h2,h3,h4,h5,h6),.turn-action-controls,script,style,textarea,input,select,svg,[role="button"],[data-cge],[data-testid="thought-process"],[data-testid="reasoning"],.katex-html';
-      BLOCK = "P,H1,H2,H3,H4,H5,H6,PRE,UL,OL,TABLE,BLOCKQUOTE,HR,DIV,SECTION,ARTICLE,FIGURE";
+      BLOCK = "P,H1,H2,H3,H4,H5,H6,PRE,UL,OL,TABLE,BLOCKQUOTE,HR,DIV,SECTION,ARTICLE,FIGURE,DETAILS,SUMMARY,FORM,FIELDSET";
       equationSelector = ".katex,math,[data-math],[data-latex],mjx-container";
     }
   });
@@ -944,7 +1166,7 @@
       timestamp: time || null,
       hasMedia: rich,
       hasInteractive: roots.some(
-        (n) => n.querySelector("canvas,iframe,video,audio") || n.matches("canvas,iframe,video,audio")
+        (n) => n.querySelector("video,audio") || n.matches("video,audio")
       )
     };
   }

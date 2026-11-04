@@ -1,8 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.2.1.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.3.0.
 
-**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.2.1** in the popup.
+**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.3.0** in the popup.
 
 The new version requests site access for ChatGPT and OpenAI image delivery. Review the extension card if Chrome asks you to enable it after the update.
 
@@ -32,7 +32,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.2.1** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.3.0** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 
@@ -55,6 +55,12 @@ By default questions and code are included. If you disable them in settings, the
 The same PDF renderer serves one Q&A and a full conversation. Prompts sit on the left in off-white panels and replies on the right in light green. Each paragraph keeps its own alignment, including justified text. Selectable prose also carries rendered bold, italic, combined emphasis, underline, strikethrough, inline highlight and accent colors, including inside lists. Code uses the visible syntax-token colors and background, indentation, tab stops, line breaks and emphasis. Code is selectable text in a bundled monospaced font. A long line wraps at the panel edge, and page breaks follow the available paper size. See `examples/formatted-chat.pdf`.
 
 The floating bubble uses a **download arrow** to open the export menu and a **gear** to open settings. Hover over a format icon for its tooltip. Keyboard users can tab to the buttons, which have accessible names. The individual **Export this Q&A** control retains its text label.
+
+### Diagrams, checklists and live controls
+
+A Mermaid code fence becomes a vector diagram in the PDF. The exporter can also read an already-rendered SVG, including its shapes, arrows and text labels. If local Mermaid rendering fails or the source requests external resources, the PDF includes the source. A diagram inside an inaccessible embedded frame requires its source or a readable preview in the chat.
+
+Checklists show the current checked, unchecked or mixed state. Nested lists retain their hierarchy, and blockquotes have a vertical rule beside their contents. For interactive examples, the PDF records the selected options, slider position, readable frame contents, and displayed result at export time. The controls are static on paper. Adjust them in ChatGPT before exporting. See `examples/rich-content.pdf` for a sample.
 
 ## Export the active conversation
 
@@ -100,7 +106,7 @@ PDF embeds DejaVu Sans, Serif and Mono; Word requests Arial, Times New Roman or 
 
 - **Equations:** PDF uses vector graphics for display formulas, fractions and radicals. Simple expressions stay inline, and complex inline formulas receive their own line. Word uses editable Office Math equations. Explicit math delimiters and formula-only LaTeX fences are recognized. Unsupported expressions retain their source with an “Unrendered equation” label. Ordinary programming examples stay as code.
 - **Images/media/files:** formatted PDF and Word include accessible image pixels in message order. Images are scaled proportionally, up to 1600 pixels on the longer side, and a source asset fetch is limited to 12 MB. If an asset is unreadable a labelled placeholder appears. Attachment file contents are not opened.
-- **Fonts:** PDFs support the bundled fonts' glyph coverage, including much Latin/Greek/Cyrillic and many math symbols. CJK, Devanagari, color emoji and other uncovered glyphs may be missing. A warning is added when the chosen PDF body font lacks characters. Word preserves the Unicode text and may substitute installed fonts; script shaping/rendering is reader-dependent. Some code/math symbols may have narrower monospace coverage.
+- **Fonts:** PDFs support the bundled fonts' glyph coverage, including much Latin/Greek/Cyrillic and many math symbols. The exporter selects bundled Noto fonts for Devanagari (including Nepali and Hindi), Chinese and Japanese characters, kana and Hangul when the body font lacks those glyphs. The fallback faces are regular weight. Color emoji, rare ideographs, and characters outside all bundled fonts can still be missing. A warning appears for uncovered characters. Word preserves the Unicode text and may substitute installed fonts; script shaping/rendering is reader-dependent. Some code/math symbols may have narrower monospace coverage.
 - **Tables:** standard tables remain tables. Merged cells are flattened with placeholders and an export note. Tables wider than eight columns are represented row-by-row to avoid horizontal clipping. Long rows may split across pages.
 - **Code.** The PDF uses rendered token styles, expands tabs to the displayed tab stops and preserves blank lines. Long lines wrap at the available panel width. Only code present in the page can be read.
 - **Pagination:** PDF headings are kept with following content where feasible; Word headings use keep-next. Long paragraphs, rows and code may span pages. This is not a pixel-for-pixel screenshot.
@@ -147,6 +153,9 @@ chatgpt-conversation-exporter/
       normalize.js          Safe DOM-to-document model parser
       history.js            Bounded visible history scrolling and ordered collection
       pdf-style.js          Read rendered alignment, inline styles and code token styles
+      diagram.js              Preserve safe SVG shapes, styles and labels
+      render-diagrams.js      Render supported Mermaid source in the offscreen document
+      unicode.js              Select bundled fonts for multilingual PDF text
       equations.js          Convert supported TeX and MathML for PDF and Word
       media.js              Resolve displayed images for embedding
       media-fetch.js        Validate and retrieve permitted image assets
@@ -212,6 +221,7 @@ This separate script exercises actual extension loading and downloads against a 
 ```bash
 python -m pip install pypdf PyMuPDF Pillow numpy
 python tests/validate_pdf_styles.py
+python tests/validate_rich_pdf.py
 python tests/validate_documents.py
 python tests/validate_images.py
 ```
@@ -238,9 +248,9 @@ The PDF style check verifies actual font faces, drawn decorations, syntax colors
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
 
-**Bold or strikethrough is missing.** Check that the popup shows **v1.2.1**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
+**Bold or strikethrough is missing.** Check that the popup shows **v1.3.0**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
 
-**Equation looks like LaTeX:** check the popup shows v1.2.1 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
+**Equation looks like LaTeX:** check the popup shows v1.3.0 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
 **Boxes/missing glyphs in PDF:** export Word and use a font installed for that language. The font coverage limitation is explicit above.
 

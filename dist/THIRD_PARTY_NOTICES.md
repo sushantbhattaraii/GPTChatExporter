@@ -1,14 +1,57 @@
 # Third-party notices
 
-Production dependency inventory from the lockfile. Some dependencies are used by upstream Node variants rather than the browser bundle. Original available license files are retained in THIRD_PARTY_LICENSES. DejaVu fonts retain their license in assets/fonts/LICENSE.txt and dist/FONT_LICENSE.txt. The original project code uses the root MIT license.
+Production dependency inventory from the lockfile. Some dependencies are used by upstream Node variants rather than the browser bundle. Original available license files are retained in THIRD_PARTY_LICENSES. DejaVu fonts retain their license in assets/fonts/LICENSE.txt and dist/FONT_LICENSE.txt. The Noto Sans SC and Devanagari faces and the Hangul subset of Noto Sans KR use SIL OFL 1.1. Their original font notices are in THIRD_PARTY_LICENSES. The original project code uses the root MIT license.
 
 | Package | Version | License | Retained files |
 |---|---|---|---|
+| @antfu/install-pkg | 2.1.0 | MIT | LICENSE |
+| @braintree/sanitize-url | 7.1.2 | MIT | LICENSE |
+| @chevrotain/cst-dts-gen | 11.0.3 | Apache-2.0 | LICENSE.txt |
+| @chevrotain/gast | 11.0.3 | Apache-2.0 | LICENSE.txt |
+| @chevrotain/regexp-to-ast | 11.0.3 | Apache-2.0 | LICENSE.txt |
+| @chevrotain/types | 11.0.3 | Apache-2.0 | LICENSE.txt |
+| @chevrotain/utils | 11.0.3 | Apache-2.0 | LICENSE.txt |
 | @foliojs-fork/fontkit | 1.9.2 | MIT | See bundled license comments |
 | @foliojs-fork/linebreak | 1.1.2 | MIT | LICENSE |
 | @foliojs-fork/pdfkit | 0.15.3 | MIT | LICENSE |
 | @foliojs-fork/restructure | 2.0.2 | MIT | LICENSE |
+| @iconify/types | 2.0.0 | MIT | license.txt |
+| @iconify/utils | 3.1.7 | MIT | license.txt |
+| @mermaid-js/parser | 0.6.3 | MIT | LICENSE |
+| @types/d3 | 7.4.3 | MIT | LICENSE |
+| @types/d3-array | 3.2.2 | MIT | LICENSE |
+| @types/d3-axis | 3.0.6 | MIT | LICENSE |
+| @types/d3-brush | 3.0.6 | MIT | LICENSE |
+| @types/d3-chord | 3.0.6 | MIT | LICENSE |
+| @types/d3-color | 3.1.3 | MIT | LICENSE |
+| @types/d3-contour | 3.0.6 | MIT | LICENSE |
+| @types/d3-delaunay | 6.0.4 | MIT | LICENSE |
+| @types/d3-dispatch | 3.0.7 | MIT | LICENSE |
+| @types/d3-drag | 3.0.7 | MIT | LICENSE |
+| @types/d3-dsv | 3.0.7 | MIT | LICENSE |
+| @types/d3-ease | 3.0.2 | MIT | LICENSE |
+| @types/d3-fetch | 3.0.7 | MIT | LICENSE |
+| @types/d3-force | 3.0.10 | MIT | LICENSE |
+| @types/d3-format | 3.0.4 | MIT | LICENSE |
+| @types/d3-geo | 3.1.1 | MIT | LICENSE |
+| @types/d3-hierarchy | 3.1.7 | MIT | LICENSE |
+| @types/d3-interpolate | 3.0.4 | MIT | LICENSE |
+| @types/d3-path | 3.1.1 | MIT | LICENSE |
+| @types/d3-polygon | 3.0.2 | MIT | LICENSE |
+| @types/d3-quadtree | 3.0.6 | MIT | LICENSE |
+| @types/d3-random | 3.0.4 | MIT | LICENSE |
+| @types/d3-scale | 4.0.9 | MIT | LICENSE |
+| @types/d3-scale-chromatic | 3.1.0 | MIT | LICENSE |
+| @types/d3-selection | 3.0.12 | MIT | LICENSE |
+| @types/d3-shape | 3.2.0 | MIT | LICENSE |
+| @types/d3-time | 3.0.4 | MIT | LICENSE |
+| @types/d3-time-format | 4.0.3 | MIT | LICENSE |
+| @types/d3-timer | 3.0.2 | MIT | LICENSE |
+| @types/d3-transition | 3.0.9 | MIT | LICENSE |
+| @types/d3-zoom | 3.0.9 | MIT | LICENSE |
+| @types/geojson | 7946.0.16 | MIT | LICENSE |
 | @types/node | 26.6.6 | MIT | LICENSE |
+| @types/trusted-types | 2.0.7 | MIT | LICENSE |
 | @xmldom/xmldom | 0.9.12 | MIT | LICENSE |
 | base64-js | 1.3.1 | MIT | LICENSE |
 | brotli | 1.3.3 | MIT | See bundled license comments |
@@ -16,14 +59,62 @@ Production dependency inventory from the lockfile. Some dependencies are used by
 | call-bind | 1.0.9 | MIT | LICENSE |
 | call-bind-apply-helpers | 1.0.2 | MIT | LICENSE |
 | call-bound | 1.0.4 | MIT | LICENSE |
+| chevrotain | 11.0.3 | Apache-2.0 | LICENSE.txt |
+| chevrotain-allstar | 0.3.1 | MIT | LICENSE |
 | clone | 1.0.4 | MIT | LICENSE |
 | commander | 13.1.0 | MIT | LICENSE |
+| commander | 7.2.0 | MIT | LICENSE |
+| commander | 8.3.0 | MIT | LICENSE |
+| cose-base | 1.0.3 | MIT | LICENSE |
+| cose-base | 2.2.0 | MIT | LICENSE |
 | crypto-js | 4.2.0 | MIT | LICENSE |
+| cytoscape | 3.34.4 | MIT | LICENSE |
+| cytoscape-cose-bilkent | 4.1.0 | MIT | LICENSE |
+| cytoscape-fcose | 2.2.0 | MIT | LICENSE |
+| d3 | 7.9.2 | ISC | LICENSE |
+| d3-array | 2.12.1 | BSD-3-Clause | LICENSE |
+| d3-array | 3.2.5 | ISC | LICENSE |
+| d3-axis | 3.0.1 | ISC | LICENSE |
+| d3-brush | 3.0.1 | ISC | LICENSE |
+| d3-chord | 3.0.2 | ISC | LICENSE |
+| d3-color | 3.1.1 | ISC | LICENSE |
+| d3-contour | 4.0.3 | ISC | LICENSE |
+| d3-delaunay | 6.0.6 | ISC | LICENSE |
+| d3-dispatch | 3.0.2 | ISC | LICENSE |
+| d3-drag | 3.0.1 | ISC | LICENSE |
+| d3-dsv | 3.0.2 | ISC | LICENSE |
+| d3-ease | 3.0.2 | BSD-3-Clause | LICENSE |
+| d3-fetch | 3.0.2 | ISC | LICENSE |
+| d3-force | 3.0.1 | ISC | LICENSE |
+| d3-format | 3.1.3 | ISC | LICENSE |
+| d3-geo | 3.1.2 | ISC | LICENSE |
+| d3-hierarchy | 3.1.3 | ISC | LICENSE |
+| d3-interpolate | 3.0.2 | ISC | LICENSE |
+| d3-path | 1.0.9 | BSD-3-Clause | LICENSE |
+| d3-path | 3.1.1 | ISC | LICENSE |
+| d3-polygon | 3.0.2 | ISC | LICENSE |
+| d3-quadtree | 3.0.2 | ISC | LICENSE |
+| d3-random | 3.0.2 | ISC | LICENSE |
+| d3-sankey | 0.12.3 | BSD-3-Clause | LICENSE |
+| d3-scale | 4.0.3 | ISC | LICENSE |
+| d3-scale-chromatic | 3.1.1 | ISC | LICENSE |
+| d3-selection | 3.0.1 | ISC | LICENSE |
+| d3-shape | 1.3.7 | BSD-3-Clause | LICENSE |
+| d3-shape | 3.2.1 | ISC | LICENSE |
+| d3-time | 3.1.1 | ISC | LICENSE |
+| d3-time-format | 4.1.1 | ISC | LICENSE |
+| d3-timer | 3.0.2 | ISC | LICENSE |
+| d3-transition | 3.0.2 | ISC | LICENSE |
+| d3-zoom | 3.0.1 | ISC | LICENSE |
+| dagre-d3-es | 7.0.13 | MIT | LICENSE.md |
+| dayjs | 1.11.23 | MIT | LICENSE |
 | deep-equal | 1.1.2 | MIT | LICENSE |
 | define-data-property | 1.1.4 | MIT | LICENSE |
 | define-properties | 1.2.1 | MIT | LICENSE |
+| delaunator | 5.1.0 | ISC | LICENSE |
 | dfa | 1.2.0 | MIT | See bundled license comments |
 | docx | 9.15.2 | MIT | LICENSE |
+| dompurify | 3.4.17 | (MPL-2.0 OR Apache-2.0) | LICENSE |
 | dunder-proto | 1.0.1 | MIT | LICENSE |
 | es-define-property | 1.0.1 | MIT | LICENSE |
 | es-errors | 1.3.0 | MIT | LICENSE |
@@ -35,40 +126,70 @@ Production dependency inventory from the lockfile. Some dependencies are used by
 | get-intrinsic | 1.3.0 | MIT | LICENSE |
 | get-proto | 1.0.1 | MIT | LICENSE |
 | gopd | 1.2.0 | MIT | LICENSE |
+| hachure-fill | 0.5.2 | MIT | LICENSE |
 | has-property-descriptors | 1.0.2 | MIT | LICENSE |
 | has-symbols | 1.1.0 | MIT | LICENSE |
 | has-tostringtag | 1.0.2 | MIT | LICENSE |
 | hasown | 2.0.4 | MIT | LICENSE |
 | iconv-lite | 0.6.3 | MIT | LICENSE |
+| import-meta-resolve | 4.2.0 | MIT | license |
+| internmap | 1.0.1 | ISC | LICENSE |
+| internmap | 2.0.3 | ISC | LICENSE |
 | is-arguments | 1.2.0 | MIT | LICENSE |
 | is-date-object | 1.1.0 | MIT | LICENSE |
 | is-regex | 1.2.1 | MIT | LICENSE |
 | jpeg-exif | 1.1.4 | MIT | LICENSE.txt |
+| katex | 0.16.47 | MIT | LICENSE |
+| khroma | 2.1.0 | "See package" | license |
+| langium | 3.3.1 | MIT | LICENSE |
+| layout-base | 1.0.2 | MIT | LICENSE |
+| layout-base | 2.0.1 | MIT | LICENSE |
+| lodash-es | 4.17.21 | MIT | LICENSE |
+| lodash-es | 4.17.21 | MIT | LICENSE |
+| lodash-es | 4.17.21 | MIT | LICENSE |
+| lodash-es | 4.18.1 | MIT | LICENSE |
+| marked | 16.4.2 | MIT | LICENSE.md |
 | math-intrinsics | 1.1.0 | MIT | LICENSE |
 | mathjax-full | 3.2.2 | Apache-2.0 | LICENSE |
 | mathml2omml | 0.5.0 | LGPL-3.0-or-later | LICENSE |
+| mermaid | 11.12.2 | MIT | LICENSE |
 | mhchemparser | 4.2.1 | Apache-2.0 | LICENSE.txt |
 | mj-context-menu | 0.6.1 | Apache-2.0 | See bundled license comments |
 | nanoid | 6.0.2 | MIT | LICENSE |
 | object-is | 1.1.6 | MIT | LICENSE |
 | object-keys | 1.1.1 | MIT | LICENSE |
+| package-manager-detector | 1.9.0 | MIT | LICENSE |
 | pako | 0.2.9 | MIT | LICENSE |
 | pako | 1.0.11 | (MIT AND Zlib) | LICENSE |
+| path-data-parser | 0.1.0 | MIT | LICENSE |
 | pdfmake | 0.2.20 | MIT | LICENSE |
 | png-js | 1.1.0 | "See package" | LICENSE |
+| points-on-curve | 0.2.0 | MIT | LICENSE |
+| points-on-path | 0.2.1 | MIT | LICENSE |
 | regexp.prototype.flags | 1.5.4 | MIT | LICENSE |
+| robust-predicates | 3.0.3 | Unlicense | LICENSE |
+| roughjs | 4.6.6 | MIT | LICENSE |
+| rw | 1.3.3 | BSD-3-Clause | LICENSE |
 | safer-buffer | 2.1.2 | MIT | LICENSE |
 | sax | 1.6.1 | BlueOak-1.0.0 | LICENSE.md |
 | set-function-length | 1.2.2 | MIT | LICENSE |
 | set-function-name | 2.0.2 | MIT | LICENSE |
 | speech-rule-engine | 4.1.5 | Apache-2.0 | LICENSE |
+| stylis | 4.4.0 | MIT | LICENSE |
 | tiny-inflate | 1.0.3 | MIT | LICENSE |
+| tinyexec | 1.3.1 | MIT | LICENSE |
+| ts-dedent | 2.3.0 | MIT | LICENSE |
 | undici-types | 8.9.0 | MIT | LICENSE |
 | unicode-properties | 1.4.1 | MIT | LICENSE |
 | unicode-trie | 2.0.0 | MIT | LICENSE |
+| uuid | 11.1.1 | MIT | LICENSE.md |
+| vscode-jsonrpc | 8.2.0 | MIT | License.txt |
+| vscode-languageserver | 9.0.1 | MIT | License.txt |
+| vscode-languageserver-protocol | 3.17.5 | MIT | License.txt |
+| vscode-languageserver-textdocument | 1.0.16 | MIT | License.txt |
+| vscode-languageserver-types | 3.17.5 | MIT | License.txt |
+| vscode-uri | 3.0.8 | MIT | LICENSE.md |
 | wicked-good-xpath | 1.3.0 | MIT | LICENSE |
 | xmldoc | 2.0.3 | MIT | LICENSE |
 
 pdfmake's browser bundle contains upstream components and retained legal comments in dist/offscreen.js.LEGAL.txt. During bundling, two legacy dynamic global-object fallbacks in pdfmake are replaced with globalThis for Manifest V3. No remote code is introduced.
-
-The bundled mathml2omml 0.5.0 converter is LGPL-3.0-or-later. Its original source is included in THIRD_PARTY_LICENSES/mathml2omml-source-map.json under sourcesContent. To relink it, replace the package in node_modules and run npm run build. Upstream: https://github.com/fiduswriter/mathml2omml.

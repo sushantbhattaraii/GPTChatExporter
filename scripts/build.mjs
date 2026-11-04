@@ -3,6 +3,7 @@ import { cp, mkdir, rm, readFile, writeFile, readdir } from "node:fs/promises";
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist", { recursive: true });
 await cp("public", "dist", { recursive: true });
+await cp("node_modules/mermaid/dist/mermaid.min.js", "dist/mermaid.min.js");
 const fontData = {};
 for (const file of await readdir("assets/fonts"))
   if (file.endsWith(".ttf"))

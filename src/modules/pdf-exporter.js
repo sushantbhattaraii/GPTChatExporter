@@ -1,6 +1,7 @@
 import pdfMake from "pdfmake/build/pdfmake.js";
 import fonts from "../font-data.json" with { type: "json" };
-import coverage from "../font-coverage.json" with { type: "json" };
+import { fontFor, selectFonts } from "./unicode.js";
+import { prepareDiagrams } from "./render-diagrams.js";
 import { prepareDocument, tableGrid } from "./document.js";
 import { renderEquation } from "./equations.js";
 import { plainText } from "./normalize.js";
@@ -19,28 +20,43 @@ for (const [name, base] of [
     bolditalics: `${base}-Bold${italic}.ttf`,
   };
 }
+for (const [key, file] of Object.entries({
+  deva: "NotoSansDevanagari_400Regular.ttf",
+  cjk: "NotoSansSC_400Regular.ttf",
+  hangul: "HangulFallback.ttf",
+})) {
+  pdfMake.fonts[key] = {
+    normal: file,
+    bold: file,
+    italics: file,
+    bolditalics: file,
+  };
+}
 const codeWrap = (s) =>
   s.replace(/[^\s]{24,}/gu, (word) =>
     Array.from(word)
       .map((x, i) => (i && i % 20 === 0 ? "\u200b" + x : x))
       .join(""),
   );
-function runs(rs) {
-  return rs.map((r) => {
+function runs(rs, s) {
+  return rs.flatMap((r) => {
     const lines = new Set([r.pdfStyle?.decoration].flat().filter(Boolean));
     if (r.strike) lines.add("lineThrough");
     if (r.underline) lines.add("underline");
-    return {
-      text: r.code ? codeWrap(r.text) : r.text,
-      bold: r.bold,
-      italics: r.italic,
-      link: r.link,
-      font: r.code ? "mono" : undefined,
-      color: r.color || (r.link ? "#175d9d" : undefined),
-      background: r.background || (r.code ? "#f0f2f5" : undefined),
-      ...r.pdfStyle,
-      decoration: lines.size ? [...lines] : undefined,
-    };
+    return selectFonts(
+      {
+        text: r.code ? codeWrap(r.text) : r.text,
+        bold: r.bold,
+        italics: r.italic,
+        link: r.link,
+        font: r.code ? "mono" : undefined,
+        color: r.color || (r.link ? "#175d9d" : undefined),
+        background: r.background || (r.code ? "#f0f2f5" : undefined),
+        ...r.pdfStyle,
+        decoration: lines.size ? [...lines] : undefined,
+      },
+      r.code ? "mono" : s.font,
+    );
   });
 }
 const nonempty = (value) => (value.length ? value : [{ text: " " }]);
@@ -76,7 +92,7 @@ function paragraph(b, s) {
   let pending = [];
   const flush = () => {
     if (pending.length)
-      out.push({ text: runs(pending), ...style, alignment: b.alignment });
+      out.push({ text: runs(pending, s), ...style, alignment: b.alignment });
     pending = [];
   };
   for (const r of b.runs) {
@@ -152,7 +168,9 @@ function codeBlock(block, s) {
             {
               fillColor,
               stack: rows.map((line) => ({
-                text: line.length ? line : " ",
+                text: line.length
+                  ? line.flatMap((run) => selectFonts(run, "mono"))
+                  : " ",
                 font: "mono",
                 fontSize: size,
                 preserveLeadingSpaces: true,
@@ -201,6 +219,56 @@ function convert(bs, s) {
         margin: [0, 4, 0, 8],
       };
     }
+    if (b.type === "slider") {
+      const width = Math.min(160, Math.max(8, s.equationWidth - 8)),
+        x = 4 + b.fraction * width;
+      return [
+        { text: selectFonts({ text: b.text }, s.font), margin: [0, 3, 0, 1] },
+        {
+          canvas: [
+            {
+              type: "line",
+              x1: 4,
+              y1: 5,
+              x2: width + 4,
+              y2: 5,
+              lineWidth: 2,
+              lineColor: "#b0bbb7",
+            },
+            {
+              type: "line",
+              x1: 4,
+              y1: 5,
+              x2: x,
+              y2: 5,
+              lineWidth: 2,
+              lineColor: "#31634c",
+            },
+            { type: "ellipse", x, y: 5, r1: 4, r2: 4, color: "#31634c" },
+          ],
+          margin: [0, 0, 0, 6],
+        },
+      ];
+    }
+    if (b.type === "diagram") {
+      if (!b.svg)
+        return [
+          { text: "Diagram source (preview unavailable)", italics: true },
+          ...codeBlock({ text: b.text, language: "Mermaid" }, s),
+        ];
+      const scale = Math.min(
+        s.equationWidth / b.width,
+        ((s.orientation === "landscape" ? 595 : 842) - 2 * s.margin - 40) /
+          b.height,
+        1,
+      );
+      return {
+        svg: b.svg,
+        width: b.width * scale,
+        height: b.height * scale,
+        margin: [0, 4, 0, 8],
+      };
+    }
     if (b.type === "heading" || b.type === "paragraph") return paragraph(b, s);
     if (b.type === "math")
       return {
@@ -208,16 +276,28 @@ function convert(bs, s) {
         alignment: b.alignment,
       };
     if (b.type === "code") return codeBlock(b, s);
-    if (b.type === "list")
+    if (b.type === "list") {
+      let counter = b.start;
       return {
-        [b.ordered ? "ol" : "ul"]: b.items.map((item) => ({
-          stack: nonempty(
-            convert(item, { ...s, equationWidth: s.equationWidth - 20 }),
-          ),
-        })),
+        [b.ordered ? "ol" : "ul"]: b.items.map((item, i) => {
+          const current = b.counters?.[i] ?? counter;
+          counter = current + (b.reversed ? -1 : 1);
+          return {
+            ...(item[0]?.runs?.[0]?.control === "check"
+              ? { listType: "none" }
+              : {}),
+            ...(b.ordered ? { counter: current } : {}),
+            stack: nonempty(
+              convert(item, { ...s, equationWidth: s.equationWidth - 20 }),
+            ),
+          };
+        }),
         start: b.start,
+        reversed: b.reversed,
+        type: b.listType || (b.ordered ? "decimal" : "disc"),
         margin: [0, 0, 0, 8],
       };
+    }
     if (b.type === "table") {
       const grid = tableGrid(b.rows),
         n = grid[0]?.length || 0;
@@ -267,10 +347,30 @@ function convert(bs, s) {
     }
     if (b.type === "quote")
       return {
-        stack: convert(b.blocks, { ...s, equationWidth: s.equationWidth - 16 }),
-        margin: [16, 4, 0, 10],
-        color: "#526174",
-        italics: true,
+        table: {
+          widths: ["*"],
+          body: [
+            [
+              {
+                stack: nonempty(
+                  convert(b.blocks, {
+                    ...s,
+                    equationWidth: s.equationWidth - 16,
+                  }),
+                ),
+                border: [true, false, false, false],
+              },
+            ],
+          ],
+        },
+        layout: {
+          vLineWidth: () => 2,
+          vLineColor: () => "#71867d",
+          hLineWidth: () => 0,
+          paddingLeft: () => 9,
+          paddingRight: () => 2,
+        },
+        margin: [2, 4, 0, 8],
       };
     if (b.type === "rule")
       return {
@@ -293,15 +393,14 @@ function convert(bs, s) {
 export function pdfDefinition(input, s) {
   const doc = prepareDocument(input, s),
     content = [];
-  const chars = new Set([...coverage[s.font]]);
+
   const unsupported = new Set();
   for (const m of doc.messages)
     for (const c of plainText(m.blocks))
-      if (c.codePointAt(0) > 32 && !chars.has(c.codePointAt(0)))
-        unsupported.add(c);
+      if (c.codePointAt(0) > 32 && !fontFor(c, s.font)) unsupported.add(c);
   if (unsupported.size)
     doc.warnings.push(
-      "Some characters are outside the bundled PDF font coverage. Use Word for scripts or emoji missing in this PDF.",
+      "Some characters are outside the bundled PDF font coverage. Some glyphs may need a different font in Word.",
     );
   if (s.includeTitle)
     content.push({ text: doc.title || "ChatGPT Conversation", style: "title" });
@@ -380,7 +479,8 @@ export function pdfDefinition(input, s) {
       Boolean(node.headlineLevel && following.length === 0),
   };
 }
-export function generatePDF(doc, s) {
+export async function generatePDF(doc, s) {
+  await prepareDiagrams(doc);
   return new Promise((resolve, reject) => {
     try {
       const stream = pdfMake.createPdf(pdfDefinition(doc, s)).getStream();

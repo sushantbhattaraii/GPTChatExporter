@@ -141,7 +141,7 @@ export async function embedImages(messages) {
 // Move images out of inline runs so both document engines preserve their original order.
 export function liftImages(bs) {
   return bs.flatMap((b) => {
-    if (b.runs?.some((r) => r.image)) {
+    if (b.runs?.some((r) => r.image || r.diagram || r.widget)) {
       const out = [];
       let runs = [];
       const flush = () => {
@@ -149,7 +149,10 @@ export function liftImages(bs) {
         runs = [];
       };
       for (const run of b.runs) {
-        if (run.image) {
+        if (run.diagram || run.widget) {
+          flush();
+          out.push(run.diagram || run.widget);
+        } else if (run.image) {
           flush();
           out.push({ type: "image", image: run.image, text: run.text });
         } else runs.push(run);

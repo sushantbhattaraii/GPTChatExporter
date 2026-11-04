@@ -2,9 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:" />
     <title>Local document generator</title>
   </head>
   <body>
+    <script src="mermaid.min.js"></script>
     <script src="offscreen.js"></script>
   </body>
 </html>

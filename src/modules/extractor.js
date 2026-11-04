@@ -519,9 +519,7 @@ export function extractMessage(el, order) {
     timestamp: time || null,
     hasMedia: rich,
     hasInteractive: roots.some(
-      (n) =>
-        n.querySelector("canvas,iframe,video,audio") ||
-        n.matches("canvas,iframe,video,audio"),
+      (n) => n.querySelector("video,audio") || n.matches("video,audio"),
     ),
   };
 }

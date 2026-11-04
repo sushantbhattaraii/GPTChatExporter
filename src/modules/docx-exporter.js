@@ -63,6 +63,8 @@ export function wordDocument(input, s) {
   const nonempty = (value) => (value.length ? value : [p([])]);
   function convert(bs, depth = 0, quoted = false) {
     return bs.flatMap((b) => {
+      if (b.type === "diagram" || b.type === "slider")
+        return p([new TextRun(b.source || b.text)]);
       if (b.type === "image") {
         const im = b.image;
         if (!im.data)

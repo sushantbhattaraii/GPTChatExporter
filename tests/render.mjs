@@ -67,6 +67,7 @@ await context.route("https://exporter.test/**", async (route) => {
     "popup.js",
     "offscreen.html",
     "offscreen.js",
+    "mermaid.min.js",
     "content.js",
     "options.html",
     "options.js",
@@ -216,7 +217,7 @@ try {
       await page.getByRole("dialog").innerText(),
       new RegExp(`Collected ${expected} messages`),
     );
-    await page.getByRole("checkbox").check();
+    await page.getByRole("dialog").getByRole("checkbox").check();
     await page
       .getByRole("button", {
         name: `Download ${format === "pdf" ? "PDF" : "Word"}`,
@@ -708,6 +709,57 @@ print(greet("Ada"))</code></pre>
   );
   results.push(
     "Pair and conversation PDF menus preserve computed syntax styling, tabs, blank lines and paragraph alignments.",
+  );
+  await page.evaluate(() => {
+    document.title = "Rich content export";
+    document.querySelector(
+      '[data-chatgpt-search-unit-key$=":user"] p',
+    ).textContent =
+      "Show a flowchart, a checklist, multilingual text, and a Fibonacci control set to eight terms.";
+    const answer = document.querySelector(
+      '[data-chatgpt-search-unit-key$=":assistant"]',
+    );
+    answer.innerHTML = `<h2>Flowchart</h2>
+      <pre><code class="language-mermaid">flowchart LR
+A[Start] --> B{Ready?}
+B -->|Yes| C[Process]
+B -->|No| D[Retry]</code></pre>
+      <button aria-label="Enlarge diagram"><svg aria-hidden="true" viewBox="0 0 180 44" width="180" height="44" role="img" aria-label="Rendered diagram"><rect x="1" y="1" width="177" height="40" rx="6" fill="#f6d772"/>
+        <foreignObject x="5" y="3" width="165" height="34"><div xmlns="http://www.w3.org/1999/xhtml">Existing diagram label</div></foreignObject></svg></button>
+      <blockquote><p><strong>Theorem.</strong> A connected graph contains a spanning tree.</p><p>Delete cycle edges.</p></blockquote>
+      <ol start="4"><li>Fourth item<ul style="list-style-type:circle"><li>Nested circle</li></ul></li><li>Fifth item</li></ol>
+      <h2>Checklist</h2><ul><li><input type="checkbox" checked> Read the paper</li><li><input type="checkbox"> Run experiments</li></ul>
+      <div role="checkbox" aria-checked="mixed">Review notes</div>
+      <h2>Unicode examples</h2><p>Français · नेपाली · हिन्दी · 中文 · 日本語 · 한국어 · العربية</p>
+      <h2>Fibonacci generator</h2><label>Number of terms <input type="range" min="1" max="15" value="3"></label>
+      <p>0, 1, 1, 2, 3, 5, 8, 13</p><select aria-label="Display mode"><option>Table</option><option selected>Sequence</option></select>
+      <iframe title="Readable widget" srcdoc="&lt;p&gt;Inner widget output&lt;/p&gt;"></iframe>
+      <iframe title="Isolated widget" sandbox srcdoc="&lt;p&gt;private frame contents&lt;/p&gt;"></iframe>`;
+    answer.querySelector("input[type=range]").value = "8";
+  });
+  await page.waitForFunction(() =>
+    document
+      .querySelector("iframe")
+      ?.contentDocument?.body?.textContent.includes("Inner widget output"),
+  );
+  for (const scope of ["pair", "chat"]) {
+    if (scope === "pair") await imagePair("PDF");
+    else await collect("pdf", 2);
+    const bs = requests.at(-1).document.messages[1].blocks;
+    assert(
+      bs.some((b) => b.type === "diagram" && b.source?.includes("flowchart")),
+    );
+    assert(bs.some((b) => b.type === "diagram" && b.svg?.includes("Existing")));
+    assert(bs.some((b) => b.type === "slider" && b.text.includes("8 (1–15)")));
+    assert(JSON.stringify(bs).includes("Inner widget output"));
+    assert(!JSON.stringify(bs).includes("private frame contents"));
+    await copyFile(
+      "test-results/" + exported.at(-1),
+      "test-results/rich-" + scope + ".pdf",
+    );
+  }
+  results.push(
+    "Pair and full-chat PDFs export Mermaid, rendered SVG, checklist states, quotes, nested lists, multilingual text and current widget state.",
   );
   assert.deepEqual(errors, []);
   await writeFile(
