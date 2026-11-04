@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Conversation Exporter</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body class="popup">
+    <header>
+      <img src="icons/48.png" width="40" height="40" alt="" />
+      <div>
+        <h1>Conversation Exporter</h1>
+        <span class="muted">ChatGPT · Local & private</span>
+      </div>
+    </header>
+    <p id="status" role="status">Checking the current tab…</p>
+    <div class="stack">
+      <button id="pdf" disabled>Export conversation as PDF</button
+      ><button id="docx" disabled class="secondary">
+        Export conversation as Word
+      </button>
+    </div>
+    <p class="muted">
+      For one question and answer, use <strong>Export this Q&A</strong> below
+      the response. Full exports scan the page, then ask you to review the
+      collected range.
+    </p>
+    <footer>
+      <button id="settings" class="link">Document settings</button
+      ><span>v1.0.0</span>
+    </footer>
+    <script src="popup.js"></script>
+  </body>
+</html>

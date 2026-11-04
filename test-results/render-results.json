@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-03T22:08:37.712Z",
+  "browser": "141.0.7390.37",
+  "environment": "Standalone Chromium renderer with synthetic DOM and mocked chrome.runtime/storage; no real Chrome download API",
+  "results": [
+    "Middle Q&A buttons invoke real bundled PDF/DOCX generators with only Q2/A2.",
+    "Full history scan, review dialog, chronological PDF and DOCX generation.",
+    "Edited prompt/regenerated answer stays paired; observer does not duplicate buttons.",
+    "Streaming disables the last response export until completion.",
+    "Virtualized 40-turn history recovered through ordinary scrolling without omissions/duplicates.",
+    "Settings interface operates under shipped CSP with mock Chrome Storage.",
+    "Popup detects ChatGPT, dispatches export, and disables export on other sites (mock tabs API)."
+  ],
+  "errors": [],
+  "files": [
+    "renderer-1.pdf",
+    "renderer-2.docx",
+    "renderer-3.pdf",
+    "renderer-4.docx",
+    "renderer-5.docx",
+    "renderer-6.docx"
+  ]
+}

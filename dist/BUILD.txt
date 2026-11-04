@@ -1,0 +1,2 @@
+ChatGPT Conversation Exporter 1.0.0
+Built from included source. See ../README.md and ../THIRD_PARTY_NOTICES.md.

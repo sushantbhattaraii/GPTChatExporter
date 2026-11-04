@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Exporter settings</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body class="options">
+    <header>
+      <img src="icons/48.png" width="48" height="48" alt="" />
+      <div>
+        <h1>Document settings</h1>
+        <span class="muted">ChatGPT Conversation Exporter · v1.0.0</span>
+      </div>
+    </header>
+    <form id="settings">
+      <section class="card">
+        <h2>Appearance</h2>
+        <div class="grid">
+          <label class="field"
+            >Font family<select name="font">
+              <option value="sans">Sans serif (Arial / DejaVu Sans)</option>
+              <option value="serif">Serif (Times / DejaVu Serif)</option>
+              <option value="mono">
+                Monospace (Courier New / DejaVu Mono)
+              </option>
+            </select></label
+          ><label class="field"
+            >Body size (points)<input
+              name="fontSize"
+              type="number"
+              min="8"
+              max="18"
+              step="1"
+              required /></label
+          ><label class="field"
+            >A4 page orientation<select name="orientation">
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
+            </select></label
+          ><label class="field"
+            >Margins (points; 72 = 1 inch)<input
+              name="margin"
+              type="number"
+              min="24"
+              max="90"
+              step="1"
+              required
+          /></label>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Content & downloads</h2>
+        <label class="check"
+          ><input name="includeTitle" type="checkbox" />Include conversation
+          title</label
+        ><label class="check"
+          ><input name="includeTimestamps" type="checkbox" />Include export time
+          and available message timestamps</label
+        ><label class="check"
+          ><input name="includeUsers" type="checkbox" />Include user
+          questions</label
+        ><label class="check"
+          ><input name="includeCode" type="checkbox" />Include code
+          blocks</label
+        ><label class="check"
+          ><input name="saveAs" type="checkbox" />Ask where to save each
+          download</label
+        >
+        <p class="muted">
+          Message timestamps are included only when the page exposes them;
+          missing timestamps are never invented. Equations are exported as LaTeX
+          text. Images and interactive content use text descriptions.
+        </p>
+      </section>
+      <div class="actions">
+        <button type="submit">Save settings</button
+        ><button type="button" id="reset" class="secondary">
+          Restore defaults
+        </button>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </form>
+    <p class="muted">
+      Settings stay on this device. Conversation content is processed in memory
+      and is never sent to an external server.
+    </p>
+    <script src="options.js"></script>
+  </body>
+</html>

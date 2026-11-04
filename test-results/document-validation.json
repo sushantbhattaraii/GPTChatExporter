@@ -1,0 +1,82 @@
+[
+  {
+    "file": "conversation.pdf",
+    "pages": 2,
+    "bytes": 38670,
+    "valid": true
+  },
+  {
+    "file": "long.pdf",
+    "pages": 10,
+    "bytes": 66506,
+    "valid": true
+  },
+  {
+    "file": "pair.pdf",
+    "pages": 1,
+    "bytes": 36976,
+    "valid": true
+  },
+  {
+    "file": "renderer-1.pdf",
+    "pages": 1,
+    "bytes": 36976,
+    "valid": true
+  },
+  {
+    "file": "renderer-3.pdf",
+    "pages": 2,
+    "bytes": 38670,
+    "valid": true
+  },
+  {
+    "file": "settings.pdf",
+    "pages": 2,
+    "bytes": 35741,
+    "valid": true
+  },
+  {
+    "file": "conversation.docx",
+    "bytes": 11986,
+    "valid": true
+  },
+  {
+    "file": "long.docx",
+    "bytes": 12238,
+    "valid": true
+  },
+  {
+    "file": "pair.docx",
+    "bytes": 11879,
+    "valid": true
+  },
+  {
+    "file": "renderer-2.docx",
+    "bytes": 11881,
+    "valid": true
+  },
+  {
+    "file": "renderer-4.docx",
+    "bytes": 11983,
+    "valid": true
+  },
+  {
+    "file": "renderer-5.docx",
+    "bytes": 10566,
+    "valid": true
+  },
+  {
+    "file": "renderer-6.docx",
+    "bytes": 10881,
+    "valid": true
+  },
+  {
+    "file": "settings.docx",
+    "bytes": 11809,
+    "valid": true
+  },
+  {
+    "check": "PDF text fits page bounds",
+    "valid": true
+  }
+]
