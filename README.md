@@ -54,12 +54,12 @@ By default questions and code are included. If you disable them in settings, the
 
 The same PDF renderer serves one Q&A and a full conversation. Prompts sit on the left in off-white panels and replies on the right in light green. Each paragraph keeps its own alignment, including justified text. Selectable prose also carries rendered bold, italic, combined emphasis, underline, strikethrough, inline highlight and accent colors, including inside lists. Code uses the visible syntax-token colors and background, indentation, tab stops, line breaks and emphasis. Code is selectable text in a bundled monospaced font. A long line wraps at the panel edge, and page breaks follow the available paper size. See `examples/formatted-chat.pdf`.
 
-The floating bubble uses a **download arrow** to open the export menu and a **gear** to open settings. Hover over a format icon or focus it with the keyboard to see its label. The individual **Export this Q&A** control retains its text label.
+The floating bubble uses a **download arrow** to open the export menu and a **gear** to open settings. Hover over a format icon for its tooltip. Keyboard users can tab to the buttons, which have accessible names. The individual **Export this Q&A** control retains its text label.
 
 ## Export the active conversation
 
-1. Click **Export conversation** in the floating toolbar, or open the Chrome extension popup.
-2. Select PDF or Word.
+1. Click the **download arrow** near the upper-right corner of the chat, then choose the PDF or Word icon. Alternatively, open the Chrome extension popup and click **Export conversation as PDF** or **Export conversation as Word**.
+2. If the popup buttons are disabled, open the conversation you want and wait for the popup to detect its messages.
 3. Let the extension scroll through the conversation. Avoid navigating, editing, or scrolling while it collects. Press **Escape** to cancel.
 4. Review the collected message count and first/last previews. Compare them with the range you expect.
 5. Check the confirmation box and click **Download PDF** or **Download Word**.
@@ -80,7 +80,7 @@ The collector uses ordinary page scrolling only. It attempts to expose older tur
 
 ## Document settings
 
-Click **Settings** in the floating toolbar, or **Document settings** in the popup. Change values and click **Save settings**.
+Click the **gear icon** in the floating toolbar, or **Document settings** in the popup. Change values and click **Save settings**.
 
 | Setting | Available values / behavior |
 |---|---|
@@ -105,7 +105,7 @@ PDF embeds DejaVu Sans, Serif and Mono; Word requests Arial, Times New Roman or 
 - **Code.** The PDF uses rendered token styles, expands tabs to the displayed tab stops and preserves blank lines. Long lines wrap at the available panel width. Only code present in the page can be read.
 - **Pagination:** PDF headings are kept with following content where feasible; Word headings use keep-next. Long paragraphs, rows and code may span pages. This is not a pixel-for-pixel screenshot.
 - **Links/citations:** safe HTTP(S) and mailto hyperlinks are retained. Script/data links are discarded. Citation widgets without accessible anchors may degrade to visible text or be omitted if they are interface buttons.
-- **Completion:** unknown final-message completion markers fail closed. Responses without recognized role attributes are unsupported. Work-mode Pages, embedded documents and multi-pane content outside the conversation DOM are not exported as separate artifacts.
+- **Completion:** unknown final-message completion markers fail closed. The extension uses recognized role and turn markers, headings and generated-image cards to identify messages. An unfamiliar layout may prevent it from identifying the reply or its prompt. Work-mode Pages, embedded documents and multi-pane content outside the conversation DOM are not exported as separate artifacts.
 - **History:** indexed virtualization is supported; virtualization lacking stable ordered identifiers is refused. Empty attachment-only messages without readable text cause a clear error. Page/frontend changes can require an extractor update.
 - **Limits:** 20 MB serialized document model; 45-second history scan; one document generator at a time. This favors a recoverable error over freezing or silently truncating a large conversation. Blob URLs have a 30-minute maximum lifetime.
 - **Timestamps/title:** the document/page title is a fallback and can be generic. Missing original message times are not invented.
@@ -146,6 +146,10 @@ chatgpt-conversation-exporter/
       extractor.js          Semantic role/turn discovery, pairing and completion checks
       normalize.js          Safe DOM-to-document model parser
       history.js            Bounded visible history scrolling and ordered collection
+      pdf-style.js          Read rendered alignment, inline styles and code token styles
+      equations.js          Convert supported TeX and MathML for PDF and Word
+      media.js              Resolve displayed images for embedding
+      media-fetch.js        Validate and retrieve permitted image assets
       document.js           Settings filter, warnings and table normalization
       pdf-exporter.js       pdfmake layout and PDF stream generation
       docx-exporter.js      Native OOXML construction with docx
@@ -203,9 +207,22 @@ For a desktop environment that allows unpacked extensions:
 npm run test:browser
 ```
 
-This separate script exercises actual extension loading and downloads against a locally supplied synthetic ChatGPT-shaped page. It is not a signed-in ChatGPT test. Independent artifact validation is available through `python tests/validate_documents.py` with `pypdf` installed; PyMuPDF adds text-bound checks. See `TESTING.md` for executed versus pending checks and live validation steps.
+This separate script exercises actual extension loading and downloads against a locally supplied synthetic ChatGPT-shaped page. It is not a signed-in ChatGPT test. After the automated checks generate the sample files, install the Python validation dependencies and run the artifact checks from the project root:
+
+```bash
+python -m pip install pypdf PyMuPDF Pillow numpy
+python tests/validate_pdf_styles.py
+python tests/validate_documents.py
+python tests/validate_images.py
+```
+
+The PDF style check verifies actual font faces, drawn decorations, syntax colors, indentation, paragraph alignment and message-panel positions in both export modes. See `TESTING.md` for executed versus pending checks and live validation steps.
 
 ## Troubleshooting
+
+**“Manifest file is missing or unreadable.”** In **Load unpacked**, select the extracted `chatgpt-conversation-exporter/dist` folder. You should see `manifest.json` directly inside it.
+
+**Popup buttons stay disabled.** If the popup says it cannot reach the page script, allow site access for `chatgpt.com` in the extension’s Chrome **Details**, then refresh the chat. If it says no readable messages were detected, open a chat containing a finished answer and wait for the popup to show **Ready**.
 
 **No buttons:** confirm the extension is enabled, open `https://chatgpt.com/`, refresh the tab, and wait for the response to finish. Make sure you selected `dist` during installation. If the final response still has no button, completion evidence may be unknown after a frontend change; do not force an uncertain export. Read `TESTING.md` before updating selectors.
 
@@ -220,6 +237,8 @@ This separate script exercises actual extension loading and downloads against a 
 **“Extension context invalidated” / no response:** refresh the ChatGPT tab after reloading or updating the extension.
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
+
+**Bold or strikethrough is missing.** Check that the popup shows **v1.2.1**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
 
 **Equation looks like LaTeX:** check the popup shows v1.2.1 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
