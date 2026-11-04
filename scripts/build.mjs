@@ -13,6 +13,7 @@ for (const file of await readdir("assets/fonts"))
 await writeFile("src/font-data.json", JSON.stringify(fontData));
 await build({
   entryPoints: [
+    "src/code-editor.js",
     "src/content.js",
     "src/background.js",
     "src/offscreen.js",

@@ -37,3 +37,48 @@ test("list item styles reach direct text and nested spans without styling the ne
   assert.ok(both.underline && both.strike);
   assert.ok(!plain.underline && !plain.strike);
 });
+
+test("a code block's declared copy source contains its full text without consuming its neighbor's source", () => {
+  const text = "begin\n\nrepeat\nrepeat\nend\n";
+  const { document } = new JSDOM(
+    '<section><div class="code-block"><button>Copy</button><pre><code>repeat</code></pre></div><pre><code><span aria-hidden="true">neighbor</span></code></pre></section>',
+  ).window;
+  document.querySelector("button").setAttribute("data-clipboard-text", text);
+  const [first, second] = blocks(document.querySelector("section"));
+  assert.equal(first.text, text);
+  assert.equal(first.tokens.map((t) => t.text).join(""), text);
+  assert.equal(second.text, "neighbor");
+});
+
+test("unverifiable code gaps stop an export without blocking an export that excludes code", async () => {
+  const { withCompleteCode } = await import("../src/modules/code-source.js");
+  const { document } = new JSDOM(
+    '<section><div class="cm-content"><div class="cm-gap"></div><div class="cm-line">only visible line</div></div></section>',
+  ).window;
+  const read = () => blocks(document.querySelector("section"));
+  await assert.rejects(withCompleteCode(read), /full code/);
+  assert.equal(
+    (await withCompleteCode(read, { includeCode: false }))[0].text,
+    "only visible line",
+  );
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    withCompleteCode(read, { signal: controller.signal }),
+    /cancelled/,
+  );
+});
+
+test("a standalone multiline code element and a scoped read-only source retain all lines", () => {
+  const { document } = new JSDOM(
+    '<section><div style="overflow:auto"><code style="white-space:pre">first\n\nlast</code></div><div data-code-block><pre><code>middle</code></pre><textarea readonly hidden data-code-source></textarea></div></section>',
+  ).window;
+  document.querySelector("textarea").value = "one\nmiddle\nthree\n";
+  assert.deepEqual(
+    blocks(document.querySelector("section")).map((b) => [b.type, b.text]),
+    [
+      ["code", "first\n\nlast"],
+      ["code", "one\nmiddle\nthree\n"],
+    ],
+  );
+});

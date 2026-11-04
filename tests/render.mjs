@@ -11,6 +11,11 @@ import {
 } from "./career-fixture.mjs";
 import { standard, fixture, turn } from "./fixtures.mjs";
 import { universityFixture } from "./thumbnail-fixture.mjs";
+import {
+  installScrollFixture,
+  checkIsolatedReader,
+  scrollSources,
+} from "./scroll-code-fixture.mjs";
 const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox"],
@@ -961,6 +966,66 @@ B -->|No| D[Retry]</code></pre>
   }
   results.push(
     "Both PDF menus preserve three thumbnail-and-text rows, their visible labels and clickable links, plus distinct displayed sizes and crops for reused source images.",
+  );
+  await installScrollFixture(page, context);
+  await checkIsolatedReader(page);
+  const positions = () =>
+    page.evaluate(() =>
+      [
+        ".cm-scroller",
+        "#indexed-code",
+        ".CodeMirror-scroll",
+        "#plain-code",
+        "#geometry-code",
+      ].map((s) => {
+        const el = document.querySelector(s);
+        const pane = el.id ? el.parentElement : el;
+        return [pane.scrollTop, pane.scrollLeft];
+      }),
+    );
+  const originalPositions = await positions();
+  for (const scope of ["pair", "chat"]) {
+    if (scope === "pair") await imagePair("PDF");
+    else await collect("pdf", 2);
+    const snippets = requests
+      .at(-1)
+      .document.messages[1].blocks.filter((b) => b.type === "code");
+    assert.deepEqual(
+      snippets.map((b) => b.text),
+      Object.values(scrollSources),
+    );
+    assert.deepEqual(
+      snippets.map((b) => b.tokens.map((t) => t.text).join("")),
+      Object.values(scrollSources),
+    );
+    assert(snippets[0].tokens.some((t) => t.color === "#2875aa"));
+    assert.deepEqual(await positions(), originalPositions);
+    await copyFile(
+      "test-results/" + exported.at(-1),
+      "test-results/scroll-code-" + scope + ".pdf",
+    );
+  }
+  results.push(
+    "Both PDF buttons export every line of static, virtualized and numbered code panes, including horizontal overflow, repeated and blank lines. Editor scroll positions are restored.",
+  );
+  for (const scope of ["pair", "chat"]) {
+    if (scope === "pair") await imagePair("Word (.docx)");
+    else await collect("docx", 2);
+    assert.deepEqual(
+      requests
+        .at(-1)
+        .document.messages[1].blocks.filter((b) => b.type === "code")
+        .map((b) => b.text),
+      Object.values(scrollSources),
+    );
+    assert.deepEqual(await positions(), originalPositions);
+    await copyFile(
+      "test-results/" + exported.at(-1),
+      "test-results/scroll-code-" + scope + ".docx",
+    );
+  }
+  results.push(
+    "Pair and conversation Word exports receive the same complete scrolling snippets.",
   );
   await page.evaluate(() => {
     const canvas = document.createElement("canvas");

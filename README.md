@@ -1,8 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.5.1.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.5.2.
 
-**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.5.1** in the popup.
+**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.5.2** in the popup.
 
 The new version requests site access for ChatGPT and OpenAI image delivery. Review the extension card if Chrome asks you to enable it after the update.
 
@@ -32,7 +32,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.5.1** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.5.2** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 
@@ -114,7 +114,7 @@ PDF uses Liberation Sans by default, with DejaVu Serif and DejaVu Sans Mono avai
 - **Images/media/files:** PDF and Word keep readable image pixels in message order, including responsive and lazy-loaded sources. If Chrome needs site access, open the extension icon, choose **Allow images and continue**, and approve the listed image origins. The same export resumes. The in-chat dialog also offers **Continue without these images** and **Cancel export**. The embedded raster is limited to 1,600 pixels on its longer side and each source fetch is limited to 12 MB. An unreadable standalone image gets a labelled placeholder. Within a visual card, an unavailable image gets a small marker inside its own box. Attachment file contents are not opened.
 - **Fonts:** PDFs support the bundled fonts' glyph coverage, including much Latin/Greek/Cyrillic and many math symbols. The exporter selects bundled Noto fonts for Devanagari (including Nepali and Hindi), Chinese and Japanese characters, kana and Hangul when the body font lacks those glyphs. The fallback faces are regular weight. Color emoji, rare ideographs, and characters outside all bundled fonts can still be missing. The PDF Subject field records a warning for uncovered characters. Word preserves the Unicode text and may substitute installed fonts; script shaping/rendering is reader-dependent. Some code/math symbols may have narrower monospace coverage.
 - **Tables:** standard tables remain tables. Merged cells are flattened with placeholders and a note in the PDF properties. Tables wider than eight columns are represented row-by-row to avoid horizontal clipping. Long rows may split across pages.
-- **Code.** The PDF uses rendered token styles, expands tabs to the displayed tab stops and preserves blank lines. Long lines wrap at the available text width. Only code present in the page can be read.
+- **Code.** The PDF uses rendered token styles, expands tabs to the displayed tab stops and preserves blank lines. Long lines wrap to the PDF column, and long snippets continue across pages. Both export buttons read the full document of a supported code editor. Lines without token styles use the block’s base text color. A DOM-only pane can be collected by scrolling its rows, checking coverage and restoring its original position. If the exporter detects a gap it cannot recover, it stops and identifies the snippet problem. See `examples/scrollable-code.pdf`.
 - **Pagination:** PDF headings are kept with following content where feasible; Word headings use keep-next. Long paragraphs, rows and code may span pages. This is not a pixel-for-pixel screenshot.
 - **Links/citations:** safe HTTP(S) and mailto hyperlinks are retained. Script/data links are discarded. Citation widgets without accessible anchors may degrade to visible text or be omitted if they are interface buttons.
 - **Completion:** unknown final-message completion markers fail closed. The extension uses recognized role and turn markers, headings and generated-image cards to identify messages. An unfamiliar layout may prevent it from identifying the reply or its prompt. Work-mode Pages, embedded documents and multi-pane content outside the conversation DOM are not exported as separate artifacts.
@@ -147,6 +147,7 @@ chatgpt-conversation-exporter/
     offscreen.html          Local generation host
     icons/                  16, 32, 48 and 128 px icons
   src/
+    code-editor.js          Read the document of a mounted code editor
     content.js              Response controls, export orchestration, page lifecycle
     background.js           Offscreen lifecycle, download requests and status events
     offscreen.js            Document generation and Blob URL lifecycle
@@ -157,6 +158,7 @@ chatgpt-conversation-exporter/
       extractor.js          Semantic role/turn discovery, pairing and completion checks
       normalize.js          Safe DOM-to-document model parser
       history.js            Bounded visible history scrolling and ordered collection
+      code-source.js        Resolve and verify complete code snippets
       pdf-style.js          Read rendered alignment, inline styles and code token styles
       diagram.js              Preserve safe SVG shapes, styles and labels
       render-diagrams.js      Render supported Mermaid source in the offscreen document
@@ -236,6 +238,7 @@ python tests/validate_documents.py
 python tests/validate_images.py
 python tests/validate_career_pdf.py
 python tests/validate_thumbnail_pdf.py
+python tests/validate_scroll_code_pdf.py
 ```
 
 The PDF style check verifies actual font faces, drawn decorations, syntax colors, indentation, paragraph alignment and prompt and reply positions in both export modes. See `TESTING.md` for executed versus pending checks and live validation steps.
@@ -260,9 +263,9 @@ The PDF style check verifies actual font faces, drawn decorations, syntax colors
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
 
-**Bold or strikethrough is missing.** Check that the popup shows **v1.5.1**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
+**Bold or strikethrough is missing.** Check that the popup shows **v1.5.2**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
 
-**Equation looks like LaTeX:** check the popup shows v1.5.1 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
+**Equation looks like LaTeX:** check the popup shows v1.5.2 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
 **Boxes/missing glyphs in PDF:** export Word and use a font installed for that language. The font coverage limitation is explicit above.
 

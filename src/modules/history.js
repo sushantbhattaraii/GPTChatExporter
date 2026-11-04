@@ -9,6 +9,7 @@ import {
   visualRoots,
 } from "./extractor.js";
 import { plainText } from "./normalize.js";
+import { withCompleteCode } from "./code-source.js";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export function scrollContainer(root = document) {
   let node = messageNodes(root)[0]?.parentElement;
@@ -93,6 +94,7 @@ function scanReader(scroller) {
 // Only normal page scrolling. No private endpoints or application-state access.
 export async function collectHistory({
   signal,
+  includeCode = true,
   onProgress = () => {},
   stallTimeout = 90000,
 } = {}) {
@@ -123,10 +125,14 @@ export async function collectHistory({
         "A response started streaming during collection. Wait for it to finish.",
       );
   }
-  function read() {
+  async function read() {
     guard();
     const beforeCount = seen.size;
-    const current = reader.read();
+    const current = await withCompleteCode(() => reader.read(), {
+      signal,
+      includeCode,
+    });
+    guard();
     const indexed = current.every((m) => m.turnIndex !== null);
     if (!indexed) uncertain = true;
     const keys = new Set();
@@ -196,7 +202,7 @@ export async function collectHistory({
     descending = false;
     bestTop = scroller.scrollTop;
     lastHeight = scroller.scrollHeight;
-    read();
+    await read();
     // Repeat top visits because loading older messages may shift the scroll offset.
     let topStable = 0,
       last = "";
@@ -204,7 +210,7 @@ export async function collectHistory({
       guard();
       scroller.scrollTop = 0;
       await sleep(550);
-      const ms = read();
+      const ms = await read();
       const state = `${ms[0].id}:${ms.length}:${scroller.scrollHeight}`;
       topStable = state === last && scroller.scrollTop < 5 ? topStable + 1 : 0;
       last = state;
@@ -221,14 +227,14 @@ export async function collectHistory({
         before + Math.max(200, scroller.clientHeight * 0.7),
       );
       await sleep(220);
-      read();
+      await read();
       const atBottom =
         scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4;
       const edge = `${seen.size}:${scroller.scrollHeight}:${previous.at(-1)?.id}`;
       bottomStable = atBottom && edge === last ? bottomStable + 1 : 0;
       last = edge;
     }
-    const result = everUnmounted ? [...seen.values()] : read();
+    const result = everUnmounted ? [...seen.values()] : await read();
     if (result.every((m) => m.turnIndex !== null)) {
       result.sort(
         (a, b) =>

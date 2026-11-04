@@ -6,6 +6,7 @@ import { contentButton, linkOn, publicLabel } from "./links.js";
 export { safeLink } from "./links.js";
 import { readHtmlLayout } from "./html-layout.js";
 import { visuallyClipped } from "./visibility.js";
+import { codeBlock } from "./code-source.js";
 export function visible(el) {
   if (el.nodeType !== 1) return true;
   if (el.closest('[hidden],[aria-hidden="true"],template,[data-cge]'))
@@ -427,8 +428,17 @@ export function blocks(root, read = proseReader(root)) {
       pending.push(...inline(el, {}, read));
       continue;
     }
-    if (el.matches(OMIT)) continue;
-    const layout = readHtmlLayout(el);
+    const codeStyle =
+      el.matches("code") && el.ownerDocument.defaultView.getComputedStyle(el);
+    const isCode =
+      el.matches(codeBlock) ||
+      (el.matches("[data-code-block]") && !el.querySelector(codeBlock)) ||
+      (codeStyle &&
+        (/block/.test(codeStyle.display) ||
+          (el.textContent.includes("\n") &&
+            /pre|break-spaces/.test(codeStyle.whiteSpace))));
+    if (el.matches(OMIT) && !isCode) continue;
+    const layout = !isCode && readHtmlLayout(el);
     if (layout) {
       flush();
       out.push({ ...layout, blocks: blocks(el, read) });
@@ -460,7 +470,7 @@ export function blocks(root, read = proseReader(root)) {
       out.push({ type: "math", ...equation(el), alignment: textAlignment(el) });
       continue;
     }
-    if (!BLOCK.split(",").includes(el.tagName) && !el.matches(".cm-content")) {
+    if (!BLOCK.split(",").includes(el.tagName) && !isCode) {
       pending.push(...inline(el, {}, read));
       continue;
     }
@@ -473,8 +483,8 @@ export function blocks(root, read = proseReader(root)) {
         alignment: textAlignment(el),
         runs: trimmed(inline(el, {}, read)),
       });
-    else if (tag === "PRE" || el.matches(".cm-content")) {
-      const snippet = readCode(el),
+    else if (isCode) {
+      const snippet = readCode(el, true),
         { text, language } = snippet;
       // An explicitly mathematical fence can contain a formula, or an entire LaTeX program.
       // Keep program source intact when it contains document/preamble commands.

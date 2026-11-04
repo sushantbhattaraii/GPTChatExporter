@@ -15,6 +15,7 @@ import {
   snapshot,
 } from "./modules/extractor.js";
 import { collectHistory } from "./modules/history.js";
+import { withCompleteCode } from "./modules/code-source.js";
 import {
   mount,
   menu,
@@ -128,10 +129,15 @@ async function run(scope, format, target) {
         : "Loading conversation history… (Escape cancels)",
     );
     let messages;
-    if (scope === "pair") messages = extractPair(target);
+    const options = {
+      signal: controller.signal,
+      includeCode: (await getSettings()).includeCode,
+    };
+    if (scope === "pair")
+      messages = await withCompleteCode(() => extractPair(target), options);
     else {
       const data = await collectHistory({
-        signal: controller.signal,
+        ...options,
         onProgress: feedback,
       });
       document.removeEventListener("keydown", stop);
@@ -141,7 +147,7 @@ async function run(scope, format, target) {
       }
       messages = data.messages;
       const keys = new Map(messages.map((m) => [historyKey(m), m]));
-      for (const current of snapshot()) {
+      for (const current of await withCompleteCode(() => snapshot(), options)) {
         const prior = keys.get(historyKey(current));
         if (
           !prior ||

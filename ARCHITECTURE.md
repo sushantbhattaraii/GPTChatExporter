@@ -40,6 +40,8 @@ PDF uses the pinned pdfmake public synchronous `getStream` interface. This lets 
 
 MathJax compiles recognized equations locally. PDF uses vector formula graphics and short inline expressions. Word imports Office Math XML generated from MathML. Unsupported expressions receive a labelled source fallback. Unicode text is retained in Word; PDF glyph coverage is limited by the bundled fonts and disclosed in warnings.
 
+For a mounted code editor, the isolated reader requests the full text from the page-world adapter attached to that specific snippet. The adapter uses the editor’s document without changing its selection. If only a virtual line view is available, collection verifies continuous line numbers or contiguous line boxes and restores the local scroll position. Both export scopes use the same reader before the message can be unloaded.
+
 ## Download lifecycle
 
 1. Generate a Blob in the offscreen document.

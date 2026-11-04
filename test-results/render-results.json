@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-04T19:10:24.365Z",
+  "date": "2026-11-04T19:54:48.042Z",
   "browser": "141.0.7390.37",
   "environment": "Standalone Chromium renderer with synthetic DOM and mocked chrome.runtime/storage; no real Chrome download API",
   "results": [
@@ -24,6 +24,8 @@
     "Both PDF menus keep three illustrated cards together, honor table column widths, and export the reference-style transcript.",
     "Single and full PDF menus embed an external image after a per-site grant and preserve company names, links, the branching career diagram and the job card CTA.",
     "Both PDF menus preserve three thumbnail-and-text rows, their visible labels and clickable links, plus distinct displayed sizes and crops for reused source images.",
+    "Both PDF buttons export every line of static, virtualized and numbered code panes, including horizontal overflow, repeated and blank lines. Editor scroll positions are restored.",
+    "Pair and conversation Word exports receive the same complete scrolling snippets.",
     "The normal whole-chat PDF button sends an image-heavy document in acknowledged chunks and creates the complete PDF."
   ],
   "errors": [],
@@ -56,6 +58,10 @@
     "renderer-26.pdf",
     "renderer-27.pdf",
     "renderer-28.pdf",
-    "renderer-29.pdf"
+    "renderer-29.pdf",
+    "renderer-30.pdf",
+    "renderer-31.docx",
+    "renderer-32.docx",
+    "renderer-33.pdf"
   ]
 }

@@ -1,9 +1,9 @@
-ChatGPT Conversation Exporter 1.5.1
+ChatGPT Conversation Exporter 1.5.2
 
 Updating an earlier version: Extract the ZIP and replace the contents of your
 previously loaded dist folder with the new dist contents. Click Reload
 on the extension card at chrome://extensions/, then refresh your chat.
-Verify the popup says v1.5.1.
+Verify the popup says v1.5.2.
 
 New installation:
 1. Extract this ZIP completely.
@@ -27,6 +27,7 @@ Both print directly on the page. See examples/transcript-layout.pdf.
 If an external image needs access, open the extension popup and choose
 Allow images and continue. Approve only the listed sites you want to include.
 The ongoing export resumes. Long history scans continue while they make progress.
+Code longer than its scroll pane continues across PDF pages. See examples/scrollable-code.pdf.
 See examples/thumbnail-layout.pdf for thumbnail sizes, search rows and cropped images.
 See examples/career-components.pdf for company links, a career diagram and a job card.
 See examples/formatted-chat.pdf for typography and examples/rich-content.pdf

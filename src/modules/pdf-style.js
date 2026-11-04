@@ -1,3 +1,5 @@
+import { codeSource, editorBody } from "./code-source.js";
+import { visuallyClipped } from "./visibility.js";
 // Read computed CSS from the live DOM before the message is serialized.
 const view = (el) => el.ownerDocument.defaultView.getComputedStyle(el);
 export function textAlignment(el) {
@@ -109,11 +111,15 @@ export function proseReader(root) {
 function fromHex(color) {
   return [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
 }
-export function readCode(pre) {
+export function readCode(pre, block = false) {
   const code =
-    pre.tagName === "PRE" && pre.querySelectorAll("code").length === 1
-      ? pre.querySelector("code")
-      : pre;
+    (block &&
+      (pre.matches(editorBody) ? pre : pre.querySelector(editorBody))) ||
+    (block &&
+      pre.querySelectorAll("code").length === 1 &&
+      pre.querySelector("code")) ||
+    (block && pre.querySelector("textarea[readonly]")) ||
+    pre;
   const doc = pre.ownerDocument,
     colors = new Map(),
     styles = new WeakMap(),
@@ -154,7 +160,7 @@ export function readCode(pre) {
     styles.set(el, style);
     return style;
   }
-  const tokens = [];
+  let tokens = [];
   function emit(text, el) {
     if (!text) return;
     const style = tokenStyle(el),
@@ -174,12 +180,17 @@ export function readCode(pre) {
       if (
         n.nodeType !== 1 ||
         n.matches(
-          'button,[role="button"],[hidden],script,style,.sr-only,[data-cge],.cm-gutters,[data-line-number],[data-code-block-controls]',
+          'button,[role="button"],[hidden],script,style,.sr-only,[data-cge],.cm-gutters,.cm-gap,.cm-lineGap,.cm-foldPlaceholder,.cm-widgetBuffer,.CodeMirror-linenumber,.CodeMirror-gutter-wrapper,.line-number,.line-numbers-rows,[data-code-gap],[data-code-block-controls]',
         )
       )
         continue;
       const cs = view(n);
-      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      if (
+        cs.display === "none" ||
+        cs.visibility === "hidden" ||
+        visuallyClipped(cs)
+      )
+        continue;
       const line =
         n.matches(".cm-line") || cs.display === "block" || n.tagName === "DIV";
       if (
@@ -199,14 +210,69 @@ export function readCode(pre) {
       }
     }
   }
-  walk(code);
+  function lineTokens(row) {
+    tokens = [];
+    walk(row);
+    return tokens.map((t) => ({ text: t.text, ...t.style }));
+  }
+  const rows = code.matches(".cm-content")
+    ? [...code.querySelectorAll(":scope > .cm-line")]
+    : code.matches(".CodeMirror-code")
+      ? [...code.querySelectorAll("pre.CodeMirror-line")]
+      : code.matches(".view-lines")
+        ? [...code.querySelectorAll(":scope > .view-line")]
+        : [];
+  const rowTokens = rows.map(lineTokens);
+  let runs = rows.length
+    ? rowTokens.flatMap((r, i) =>
+        i ? [{ text: "\n", ...tokenStyle(code) }, ...r] : r,
+      )
+    : lineTokens(code);
+  const drawn = runs.map((t) => t.text).join("");
+  const source =
+    block &&
+    codeSource(code, pre, (row) =>
+      lineTokens(row)
+        .map((t) => t.text)
+        .join(""),
+    );
+  const text = source ? source.text.replace(/\r\n?/g, "\n") : drawn;
+  if (text !== drawn) {
+    // Keep the styles of verified ranges. Unmounted ranges use the snippet's
+    // base style. Every exported character comes from the complete source.
+    const baseStyle = tokenStyle(code),
+      styled = [];
+    let next = 0;
+    function keep(at, part) {
+      const fragment = part.map((t) => t.text).join("");
+      if (
+        !Number.isInteger(at) ||
+        at < next ||
+        !fragment ||
+        !text.startsWith(fragment, at)
+      )
+        return;
+      if (at > next) styled.push({ text: text.slice(next, at), ...baseStyle });
+      for (const run of part) styled.push(run);
+      next = at + fragment.length;
+    }
+    if (source.starts)
+      rowTokens.forEach((part, i) => keep(source.starts[i], part));
+    else if (drawn) {
+      const at = text.indexOf(drawn);
+      if (at >= 0 && text.lastIndexOf(drawn) === at) keep(at, runs);
+    }
+    if (next < text.length)
+      styled.push({ text: text.slice(next), ...baseStyle });
+    runs = styled;
+  }
   const tab = css.tabSize || "8";
   const tabSize = tab.endsWith("px")
     ? parseFloat(tab) / (size * 0.602)
     : Number(tab);
   return {
-    text: tokens.map((t) => t.text).join(""),
-    tokens: tokens.map((t) => ({ text: t.text, ...t.style })),
+    text,
+    tokens: runs,
     background: base,
     fontSize: size * 0.75,
     lineHeight: parseFloat(css.lineHeight)
@@ -216,6 +282,9 @@ export function readCode(pre) {
     alignment: textAlignment(code),
     language:
       code.className?.match?.(/(?:language|lang)-([\w+-]+)/)?.[1] ||
+      code
+        .closest("code[class*=language-]")
+        ?.className.match(/language-([\w+-]+)/)?.[1] ||
       code.closest("[data-language]")?.dataset.language ||
       "",
   };

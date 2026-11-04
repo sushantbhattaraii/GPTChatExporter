@@ -24,11 +24,17 @@ function eligible(el, box, css) {
       ".markdown,[data-message-author-role],[data-markdown-text-style]",
     ) ||
     scope.querySelector(
-      "table,pre,.katex,mjx-container,[data-message-author-role],input,textarea,select,iframe",
+      "table,pre,code[class*=language-],.cm-editor,.cm-content,.CodeMirror,.monaco-editor,[data-code-block],.katex,mjx-container,[data-message-author-role],input,textarea,select,iframe",
     ) ||
     box.width < 110 ||
     box.height < 36 ||
     box.height > box.width * 2.8
+  )
+    return false;
+  if (
+    [...scope.querySelectorAll("code")].some((code) =>
+      code.textContent.includes("\n"),
+    )
   )
     return false;
   if (

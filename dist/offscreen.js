@@ -103486,7 +103486,7 @@
     flush();
     return out;
   }
-  function codeBlock(block, s) {
+  function codeBlock2(block, s) {
     const size = block.fontSize || Math.max(8, s.fontSize - 2);
     const width = Math.max(1, s.equationWidth - 14);
     const rows = [[]];
@@ -103695,7 +103695,7 @@
         if (!b.svg)
           return [
             { text: "Diagram source (preview unavailable)", italics: true },
-            ...codeBlock({ text: b.text, language: "Mermaid" }, s)
+            ...codeBlock2({ text: b.text, language: "Mermaid" }, s)
           ];
         const scale = Math.min(
           s.equationWidth / b.width,
@@ -103715,7 +103715,7 @@
           ...formulaBlock(renderEquation(b.text, true, b.mathml), s),
           alignment: b.alignment
         };
-      if (b.type === "code") return codeBlock(b, s);
+      if (b.type === "code") return codeBlock2(b, s);
       if (b.type === "list") {
         let counter = b.start;
         return {
