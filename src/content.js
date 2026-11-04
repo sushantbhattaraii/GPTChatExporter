@@ -1,13 +1,14 @@
 import {
   messageNodes,
   messageRole,
+  historyKey,
   completed,
   extractPair,
   title,
   snapshot,
 } from "./modules/extractor.js";
 import { collectHistory } from "./modules/history.js";
-import { mount, menu, button, review } from "./modules/ui.js";
+import { mount, menu, button, review, positionToolbar } from "./modules/ui.js";
 import { plainText } from "./modules/normalize.js";
 import { getSettings } from "./modules/settings.js";
 let busy = false,
@@ -19,6 +20,7 @@ const panel = mount(document.body, "toolbar");
 const toolbar = document.createElement("div");
 toolbar.className = "toolbar";
 panel.shadow.append(toolbar);
+const updateToolbarPosition = positionToolbar(toolbar);
 menu(toolbar, "Export conversation", (format) => run("conversation", format));
 toolbar.append(
   button("Settings", () =>
@@ -65,21 +67,12 @@ async function run(scope, format, target) {
         return;
       }
       messages = data.messages;
-      const keys = new Map(
-        messages.map((m) => [
-          m.turnIndex !== null ? `${m.turnIndex}:${m.role}` : m.id,
-          m,
-        ]),
-      );
+      const keys = new Map(messages.map((m) => [historyKey(m), m]));
       for (const current of snapshot()) {
-        const prior = keys.get(
-          current.turnIndex !== null
-            ? `${current.turnIndex}:${current.role}`
-            : current.id,
-        );
+        const prior = keys.get(historyKey(current));
         if (
           !prior ||
-          prior.id !== current.id ||
+          prior.turnIndex !== current.turnIndex ||
           plainText(prior.blocks) !== plainText(current.blocks)
         )
           throw new Error(
@@ -148,6 +141,7 @@ function scan() {
     );
     pairs.set(el, { ...ui, cleanup });
   }
+  updateToolbarPosition();
   if (!panel.host.isConnected) document.body.append(panel.host);
   panel.host.style.display =
     nodes.length || /\/(?:c|share)\//.test(location.pathname)

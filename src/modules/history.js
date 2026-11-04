@@ -1,4 +1,10 @@
-import { snapshot, associate, messageNodes, isStreaming } from "./extractor.js";
+import {
+  snapshot,
+  associate,
+  messageNodes,
+  isStreaming,
+  historyKey,
+} from "./extractor.js";
 import { plainText } from "./normalize.js";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export function scrollContainer(root = document) {
@@ -25,6 +31,8 @@ export async function collectHistory({
     original = scroller.scrollTop;
   const start = Date.now(),
     seen = new Map();
+  let previous = [];
+  class ChangedDuringScan extends Error {}
   let uncertain = false,
     everUnmounted = false;
   const oldBehavior = scroller.style.scrollBehavior;
@@ -51,7 +59,7 @@ export async function collectHistory({
     if (!indexed) uncertain = true;
     const keys = new Set();
     for (const m of current) {
-      const key = m.turnIndex !== null ? `${m.turnIndex}:${m.role}` : m.id;
+      const key = historyKey(m);
       if (!key)
         throw new Error(
           "Stable message identifiers are unavailable. Full-history collection is unsafe; use individual export.",
@@ -60,13 +68,32 @@ export async function collectHistory({
       const prior = seen.get(key);
       if (
         prior &&
-        (prior.id !== m.id || plainText(prior.blocks) !== plainText(m.blocks))
+        (prior.turnIndex !== m.turnIndex ||
+          plainText(prior.blocks) !== plainText(m.blocks))
       )
-        throw new Error(
-          "A prompt or response changed while collecting. Wait for the page to settle and retry.",
+        throw new ChangedDuringScan(
+          "The conversation kept changing during both history scans. Finish editing or generating the reply and retry.",
         );
       if (!prior) seen.set(key, m);
     }
+    // A replacement at an occupied slot may be a branch switch. Retry from an empty
+    // snapshot instead of mixing the former answer with the replacement.
+    for (const old of previous) {
+      if (old.turnIndex === null || keys.has(historyKey(old))) continue;
+      if (
+        current.some(
+          (m) =>
+            m.turnIndex === old.turnIndex &&
+            m.role === old.role &&
+            (old.unitOrder == null || m.unitOrder === old.unitOrder) &&
+            !previous.some((p) => historyKey(p) === historyKey(m)),
+        )
+      )
+        throw new ChangedDuringScan(
+          "The active branch kept changing during history collection. Finish switching answers and retry.",
+        );
+    }
+    previous = current;
     if ([...seen.keys()].some((k) => !keys.has(k))) everUnmounted = true;
     if (!indexed && everUnmounted)
       throw new Error(
@@ -75,7 +102,7 @@ export async function collectHistory({
     onProgress(`Collecting history… ${seen.size} messages (Escape cancels)`);
     return current;
   }
-  try {
+  async function scan() {
     read();
     // Repeat top visits because loading older messages may shift the scroll offset.
     let topStable = 0,
@@ -106,7 +133,13 @@ export async function collectHistory({
     const result = everUnmounted ? [...seen.values()] : read();
     if (result.every((m) => m.turnIndex !== null)) {
       result.sort(
-        (a, b) => a.turnIndex - b.turnIndex || (a.role === "user" ? -1 : 1),
+        (a, b) =>
+          a.turnIndex - b.turnIndex ||
+          (a.role === b.role
+            ? (a.unitOrder ?? 0) - (b.unitOrder ?? 0)
+            : a.role === "user"
+              ? -1
+              : 1),
       );
       const ids = [...new Set(result.map((m) => m.turnIndex))];
       if (ids[0] > 1) uncertain = true;
@@ -121,6 +154,20 @@ export async function collectHistory({
       uncertain,
       everUnmounted,
     };
+  }
+  try {
+    try {
+      return await scan();
+    } catch (error) {
+      if (!(error instanceof ChangedDuringScan)) throw error;
+      seen.clear();
+      previous = [];
+      uncertain = false;
+      everUnmounted = false;
+      onProgress("The page updated. Checking the settled conversation again…");
+      await sleep(350);
+      return await scan();
+    }
   } finally {
     if (location.href === route) scroller.scrollTop = original;
     scroller.style.scrollBehavior = oldBehavior;

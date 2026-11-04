@@ -13,7 +13,7 @@ for path in sorted(ROOT.glob('*.pdf')):
     assert len(reader.pages)>0 and text.strip(),path
     if path.name in ['pair.pdf','renderer-1.pdf']:
         assert 'Question TWO' in text and 'Question ONE' not in text and 'Question THREE' not in text,path
-        assert 'def greet' in text and 'OPArrow' in text and 'x^2 + y^2' in text,path
+        assert 'def greet' in text and 'OPArrow' in text and 'x²+y²' in text and '\\frac' not in text,path
         assert any(p.get('/Annots') for p in reader.pages), 'missing PDF links'
     if path.name=='conversation.pdf':
         assert text.index('Question ONE')<text.index('Question TWO')<text.index('Question THREE')
@@ -32,7 +32,9 @@ for path in sorted(ROOT.glob('*.docx')):
         assert doc.findall('.//w:p',NS) and 'word/styles.xml' in z.namelist()
         if path.name in ['pair.docx','renderer-2.docx']:
             assert 'Question TWO' in text and 'Question ONE' not in text and 'Question THREE' not in text
-            assert 'def greet' in text and '    return' in text and 'x^2 + y^2' in text
+            assert 'def greet' in text and '    return' in text and '\\frac' not in text
+            mathns={'m':'http://schemas.openxmlformats.org/officeDocument/2006/math'}
+            assert doc.findall('.//m:f',mathns) and doc.findall('.//m:sSup',mathns)
             assert doc.findall('.//w:tbl',NS) and doc.findall('.//w:hyperlink',NS)
             assert doc.findall('.//w:numPr',NS)
         if path.name=='settings.docx':

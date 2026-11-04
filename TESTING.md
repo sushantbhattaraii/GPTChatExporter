@@ -1,5 +1,10 @@
 # Validation report and release checklist
 
+## Version 1.0.2
+
+The v1.0.1 collector reproduced the reported error when a successful pair extraction was followed by a full-history scan containing two assistant units in one turn. The patched renderer fixture exports a pair and then the whole conversation, preserves both units in order, and discards and retries the scan after a simulated content update. A separate viewport check verifies that the toolbar stays above an expanded composer. The equation tests cover rendered math, literal delimiters, formula fences, native MathML, ordinary code and unsupported syntax. Independent DOCX inspection found Office Math fractions and superscripts. The PDF and a LibreOffice rendering of the DOCX were inspected visually. Live signed-in ChatGPT and desktop Microsoft Word were not exercised here. 31 automated tests and 11 Chromium renderer scenarios passed. See `test-results/release-tests-1.0.2.log` and `test-results/render-results.json`.
+
+
 ## Version 1.0.1
 
 27 automated tests and nine Chromium renderer scenarios passed. See `test-results/check-1.0.1.log`. New regression cases exercise both variants of keyed user and assistant units, section-only role markers, grouped turns with a missing question, and the popup retry while messages hydrate. The renderer test bridges the popup probe to the actual bundled content script on a synthetic conversation, requests individual PDF and Word files and a whole-conversation Word file. The signed-in user’s conversation and native download completion remain unverified in this environment.

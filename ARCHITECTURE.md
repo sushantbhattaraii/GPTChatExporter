@@ -26,7 +26,7 @@ A global visible stop control or explicit streaming/busy state prevents exportin
 
 1. Refuse streaming/unknown completion; record current URL and scroll offset.
 2. Find the message scroll container and repeatedly visit its top until three stable observations.
-3. Traverse downward in overlapping viewport steps, merging by turn index and role (stable ID fallback for nonvirtualized DOM).
+3. Traverse downward in overlapping viewport steps, merging by role-qualified search-unit key or message ID. Turn and unit indexes establish chronological order. A changing snapshot is discarded and retried once.
 4. Refuse changed IDs/text at an existing position, missing indexes, or unindexed virtualization.
 5. Reorder indexed turns, deduplicate stable IDs, associate each assistant with its nearest preceding user, and restore scroll offset.
 6. Present count and start/end previews. Require range confirmation, including a completeness disclosure.
@@ -38,7 +38,7 @@ Scrolling is bounded to 45 seconds; Escape cancels. Mutation during review inval
 
 PDF uses the pinned pdfmake public synchronous `getStream` interface. This lets font/layout errors reject the generation request rather than escaping an asynchronous callback. All font bytes are bundled. Code can wrap and span pages. Standard tables repeat header rows; very wide tables flatten. Word uses `docx` for an OOXML ZIP with native paragraphs, heading styles, numbering, tables, hyperlinks and page fields.
 
-Equations remain LaTeX source in both formats. Native math conversion and image embedding are intentionally outside this implementation's supported fidelity. Unicode text is retained in Word; PDF glyph coverage is limited by the bundled fonts and disclosed in warnings.
+MathJax compiles recognized equations locally. PDF uses vector formula graphics and short inline expressions. Word imports Office Math XML generated from MathML. Unsupported expressions receive a labelled source fallback. Unicode text is retained in Word; PDF glyph coverage is limited by the bundled fonts and disclosed in warnings.
 
 ## Download lifecycle
 

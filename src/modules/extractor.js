@@ -105,6 +105,17 @@ export function completed(el, nodes = messageNodes(el.ownerDocument)) {
   const idx = nodes.indexOf(el);
   if (idx === nodes.length - 1 && isStreaming(el.ownerDocument)) return false;
   const turn = turnFor(el);
+  // A grouped answer can have multiple assistant units followed by one shared footer.
+  // Only the final sibling can establish completion for the group.
+  let last = idx;
+  while (
+    last >= 0 &&
+    last + 1 < nodes.length &&
+    messageRole(nodes[last + 1]) === "assistant" &&
+    turnFor(nodes[last + 1]) === turn
+  )
+    last++;
+  if (last > idx) return completed(nodes[last], nodes);
   const followsAnswer = (action) => {
     if (action.closest("pre,code,[data-code-block-controls]")) return false;
     if (
@@ -168,6 +179,8 @@ export function extractMessage(el, order) {
   return {
     role,
     group,
+    unitKey: key || null,
+    unitOrder: unit ? Number(unit[2]) : null,
     // An answer later in an explicitly grouped turn must use the prompt in that group.
     requiresSameGroup:
       role === "assistant" && Boolean(unit && Number(unit[2]) > 0),
@@ -234,6 +247,15 @@ export function extractPair(target, root = document) {
   }
   return associate([extractMessage(nodes[u], 0), extractMessage(target, 1)]);
 }
+// Several assistant units can occupy one turn. A turn/role pair is only a last resort.
+export function historyKey(message) {
+  if (message.unitKey)
+    return JSON.stringify([message.role, "unit", message.unitKey]);
+  if (message.id) return JSON.stringify([message.role, "id", message.id]);
+  if (message.turnIndex !== null)
+    return JSON.stringify([message.role, "turn", message.turnIndex]);
+  return null;
+}
 export function snapshot(root = document) {
   const nodes = messageNodes(root);
   if (!nodes.length)
@@ -247,14 +269,15 @@ export function snapshot(root = document) {
   const result = nodes.map(extractMessage);
   const seen = new Map();
   return result.filter((m) => {
-    if (!m.id) return true;
-    const prior = seen.get(m.id);
+    const key = historyKey(m);
+    if (!key) return true;
+    const prior = seen.get(key);
     if (prior && plainText(prior.blocks) !== plainText(m.blocks))
       throw new Error(
         "Conflicting versions of a message are visible. Refresh the page and retry.",
       );
     if (prior) return false;
-    seen.set(m.id, m);
+    seen.set(key, m);
     return true;
   });
 }

@@ -1,8 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.0.1.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.0.2.
 
-**Updating from 1.0.0?** The previous version could show “No conversation found” on ChatGPT conversation layouts that use role-labelled search units. Extract this update, copy the contents of its `dist` folder into the `dist` folder Chrome already loads, click **Reload** on the extension card at `chrome://extensions/`, and refresh the conversation tab. The popup should show **v1.0.1**. It retries automatically while messages render.
+**Updating from 1.0.0 or 1.0.1?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.0.2** in the popup.
 
 **Start here:** the `dist` folder is already built. You do **not** need Node.js to install it.
 
@@ -16,7 +16,7 @@ Export the displayed ChatGPT question–answer pair or the active conversation t
 - Full-conversation export from the floating toolbar or Chrome popup.
 - Safe visible scrolling to collect history, including indexed virtualized turns; a range review before export.
 - Headings, emphasis, nested lists, tables, clickable links, monospaced code, role labels and page numbers.
-- LaTeX equation source preserved without duplicating KaTeX's visual and accessibility layers.
+- Typeset PDF formulas and editable Word equations for recognized TeX and MathML.
 - Font family, size, A4 orientation, margins, timestamps, title, question visibility, code visibility and Save As settings.
 - Locally bundled fonts/libraries, no analytics, no external document service, no private ChatGPT endpoints.
 
@@ -29,7 +29,7 @@ Export the displayed ChatGPT question–answer pair or the active conversation t
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.0.1** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.0.2** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 
@@ -89,7 +89,7 @@ PDF embeds DejaVu Sans, Serif and Mono; Word requests Arial, Times New Roman or 
 
 ## Formatting and known limitations
 
-- **Equations:** exported as LaTeX text (`\(...\)` or `\[...\]`), not rendered formula graphics or native Word equations. This preserves source accurately when ChatGPT exposes it. If it does not, only available rendered text can be recovered.
+- **Equations:** PDF uses vector graphics for display formulas, fractions and radicals. Simple expressions stay inline, and complex inline formulas receive their own line. Word uses editable Office Math equations. Explicit math delimiters and formula-only LaTeX fences are recognized. Unsupported expressions retain their source with an “Unrendered equation” label. Ordinary programming examples stay as code.
 - **Images/media/files:** text descriptions or alt text only. No image pixels, attachment contents, videos, canvases, embedded apps, voice recordings or interactive artifacts are downloaded. Adjacent links/text remain when accessible.
 - **Fonts:** PDFs support the bundled fonts' glyph coverage, including much Latin/Greek/Cyrillic and many math symbols. CJK, Devanagari, color emoji and other uncovered glyphs may be missing. A warning is added when the chosen PDF body font lacks characters. Word preserves the Unicode text and may substitute installed fonts; script shaping/rendering is reader-dependent. Some code/math symbols may have narrower monospace coverage.
 - **Tables:** standard tables remain tables. Merged cells are flattened with placeholders and an export note. Tables wider than eight columns are represented row-by-row to avoid horizontal clipping. Long rows may split across pages.
@@ -212,13 +212,13 @@ This separate script exercises actual extension loading and downloads against a 
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
 
-**Equation looks like LaTeX:** this is the intentional source-preserving fallback. Native equation rendering is not implemented.
+**Equation looks like LaTeX:** check the popup shows v1.0.2 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
 **Boxes/missing glyphs in PDF:** export Word and use a font installed for that language. The font coverage limitation is explicit above.
 
 **Unexpected page elements:** collect a minimal redacted DOM fixture and update the extraction tests. Do not send credentials, tokens or unredacted personal conversations in a bug report.
 
-**Floating toolbar covers something:** the Chrome toolbar popup provides the same export actions. The floating toolbar sits above the bottom input area but the website layout can vary.
+**Small viewport:** the export toolbar is near the upper-right corner. It uses the space above the composer. When space is too tight, the Chrome popup provides the same export actions.
 
 ## Update or uninstall
 
@@ -228,7 +228,7 @@ To disable: turn off its switch at `chrome://extensions/`. To uninstall: click *
 
 ## Technology and references
 
-JavaScript ES modules, Chrome Manifest V3, Shadow DOM, pdfmake 0.2.20, docx 9.15.2, esbuild, Node test runner, jsdom and Playwright. See `package.json` for exact build/test versions.
+JavaScript ES modules, Chrome Manifest V3, Shadow DOM, pdfmake 0.2.20, docx 9.15.2, MathJax 3.2.2, mathml2omml 0.5.0, esbuild, Node test runner, jsdom and Playwright. See `package.json` for exact build/test versions.
 
 - [Chrome offscreen API](https://developer.chrome.com/docs/extensions/reference/api/offscreen)
 - [Chrome Downloads API](https://developer.chrome.com/docs/extensions/reference/api/downloads)

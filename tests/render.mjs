@@ -319,6 +319,85 @@ try {
   results.push(
     "New Chat / Work layout: real page probe finds six messages, controls appear, exact middle pair and full conversation generate.",
   );
+  // Two assistant units occupy the same numerical turn. A single-pair download
+  // must not make the next full export treat those units as conflicting versions.
+  await page.evaluate(() => {
+    const turn = document.querySelector('[data-turn-key="fallback-turn-2"]');
+    const unit = document.createElement("div");
+    unit.dataset.chatgptSearchUnitKey = "fallback-turn-2:2:assistant";
+    unit.innerHTML = "<p>Second assistant unit</p>";
+    turn.insertBefore(unit, turn.querySelector(".turn-action-controls"));
+  });
+  await pair("pdf");
+  await page.evaluate(() => {
+    const form = document.createElement("form");
+    form.setAttribute("data-chatgpt-composer", "");
+    form.style.cssText =
+      "position:fixed;bottom:0;right:0;width:75vw;height:150px;background:white";
+    form.append(document.createElement("textarea"));
+    document.body.append(form);
+  });
+  for (const size of [
+    { width: 1100, height: 750 },
+    { width: 410, height: 530 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.evaluate(
+      () =>
+        (document.querySelector("form").style.height =
+          innerWidth < 500 ? "295px" : "150px"),
+    );
+    await page.waitForFunction(() => {
+      const a = document
+        .querySelector('[data-cge="toolbar"]')
+        .shadowRoot.querySelector(".toolbar")
+        .getBoundingClientRect();
+      const b = document.querySelector("form").getBoundingClientRect();
+      return a.height > 0 && a.bottom + 8 <= b.top;
+    });
+  }
+  await page.evaluate(() => document.querySelector("form").remove());
+  await page.setViewportSize({ width: 1280, height: 720 });
+  results.push(
+    "Floating toolbar clears the prompt box on desktop and on a narrow viewport with an expanded composer.",
+  );
+  await page.evaluate(() => {
+    const host = document.querySelector('[data-cge="toolbar"]');
+    const listener = (e) => {
+      if (
+        !e.composedPath().includes(host) ||
+        e.composedPath()[0].textContent !== "Word (.docx)"
+      )
+        return;
+      document.removeEventListener("click", listener, true);
+      setTimeout(
+        () =>
+          (document.querySelector(
+            '[data-chatgpt-search-unit-key="fallback-turn-2:2:assistant"] p',
+          ).textContent = "Settled second unit"),
+        650,
+      );
+    };
+    document.addEventListener("click", listener, true);
+  });
+  await collect("docx", 7);
+  const collected = requests.at(-1).document.messages;
+  assert.equal(new Set(collected.map((m) => m.id)).size, 7);
+  assert.deepEqual(
+    collected.slice(-2).map((m) => m.unitOrder),
+    [1, 2],
+  );
+  assert.equal(collected.at(-1).blocks[0].runs[0].text, "Settled second unit");
+  results.push(
+    "Single-pair PDF followed by full Word export preserves sibling assistant units and retries an actual mid-scan content update.",
+  );
+  await page.evaluate(() =>
+    document
+      .querySelector(
+        '[data-chatgpt-search-unit-key="fallback-turn-2:2:assistant"]',
+      )
+      .remove(),
+  );
   const connectedPopup = await context.newPage();
   await connectedPopup.exposeFunction("__tabRelay", (msg) =>
     page.evaluate((data) => window.__invoke(data), msg),

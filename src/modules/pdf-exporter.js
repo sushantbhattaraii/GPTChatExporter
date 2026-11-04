@@ -2,6 +2,7 @@ import pdfMake from "pdfmake/build/pdfmake.js";
 import fonts from "../font-data.json" with { type: "json" };
 import coverage from "../font-coverage.json" with { type: "json" };
 import { prepareDocument, tableGrid } from "./document.js";
+import { renderEquation } from "./equations.js";
 import { plainText } from "./normalize.js";
 pdfMake.addVirtualFileSystem(fonts);
 pdfMake.fonts = {};
@@ -37,23 +38,61 @@ function runs(rs) {
   }));
 }
 const nonempty = (value) => (value.length ? value : [{ text: " " }]);
+function formulaBlock(eq, s) {
+  if (eq.error)
+    return {
+      text: "[Unrendered equation] " + eq.source,
+      italics: true,
+      color: "#526174",
+      margin: [0, 4, 0, 6],
+    };
+  const width =
+    s.equationWidth ||
+    (s.orientation === "landscape" ? 842 : 595) - 2 * s.margin;
+  const scale = Math.min(
+    s.fontSize,
+    Math.max(8, width) / eq.widthEm,
+    260 / eq.heightEm,
+  );
+  return {
+    svg: eq.svg,
+    width: eq.widthEm * scale,
+    height: eq.heightEm * scale,
+    margin: [0, 4, 0, 7],
+  };
+}
+function paragraph(b, s) {
+  const style =
+    b.type === "heading"
+      ? { style: `h${Math.min(b.level, 3)}`, headlineLevel: b.level }
+      : { margin: [0, 0, 0, 7] };
+  const out = [];
+  let pending = [];
+  const flush = () => {
+    if (pending.length) out.push({ text: runs(pending), ...style });
+    pending = [];
+  };
+  for (const r of b.runs) {
+    if (!r.math) {
+      pending.push(r);
+      continue;
+    }
+    const eq = renderEquation(r.text, r.display, r.mathml);
+    if (!r.display && eq.inline != null) {
+      pending.push({ ...r, text: eq.inline, italic: true });
+      continue;
+    }
+    flush();
+    out.push(formulaBlock(eq, s));
+  }
+  flush();
+  return out;
+}
 function convert(bs, s) {
   return bs.flatMap((b) => {
-    if (b.type === "heading")
-      return {
-        text: runs(b.runs),
-        style: `h${Math.min(b.level, 3)}`,
-        headlineLevel: b.level,
-      };
-    if (b.type === "paragraph")
-      return { text: runs(b.runs), margin: [0, 0, 0, 7] };
+    if (b.type === "heading" || b.type === "paragraph") return paragraph(b, s);
     if (b.type === "math")
-      return {
-        text: codeWrap(`\\[${b.text}\\]`),
-        font: "mono",
-        fontSize: Math.max(8, s.fontSize - 1),
-        margin: [0, 5, 0, 10],
-      };
+      return formulaBlock(renderEquation(b.text, true, b.mathml), s);
     if (b.type === "code")
       return [
         {
@@ -89,9 +128,13 @@ function convert(bs, s) {
         return [
           { text: "Wide table (row-by-row)", bold: true },
           ...grid.map((row, i) => ({
-            text:
-              `Row ${i + 1}\n` +
-              row.map((c, j) => `${j + 1}: ${plainText(c.blocks)}`).join("\n"),
+            stack: [
+              { text: `Row ${i + 1}`, bold: true },
+              ...row.flatMap((cell, j) => [
+                { text: `Column ${j + 1}`, italics: true },
+                ...convert(cell.blocks, s),
+              ]),
+            ],
             margin: [0, 4, 0, 8],
           })),
         ];
@@ -101,7 +144,17 @@ function convert(bs, s) {
           widths: Array(n).fill("*"),
           body: grid.map((row) =>
             row.map((c) => ({
-              stack: nonempty(convert(c.blocks, s)),
+              stack: nonempty(
+                convert(c.blocks, {
+                  ...s,
+                  equationWidth:
+                    (s.equationWidth ||
+                      (s.orientation === "landscape" ? 842 : 595) -
+                        2 * s.margin) /
+                      n -
+                    12,
+                }),
+              ),
               fillColor: c.header ? "#e9eef4" : undefined,
               bold: c.header,
               margin: [3, 3, 3, 3],

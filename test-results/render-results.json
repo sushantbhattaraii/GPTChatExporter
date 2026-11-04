@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-04T00:41:42.244Z",
+  "date": "2026-11-04T01:02:39.606Z",
   "browser": "141.0.7390.37",
   "environment": "Standalone Chromium renderer with synthetic DOM and mocked chrome.runtime/storage; no real Chrome download API",
   "results": [
@@ -9,6 +9,8 @@
     "Streaming disables the last response export until completion.",
     "Virtualized 40-turn history recovered through ordinary scrolling without omissions/duplicates.",
     "New Chat / Work layout: real page probe finds six messages, controls appear, exact middle pair and full conversation generate.",
+    "Floating toolbar clears the prompt box on desktop and on a narrow viewport with an expanded composer.",
+    "Single-pair PDF followed by full Word export preserves sibling assistant units and retries an actual mid-scan content update.",
     "Popup uses the content script's real probe, retries after hydration, and enables PDF and Word for the updated layout.",
     "Settings interface operates under shipped CSP with mock Chrome Storage.",
     "Popup detects ChatGPT, dispatches export, and disables export on other sites (mock tabs API)."
@@ -23,6 +25,8 @@
     "renderer-6.docx",
     "renderer-7.pdf",
     "renderer-8.docx",
-    "renderer-9.docx"
+    "renderer-9.docx",
+    "renderer-10.pdf",
+    "renderer-11.docx"
   ]
 }

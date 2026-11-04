@@ -2,31 +2,37 @@
   {
     "file": "conversation.pdf",
     "pages": 2,
-    "bytes": 38670,
+    "bytes": 40152,
     "valid": true
   },
   {
     "file": "long.pdf",
     "pages": 10,
-    "bytes": 66506,
+    "bytes": 67786,
     "valid": true
   },
   {
     "file": "pair.pdf",
     "pages": 1,
-    "bytes": 36976,
+    "bytes": 38236,
     "valid": true
   },
   {
     "file": "renderer-1.pdf",
     "pages": 1,
-    "bytes": 36976,
+    "bytes": 38236,
+    "valid": true
+  },
+  {
+    "file": "renderer-10.pdf",
+    "pages": 1,
+    "bytes": 12019,
     "valid": true
   },
   {
     "file": "renderer-3.pdf",
     "pages": 2,
-    "bytes": 38670,
+    "bytes": 40152,
     "valid": true
   },
   {
@@ -38,32 +44,37 @@
   {
     "file": "settings.pdf",
     "pages": 2,
-    "bytes": 35741,
+    "bytes": 31655,
     "valid": true
   },
   {
     "file": "conversation.docx",
-    "bytes": 11984,
+    "bytes": 12019,
     "valid": true
   },
   {
     "file": "long.docx",
-    "bytes": 12233,
+    "bytes": 12281,
     "valid": true
   },
   {
     "file": "pair.docx",
-    "bytes": 11877,
+    "bytes": 11921,
+    "valid": true
+  },
+  {
+    "file": "renderer-11.docx",
+    "bytes": 10689,
     "valid": true
   },
   {
     "file": "renderer-2.docx",
-    "bytes": 11878,
+    "bytes": 11921,
     "valid": true
   },
   {
     "file": "renderer-4.docx",
-    "bytes": 11988,
+    "bytes": 12022,
     "valid": true
   },
   {
@@ -73,7 +84,7 @@
   },
   {
     "file": "renderer-6.docx",
-    "bytes": 10881,
+    "bytes": 10880,
     "valid": true
   },
   {
@@ -88,7 +99,7 @@
   },
   {
     "file": "settings.docx",
-    "bytes": 11806,
+    "bytes": 11811,
     "valid": true
   },
   {

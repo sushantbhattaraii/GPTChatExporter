@@ -10,7 +10,6 @@ export function documentWarnings(doc) {
     );
   function walk(bs) {
     for (const b of bs) {
-      if (b.type === "math" || b.runs?.some((r) => r.math)) math = true;
       if (
         b.type === "table" &&
         b.rows.some((r) => r.some((c) => c.colSpan > 1 || c.rowSpan > 1))
@@ -21,13 +20,8 @@ export function documentWarnings(doc) {
       if (b.rows) b.rows.forEach((r) => r.forEach((c) => walk(c.blocks)));
     }
   }
-  let math = false,
-    spans = false;
+  let spans = false;
   doc.messages.forEach((m) => walk(m.blocks));
-  if (math)
-    warnings.push(
-      "Equations are preserved as LaTeX source for accuracy, not native Word equations.",
-    );
   if (spans)
     warnings.push("Merged table cells are flattened to a regular grid.");
   return warnings;
@@ -41,7 +35,7 @@ export function prepareDocument(doc, s) {
     throw new Error("Invalid export request.");
   const filter = (bs) =>
     bs
-      .filter((b) => s.includeCode || b.type !== "code")
+      .filter((b) => s.includeCode || (b.type !== "code" && !b.fromCode))
       .map((b) => ({
         ...b,
         ...(b.blocks ? { blocks: filter(b.blocks) } : {}),

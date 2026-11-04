@@ -1,5 +1,7 @@
+import { renderEquation } from "./equations.js";
 import {
   Document,
+  ImportedXmlComponent,
   Packer,
   Paragraph,
   TextRun,
@@ -16,10 +18,20 @@ import {
   PageOrientation,
 } from "docx";
 import { prepareDocument, tableGrid } from "./document.js";
-import { plainText } from "./normalize.js";
 const FONTS = { sans: "Arial", serif: "Times New Roman", mono: "Courier New" };
+function wordEquation(text, display = false, mathml = null) {
+  const eq = renderEquation(text, display, mathml);
+  if (eq.error || !eq.omml?.includes("<m:oMath"))
+    return new TextRun({
+      text: "[Unrendered equation] " + eq.source,
+      italics: true,
+    });
+  // fromXmlString returns a document wrapper. Insert its OMML element directly.
+  return ImportedXmlComponent.fromXmlString(eq.omml).root[0];
+}
 function runs(rs) {
   return rs.flatMap((r) => {
+    if (r.math) return [wordEquation(r.text, r.display, r.mathml)];
     const children = r.text.split("\n").map(
       (text, i) =>
         new TextRun({
@@ -59,10 +71,7 @@ export function wordDocument(input, s) {
           runs(quoted ? b.runs.map((r) => ({ ...r, italic: true })) : b.runs),
           quoted ? { indent: { left: 240 } } : {},
         );
-      if (b.type === "math")
-        return p([
-          new TextRun({ text: `\\[${b.text}\\]`, font: "Courier New" }),
-        ]);
+      if (b.type === "math") return p([wordEquation(b.text, true, b.mathml)]);
       if (b.type === "code")
         return [
           p(
@@ -126,16 +135,15 @@ export function wordDocument(input, s) {
         const grid = tableGrid(b.rows);
         if (!grid.length) return [];
         if (grid[0].length > 8)
-          return grid.map((row, i) =>
-            p([
-              new TextRun(
-                `Row ${i + 1}: ` +
-                  row
-                    .map((c, j) => `${j + 1}: ${plainText(c.blocks)}`)
-                    .join(" | "),
-              ),
+          return grid.flatMap((row, i) => [
+            p([new TextRun({ text: `Row ${i + 1}`, bold: true })], {
+              keepNext: true,
+            }),
+            ...row.flatMap((cell, j) => [
+              p([new TextRun(`Column ${j + 1}`)], { keepNext: true }),
+              ...convert(cell.blocks),
             ]),
-          );
+          ]);
         return [
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
