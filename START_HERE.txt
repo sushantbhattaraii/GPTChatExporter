@@ -1,9 +1,9 @@
-ChatGPT Conversation Exporter 1.4.0
+ChatGPT Conversation Exporter 1.5.0
 
 Updating an earlier version: Extract the ZIP and replace the contents of your
 previously loaded dist folder with the new dist contents. Click Reload
 on the extension card at chrome://extensions/, then refresh your chat.
-Verify the popup says v1.4.0.
+Verify the popup says v1.5.0.
 
 New installation:
 1. Extract this ZIP completely.
@@ -24,6 +24,10 @@ PDF typesets equations. Word includes editable equations. Images are embedded wh
 PDF preserves visible syntax colors, whitespace and paragraph alignment.
 Prompts are right-aligned. Responses use the full page text width under navy headings.
 Both print directly on the page. See examples/transcript-layout.pdf.
+If an external image needs access, open the extension popup and choose
+Allow images and continue. Approve only the listed sites you want to include.
+The ongoing export resumes. Long history scans continue while they make progress.
+See examples/career-components.pdf for company links, a career diagram and a job card.
 See examples/formatted-chat.pdf for typography and examples/rich-content.pdf
 for diagrams, checklist states, multilingual text and static widget output.
 Live signed-in ChatGPT, real Chrome downloads and Microsoft Word need the

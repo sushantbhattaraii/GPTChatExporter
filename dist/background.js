@@ -1,29 +1,52 @@
 (() => {
-  // src/modules/media-fetch.js
+  // src/modules/image-origins.js
   function allowedAsset(value) {
     try {
-      const url = new URL(value);
-      if (url.protocol !== "https:" || url.port || url.username || url.password)
+      const u = new URL(value);
+      if (u.protocol !== "https:" || u.port || u.username || u.password)
         return false;
-      if (url.hostname === "chatgpt.com")
+      if (u.hostname === "chatgpt.com")
         return /^\/backend-api\/(?:estuary\/content(?:\/|$)|files\/)/.test(
-          url.pathname
+          u.pathname
         );
-      return url.hostname === "oaiusercontent.com" || url.hostname.endsWith(".oaiusercontent.com");
+      return u.hostname === "images.openai.com" || u.hostname === "oaiusercontent.com" || u.hostname.endsWith(".oaiusercontent.com");
     } catch {
       return false;
     }
   }
+  function publicImageOrigin(value) {
+    try {
+      const u = new URL(value);
+      if (u.protocol !== "https:" || u.port || u.username || u.password || !/^(?:[a-z0-9-]+\.)+[a-z]{2,}$/i.test(u.hostname) || /(?:^|\.)(?:localhost|local|internal|intranet|home|test)$/.test(
+        u.hostname
+      ) || u.hostname === "chatgpt.com" || u.hostname.endsWith(".chatgpt.com"))
+        return null;
+      return u.origin;
+    } catch {
+      return null;
+    }
+  }
+
+  // src/modules/media-fetch.js
   async function readDisplayedAsset(value, sender) {
-    if (!sender.tab || !sender.url?.startsWith("https://chatgpt.com/") || !allowedAsset(value))
+    if (!sender.tab || !sender.url?.startsWith("https://chatgpt.com/") || !allowedAsset(value) && !publicImageOrigin(value))
       throw new Error("Image origin is unavailable");
-    const res = await fetch(value, {
-      credentials: new URL(value).hostname === "chatgpt.com" ? "include" : "omit",
-      referrerPolicy: "no-referrer",
-      signal: AbortSignal.timeout(12e3)
-    });
+    const firstParty = allowedAsset(value), origin = publicImageOrigin(value);
+    let res;
+    try {
+      res = await fetch(value, {
+        credentials: new URL(value).hostname === "chatgpt.com" ? "include" : "omit",
+        referrerPolicy: "no-referrer",
+        redirect: firstParty ? "follow" : "error",
+        signal: AbortSignal.timeout(12e3)
+      });
+    } catch (error) {
+      if (error.name === "TypeError" && !firstParty && !await chrome.permissions.contains({ origins: [origin + "/*"] }))
+        return { ok: false, permissionOrigin: origin };
+      throw error;
+    }
     let type = res.headers.get("Content-Type")?.split(";")[0].toLowerCase();
-    if (!res.ok || !allowedAsset(res.url) || !(type === "application/octet-stream" || /^image\/(png|jpeg|webp|gif|avif)$/.test(type)))
+    if (!res.ok || !(firstParty ? allowedAsset(res.url) : publicImageOrigin(res.url) === origin) || !(type === "application/octet-stream" || /^image\/(png|jpeg|webp|gif|avif)$/.test(type)))
       throw new Error("Image could not be read");
     const reader = res.body.getReader(), chunks = [];
     let size = 0;
@@ -159,16 +182,30 @@
     if (["complete", "interrupted"].includes(delta.state?.current))
       void settle(delta.id, delta.state.current, delta.error?.current);
   });
-  async function exportDocument(msg, sender) {
-    if (!sender.tab || !sender.url?.startsWith("https://chatgpt.com/"))
+  function ownerOf(sender) {
+    if (!sender.tab || !sender.url?.startsWith("https://chatgpt.com/") || sender.frameId && sender.frameId !== 0)
       throw new Error("Exports must originate from the ChatGPT page.");
+    return sender.tab.id + "/" + (sender.documentId || sender.url);
+  }
+  async function stage(msg, sender) {
+    const owner = ownerOf(sender);
+    if (msg.type === "CGE_STAGE" && msg.offset === 0) await ensureOffscreen();
+    return chrome.runtime.sendMessage({
+      ...msg,
+      target: "offscreen",
+      owner,
+      type: msg.type === "CGE_STAGE" ? "STAGE" : "DISCARD"
+    });
+  }
+  async function exportDocument(msg, sender) {
+    const owner = ownerOf(sender);
     if (!["pdf", "docx"].includes(msg.format))
       throw new Error("Invalid file format.");
-    if (JSON.stringify(msg.document).length > 2e7)
+    if (!msg.key && (!msg.document || JSON.stringify(msg.document).length > 2e7))
       throw new Error(
-        "This conversation exceeds the 20 MB safety limit. Export smaller question\u2013answer pairs."
+        "Invalid direct export. Large documents must be transferred in chunks."
       );
-    const settings = await getSettings(), name = filename(msg.document, msg.format), key = crypto.randomUUID();
+    const settings = await getSettings(), name = filename(msg.key ? msg.meta : msg.document, msg.format), key = crypto.randomUUID();
     await status(sender.tab.id, "Generating your document locally\u2026");
     await ensureOffscreen();
     const result = await chrome.runtime.sendMessage({
@@ -177,6 +214,8 @@
       key,
       format: msg.format,
       document: msg.document,
+      stagedKey: msg.key,
+      owner,
       settings
     });
     if (!result?.ok)
@@ -207,6 +246,25 @@
   }
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (msg?.target === "offscreen") return;
+    if (msg?.type === "CGE_STAGE" || msg?.type === "CGE_DISCARD") {
+      stage(msg, sender).then(reply).catch((e) => reply({ ok: false, error: e.message }));
+      return true;
+    }
+    if (msg?.type === "CGE_IMAGE_HAS_ACCESS") {
+      try {
+        ownerOf(sender);
+        if (!Array.isArray(msg.origins) || !msg.origins.length || !msg.origins.every((o) => publicImageOrigin(o) === o))
+          throw new Error("Invalid image sites.");
+        chrome.permissions.contains({ origins: msg.origins.map((o) => o + "/*") }).then(
+          (granted) => reply({ granted }),
+          () => reply({ granted: false })
+        );
+        return true;
+      } catch {
+        reply({ granted: false });
+        return;
+      }
+    }
     if (msg?.type === "CGE_IMAGE") {
       const task = readDisplayedAsset(msg.url, sender);
       task.then(reply).catch((e) => reply({ ok: false, error: e.message }));

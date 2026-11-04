@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Conversation Exporter",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Export the displayed ChatGPT question\u2013answer pair or conversation to PDF and editable Word, locally.",
   "minimum_chrome_version": "116",
-  "permissions": ["downloads", "offscreen", "storage"],
+  "permissions": [
+    "downloads",
+    "offscreen",
+    "storage"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -24,8 +28,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://chatgpt.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -34,10 +42,14 @@
     "open_in_tab": true
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'none'; connect-src https://chatgpt.com https://oaiusercontent.com https://*.oaiusercontent.com"
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src https:"
   },
   "host_permissions": [
     "https://chatgpt.com/*",
-    "https://*.oaiusercontent.com/*"
+    "https://*.oaiusercontent.com/*",
+    "https://images.openai.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
   ]
 }

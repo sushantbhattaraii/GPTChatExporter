@@ -7,7 +7,11 @@ export function documentWarnings(doc) {
   let unreadable = false;
   function walk(bs) {
     for (const b of bs) {
-      if (b.type === "image" && !b.image?.data) unreadable = true;
+      if (
+        (b.type === "image" && !b.image?.data) ||
+        b.assets?.some((a) => !a.data)
+      )
+        unreadable = true;
       if (
         b.type === "table" &&
         b.rows.some((r) => r.some((c) => c.colSpan > 1 || c.rowSpan > 1))

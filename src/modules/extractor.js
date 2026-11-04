@@ -501,6 +501,7 @@ export function extractMessage(
   function known(bs) {
     for (const b of bs) {
       if (b.image) present.add(b.image.key);
+      for (const a of b.assets || []) present.add(a.key);
       if (b.blocks) known(b.blocks);
       if (b.items) b.items.forEach(known);
       if (b.rows) b.rows.forEach((row) => row.forEach((c) => known(c.blocks)));
@@ -608,7 +609,7 @@ export function historyKey(message) {
     return JSON.stringify([message.role, "turn", message.turnIndex]);
   return null;
 }
-export function snapshot(root = document) {
+export function snapshot(root = document, extract = extractMessage) {
   const nodes = messageNodes(root);
   if (!nodes.length)
     throw new Error(
@@ -618,7 +619,7 @@ export function snapshot(root = document) {
     throw new Error(
       "A response is incomplete or its completion cannot be verified. Wait for completion and retry.",
     );
-  const result = nodes.map(extractMessage);
+  const result = nodes.map(extract);
   const seen = new Map();
   return result.filter((m) => {
     const key = historyKey(m);

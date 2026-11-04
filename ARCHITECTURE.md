@@ -32,7 +32,7 @@ A global visible stop control or explicit streaming/busy state prevents exportin
 6. Present count and start/end previews. Require range confirmation, including a completeness disclosure.
 7. Recheck currently mounted content and URL after review, before submitting the snapshot.
 
-Scrolling is bounded to 45 seconds; Escape cancels. Mutation during review invalidates the export. The collector never treats arbitrary scroll stability as proof of complete backend history. Partial content is not silently called a verified complete conversation.
+A progress watchdog tracks newly collected messages, scroll advances and increases in scroll height. It stops a stalled scan after 90 seconds. Escape cancels. Updated and visible turns are reread; unchanged offscreen turns can reuse their model. Mutation during review invalidates the export. The collector never treats arbitrary scroll stability as proof of complete backend history. Partial content is not silently called a verified complete conversation.
 
 ## Documents
 
@@ -53,3 +53,9 @@ Worker restart is tolerated for downloads whose session record exists; no succes
 ## PDF styling
 
 The content script serializes computed paragraph alignments and styled text runs for code. The PDF generator embeds those runs as text and paginates each message in a continuous transcript. Prompts use a narrower right-aligned measure. Replies use the full text width. Both scopes call the same PDF layout code. Figure rows carry their items and column count; tables can carry measured column proportions. Document warnings are kept in the PDF Subject field.
+
+The selected image's DOM source, responsive alternatives and loaded pixels are kept for the duration of the export. Approved ChatGPT endpoints and anonymous HTTPS image reads use the worker. A blocked external image can require an origin-specific optional grant, initiated by a popup click. The same export retries blocked assets after the grant.
+
+The content script records bounded HTML components from browser layout rectangles, text ranges, computed paint and local SVG paths. It includes safe hyperlink destinations and places resolved images in the vector drawing. The document engine keeps these components together as space permits. Word uses their semantic content.
+
+Large documents transfer through the service worker in sequenced chunks. The offscreen document checks the tab/document identity, offsets and UTF-8 length before parsing. Abandoned partial transfers expire. The extension never stores chat content in Chrome storage.

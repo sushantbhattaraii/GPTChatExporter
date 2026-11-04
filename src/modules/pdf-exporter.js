@@ -1,6 +1,7 @@
 import pdfMake from "pdfmake/build/pdfmake.js";
 import fonts from "../font-data.json" with { type: "json" };
 import { fontFor, selectFonts } from "./unicode.js";
+import { printableLayoutSVG } from "./html-layout.js";
 import { prepareDiagrams } from "./render-diagrams.js";
 import { prepareDocument, tableGrid } from "./document.js";
 import { renderEquation } from "./equations.js";
@@ -224,6 +225,24 @@ function codeBlock(block, s) {
 }
 function convert(bs, s) {
   return bs.flatMap((b) => {
+    if (b.type === "layout") {
+      const maxHeight =
+        (s.orientation === "landscape" ? 595.28 : 841.89) -
+        2 * (s.margin + 9) -
+        16;
+      const scale = Math.min(
+        0.75,
+        s.equationWidth / b.width,
+        maxHeight / b.height,
+      );
+      return {
+        svg: printableLayoutSVG(b),
+        font: "sans",
+        width: b.width * scale,
+        height: b.height * scale,
+        margin: [0, 4, 0, 9],
+      };
+    }
     if (b.type === "figure" || b.type === "gallery") {
       const items = b.items || [b.blocks],
         gap = 6,

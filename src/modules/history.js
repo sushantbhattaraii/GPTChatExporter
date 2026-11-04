@@ -4,6 +4,9 @@ import {
   messageNodes,
   isStreaming,
   historyKey,
+  extractMessage,
+  turnFor,
+  visualRoots,
 } from "./extractor.js";
 import { plainText } from "./normalize.js";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -18,19 +21,90 @@ export function scrollContainer(root = document) {
       return node;
     node = node.parentElement;
   }
-  return root.scrollingElement;
+  return root.scrollingElement || root.documentElement;
+}
+// Cache normalized DOM only for the current scan. Virtualized nodes, edits, lazy
+// image loads and live control changes invalidate their owning turn.
+function scanReader(scroller) {
+  const cache = new WeakMap(),
+    stamps = new WeakMap();
+  let revision = 0;
+  function changed(node) {
+    if (node?.nodeType !== 1) node = node?.parentElement;
+    if (!node || node.closest("[data-cge]")) return;
+    revision++;
+    for (let p = node; p; p = p.parentElement) stamps.set(p, revision);
+  }
+  const observer = new MutationObserver((records) =>
+    records.forEach((r) => changed(r.target)),
+  );
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    characterData: true,
+  });
+  const event = (e) => changed(e.target);
+  for (const name of ["load", "input", "change"])
+    document.addEventListener(name, event, true);
+  return {
+    read() {
+      observer.takeRecords().forEach((r) => changed(r.target));
+      const viewport =
+        scroller === document.scrollingElement
+          ? { top: 0, bottom: innerHeight }
+          : scroller.getBoundingClientRect();
+      return snapshot(document, (el, index, nodes) => {
+        const rect = el.getBoundingClientRect(),
+          inView = rect.bottom > viewport.top && rect.top < viewport.bottom;
+        const turn = turnFor(el),
+          roots = visualRoots(el),
+          version = Math.max(
+            stamps.get(turn) || 0,
+            ...roots.map((n) => stamps.get(n) || 0),
+          );
+        const prior = cache.get(el);
+        if (
+          prior?.turn === turn &&
+          (!inView || prior.top === rect.top) &&
+          prior.version === version &&
+          prior.roots.length === roots.length &&
+          roots.every((n, i) => n === prior.roots[i])
+        )
+          return { ...prior.message, order: index };
+        const message = extractMessage(el, index, nodes);
+        cache.set(el, {
+          turn,
+          roots,
+          version,
+          message,
+          top: inView ? rect.top : null,
+        });
+        return message;
+      });
+    },
+    close() {
+      observer.disconnect();
+      for (const name of ["load", "input", "change"])
+        document.removeEventListener(name, event, true);
+    },
+  };
 }
 // Only normal page scrolling. No private endpoints or application-state access.
 export async function collectHistory({
   signal,
   onProgress = () => {},
-  timeout = 45000,
+  stallTimeout = 90000,
 } = {}) {
   const route = location.href,
     scroller = scrollContainer(),
     original = scroller.scrollTop;
-  const start = Date.now(),
-    seen = new Map();
+  const seen = new Map(),
+    reader = scanReader(scroller);
+  let lastProgress = Date.now(),
+    bestTop = scroller.scrollTop,
+    descending = false,
+    lastHeight = scroller.scrollHeight;
   let previous = [];
   class ChangedDuringScan extends Error {}
   let uncertain = false,
@@ -43,10 +117,7 @@ export async function collectHistory({
       throw new Error(
         "The conversation changed during collection. Retry on the intended conversation.",
       );
-    if (Date.now() - start > timeout)
-      throw new Error(
-        "History collection exceeded 45 seconds. Scroll to load older messages and retry, or export individual pairs.",
-      );
+
     if (isStreaming())
       throw new Error(
         "A response started streaming during collection. Wait for it to finish.",
@@ -54,7 +125,8 @@ export async function collectHistory({
   }
   function read() {
     guard();
-    const current = snapshot();
+    const beforeCount = seen.size;
+    const current = reader.read();
     const indexed = current.every((m) => m.turnIndex !== null);
     if (!indexed) uncertain = true;
     const keys = new Set();
@@ -69,7 +141,8 @@ export async function collectHistory({
       if (
         prior &&
         (prior.turnIndex !== m.turnIndex ||
-          plainText(prior.blocks) !== plainText(m.blocks))
+          (prior.blocks !== m.blocks &&
+            plainText(prior.blocks) !== plainText(m.blocks)))
       )
         throw new ChangedDuringScan(
           "The conversation kept changing during both history scans. Finish editing or generating the reply and retry.",
@@ -95,15 +168,34 @@ export async function collectHistory({
         );
     }
     previous = current;
-    if ([...seen.keys()].some((k) => !keys.has(k))) everUnmounted = true;
+    if (seen.size > keys.size) everUnmounted = true;
     if (!indexed && everUnmounted)
       throw new Error(
         "This page virtualizes messages without ordered turn identifiers. A reliable complete export is unavailable.",
       );
-    onProgress(`Collecting history… ${seen.size} messages (Escape cancels)`);
+    const top = scroller.scrollTop,
+      height = scroller.scrollHeight;
+    if (
+      (descending ? top > bestTop + 1 : top < bestTop - 1) ||
+      height > lastHeight ||
+      seen.size > beforeCount
+    )
+      lastProgress = Date.now();
+    else if (Date.now() - lastProgress > stallTimeout)
+      throw new Error(
+        `The chat stopped scrolling or loading after ${seen.size} messages. Wait for it to load and retry.`,
+      );
+    bestTop = descending ? Math.max(bestTop, top) : Math.min(bestTop, top);
+    lastHeight = Math.max(lastHeight, height);
+    onProgress(
+      `Collecting history… ${seen.size} messages · ${Math.min(100, Math.round((100 * (top + scroller.clientHeight)) / Math.max(1, height)))}% of current scroll range (Escape cancels)`,
+    );
     return current;
   }
   async function scan() {
+    descending = false;
+    bestTop = scroller.scrollTop;
+    lastHeight = scroller.scrollHeight;
     read();
     // Repeat top visits because loading older messages may shift the scroll offset.
     let topStable = 0,
@@ -117,6 +209,9 @@ export async function collectHistory({
       topStable = state === last && scroller.scrollTop < 5 ? topStable + 1 : 0;
       last = state;
     }
+    descending = true;
+    bestTop = scroller.scrollTop;
+    lastProgress = Date.now();
     let bottomStable = 0;
     while (bottomStable < 3) {
       guard();
@@ -125,11 +220,13 @@ export async function collectHistory({
         scroller.scrollHeight,
         before + Math.max(200, scroller.clientHeight * 0.7),
       );
-      await sleep(350);
+      await sleep(220);
       read();
       const atBottom =
         scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4;
-      bottomStable = atBottom ? bottomStable + 1 : 0;
+      const edge = `${seen.size}:${scroller.scrollHeight}:${previous.at(-1)?.id}`;
+      bottomStable = atBottom && edge === last ? bottomStable + 1 : 0;
+      last = edge;
     }
     const result = everUnmounted ? [...seen.values()] : read();
     if (result.every((m) => m.turnIndex !== null)) {
@@ -162,6 +259,7 @@ export async function collectHistory({
     } catch (error) {
       if (!(error instanceof ChangedDuringScan)) throw error;
       seen.clear();
+      lastProgress = Date.now();
       previous = [];
       uncertain = false;
       everUnmounted = false;
@@ -170,6 +268,7 @@ export async function collectHistory({
       return await scan();
     }
   } finally {
+    reader.close();
     if (location.href === route) scroller.scrollTop = original;
     scroller.style.scrollBehavior = oldBehavior;
   }

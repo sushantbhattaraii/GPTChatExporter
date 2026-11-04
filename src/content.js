@@ -1,3 +1,4 @@
+import { sendExport } from "./modules/transfer.js";
 import { beginImages, endImages, embedImages } from "./modules/media.js";
 import {
   messageNodes,
@@ -24,6 +25,7 @@ import {
 } from "./modules/ui.js";
 import { plainText } from "./modules/normalize.js";
 import { getSettings } from "./modules/settings.js";
+let pendingImages;
 let busy = false,
   route = location.href,
   scheduled,
@@ -52,6 +54,59 @@ toolbar.append(status);
 function feedback(text, state = "working") {
   status.textContent = text;
   status.dataset.state = state;
+}
+function askImageAccess(origins) {
+  if (controller.signal.aborted) throw new Error("Export cancelled.");
+  const dialog = document.createElement("dialog"),
+    title = document.createElement("h2"),
+    body = document.createElement("p");
+  title.textContent = "Include images from these sites?";
+  body.textContent =
+    "Open the ChatGPT Conversation Exporter icon in Chrome and click “Allow images and continue”. Chrome will ask about " +
+    origins.map((o) => new URL(o).hostname).join(", ") +
+    ". This export will resume here.";
+  const signal = controller.signal;
+  return new Promise((resolve, reject) => {
+    let settled = false,
+      poll;
+    const finish = (allow, cancel = false) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(poll);
+      signal.removeEventListener("abort", abort);
+      pendingImages = null;
+      dialog.close();
+      dialog.remove();
+      if (cancel) reject(new Error("Export cancelled."));
+      else resolve(allow);
+    };
+    const abort = () => finish(false, true);
+    pendingImages = { token: crypto.randomUUID(), origins, finish };
+    // A native prompt may close the popup. Resume after the grant even in that case.
+    poll = setInterval(
+      () =>
+        chrome.runtime
+          .sendMessage({ type: "CGE_IMAGE_HAS_ACCESS", origins })
+          .then((r) => {
+            if (r?.granted === true) finish(true);
+          })
+          .catch(() => {}),
+      1500,
+    );
+    signal.addEventListener("abort", abort, { once: true });
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      abort();
+    });
+    dialog.append(
+      title,
+      body,
+      button("Continue without these images", () => finish(false)),
+      button("Cancel export", abort),
+    );
+    panel.shadow.append(dialog);
+    dialog.showModal();
+  });
 }
 async function run(scope, format, target) {
   if (busy) {
@@ -106,18 +161,20 @@ async function run(scope, format, target) {
       exportedAt: new Date().toISOString(),
       messages,
     };
-    await embedImages(messages);
+    feedback("Reading images for this export…");
+    await embedImages(messages, {
+      requestAccess: askImageAccess,
+      format,
+      signal: controller.signal,
+    });
     if (controller.signal.aborted || location.href !== startRoute)
       throw new Error("Export cancelled or conversation changed.");
-    if (JSON.stringify(model).length > 20_000_000)
-      throw new Error(
-        "This export exceeds the 20 MB local limit. Export smaller question–answer pairs.",
-      );
-    const response = await chrome.runtime.sendMessage({
-      type: "CGE_EXPORT",
+    const response = await sendExport(
+      model,
       format,
-      document: model,
-    });
+      controller.signal,
+      feedback,
+    );
     if (!response?.ok)
       throw new Error(
         response?.error ||
@@ -271,8 +328,24 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     feedback(msg.text, msg.state);
     return;
   }
+  if (msg?.type === "CGE_IMAGE_DECISION") {
+    if (!pendingImages || pendingImages.token !== msg.token) {
+      reply({ ok: false });
+      return;
+    }
+    pendingImages.finish(msg.granted === true);
+    reply({ ok: true });
+    return;
+  }
   if (msg?.type === "CGE_PROBE") {
-    reply({ ok: true, messages: messageNodes().length, busy });
+    reply({
+      ok: true,
+      messages: messageNodes().length,
+      busy,
+      imageAccess: pendingImages
+        ? { token: pendingImages.token, origins: pendingImages.origins }
+        : null,
+    });
     return;
   }
   if (msg?.type === "CGE_REQUEST") {

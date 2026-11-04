@@ -19,10 +19,14 @@ function local(value, base) {
   if (!value.includes("url(")) return value;
   const match = /^url\(["']?([^"')]+)["']?\)$/.exec(value);
   if (!match) return null;
-  const url = new URL(match[1], base);
-  return url.href.split("#")[0] === base.split("#")[0] && url.hash
-    ? "url(" + url.hash + ")"
-    : null;
+  try {
+    const url = new URL(match[1], base);
+    return url.href.split("#")[0] === base.split("#")[0] && url.hash
+      ? "url(" + url.hash + ")"
+      : null;
+  } catch {
+    return null;
+  }
 }
 export function diagramSVG(root) {
   const doc = root.ownerDocument,

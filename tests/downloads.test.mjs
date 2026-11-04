@@ -70,6 +70,8 @@ async function setup({ downloadError = false, state = "in_progress" } = {}) {
       ),
     );
   return {
+    call: (msg, sender) =>
+      new Promise((reply) => listeners[0](msg, sender, reply)),
     session,
     sent,
     generated,
@@ -121,4 +123,52 @@ test("non-ChatGPT sender cannot initiate export", async () => {
   );
   assert.equal(app.created(), 0);
   assert.equal(app.generated.length, 0);
+});
+
+test("the worker forwards chunks and generation requests under the same tab and document identity", async () => {
+  const app = await setup(),
+    from = {
+      url: "https://chatgpt.com/c/a",
+      tab: { id: 4 },
+      documentId: "docA",
+    },
+    key = "sample";
+  assert(
+    (
+      await app.call(
+        { type: "CGE_STAGE", key, chunk: "{}", offset: 0, bytes: 2 },
+        from,
+      )
+    ).ok,
+  );
+  const staged = app.generated.at(-1);
+  assert.deepEqual(
+    [staged.target, staged.type, staged.owner, staged.chunk],
+    ["offscreen", "STAGE", "4/docA", "{}"],
+  );
+  assert(
+    (
+      await app.call(
+        {
+          type: "CGE_EXPORT",
+          key,
+          format: "pdf",
+          meta: { scope: "conversation", title: "Case" },
+        },
+        from,
+      )
+    ).ok,
+  );
+  const gen = app.generated.find((m) => m.type === "GENERATE");
+  assert.equal(gen.owner, staged.owner);
+  assert.equal(gen.stagedKey, key);
+  assert.equal(
+    (
+      await app.call(
+        { type: "CGE_STAGE", key, offset: 0, bytes: 2, chunk: "{}" },
+        { url: "https://elsewhere.example/", tab: { id: 5 } },
+      )
+    ).ok,
+    false,
+  );
 });

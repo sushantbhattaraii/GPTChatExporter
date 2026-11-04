@@ -1,9 +1,21 @@
 import { generatePDF } from "./modules/pdf-exporter.js";
 import { generateDOCX } from "./modules/docx-exporter.js";
+import { stagedDocuments } from "./modules/transfer.js";
+const stages = stagedDocuments();
 const blobs = new Map();
 let generating = false;
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  if (msg?.target !== "offscreen") return;
+  if (msg?.target !== "offscreen" || sender.tab) return;
+  if (msg.type === "STAGE" || msg.type === "DISCARD") {
+    try {
+      if (msg.type === "STAGE") stages.append(msg);
+      else stages.discard(msg.key, msg.owner);
+      reply({ ok: true });
+    } catch (e) {
+      reply({ ok: false, error: e.message });
+    }
+    return;
+  }
   if (msg.type === "RELEASE") {
     const entry = blobs.get(msg.key);
     if (entry) {
@@ -28,9 +40,12 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     20000,
   );
   (async () => {
+    const document = msg.stagedKey
+      ? stages.take(msg.stagedKey, msg.owner)
+      : msg.document;
     const blob = await (msg.format === "pdf"
-      ? generatePDF(msg.document, msg.settings)
-      : generateDOCX(msg.document, msg.settings));
+      ? generatePDF(document, msg.settings)
+      : generateDOCX(document, msg.settings));
     const url = URL.createObjectURL(blob);
     const timer = setTimeout(
       () => {

@@ -20,7 +20,7 @@ export function textAlignment(el) {
     ? physical
     : "left";
 }
-function rgba(value, doc) {
+export function rgba(value, doc) {
   const match = value?.match(
     /^rgba?\(\s*([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/i,
   );

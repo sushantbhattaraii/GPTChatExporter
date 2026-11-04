@@ -254,3 +254,18 @@ test("a visible introduction in a single assistant turn precedes its body in bot
     );
   }
 });
+
+test("company triggers preserve printed names and only real destinations in table cells and headings", () => {
+  const d = dom(
+    '<main><table><tr><td><button aria-haspopup="dialog" data-href="https://example.com/ms">Microsoft</button></td><td><button aria-label="Databricks"></button></td></tr></table><h3><a href="https://example.com/cr" role="button"><b>Cockroach Labs</b></a></h3><p><button>Copy</button></p></main>',
+  );
+  const bs = blocks(d.querySelector("main"));
+  const cells = bs[0].rows[0];
+  assert.equal(cells[0].blocks[0].runs[0].text, "Microsoft");
+  assert.equal(cells[0].blocks[0].runs[0].link, "https://example.com/ms");
+  assert.equal(cells[1].blocks[0].runs[0].text, "Databricks");
+  assert(!cells[1].blocks[0].runs[0].link);
+  assert.equal(bs[1].runs[0].text, "Cockroach Labs");
+  assert.equal(bs[1].runs[0].link, "https://example.com/cr");
+  assert(!plainText(bs).includes("Copy"));
+});

@@ -101071,8 +101071,12 @@
     if (!value.includes("url(")) return value;
     const match = /^url\(["']?([^"')]+)["']?\)$/.exec(value);
     if (!match) return null;
-    const url = new URL(match[1], base2);
-    return url.href.split("#")[0] === base2.split("#")[0] && url.hash ? "url(" + url.hash + ")" : null;
+    try {
+      const url = new URL(match[1], base2);
+      return url.href.split("#")[0] === base2.split("#")[0] && url.hash ? "url(" + url.hash + ")" : null;
+    } catch {
+      return null;
+    }
   }
   function diagramSVG(root) {
     const doc = root.ownerDocument, win = doc.defaultView;
@@ -101147,6 +101151,18 @@
     };
   }
 
+  // src/modules/html-layout.js
+  var escaped = (t) => String(t).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  function printableLayoutSVG(block) {
+    return block.svg.replace(/<!--asset-(\d+)-->/g, (_, n) => {
+      const a = block.assets[n];
+      if (!a) return "";
+      if (a.data)
+        return `<image x="${a.x}" y="${a.y}" width="${a.width}" height="${a.height}" preserveAspectRatio="${a.fit}" href="${a.data}"/>`;
+      return `<text x="${a.x}" y="${a.y + Math.min(12, a.height)}" font-size="10">${escaped(a.alt)}</text>`;
+    });
+  }
+
   // src/modules/render-diagrams.js
   var initialized = false;
   async function fromSource(source) {
@@ -101213,7 +101229,8 @@
     let unreadable = false;
     function walk(bs) {
       for (const b of bs) {
-        if (b.type === "image" && !b.image?.data) unreadable = true;
+        if (b.type === "image" && !b.image?.data || b.assets?.some((a) => !a.data))
+          unreadable = true;
         if (b.type === "table" && b.rows.some((r) => r.some((c) => c.colSpan > 1 || c.rowSpan > 1)))
           spans = true;
         if (b.blocks) walk(b.blocks);
@@ -103301,7 +103318,7 @@
   // src/modules/normalize.js
   function plainText(bs) {
     return bs.map(
-      (b) => b.text ?? (b.runs ? b.runs.map((r) => r.text).join("") : b.items ? b.items.map(plainText).join("\n") : b.rows ? b.rows.map((row) => row.map((c) => plainText(c.blocks)).join(" | ")).join("\n") : b.blocks ? plainText(b.blocks) : "")
+      (b) => (b.type === "layout" && b.blocks?.length ? plainText(b.blocks) : b.text) ?? (b.runs ? b.runs.map((r) => r.text).join("") : b.items ? b.items.map(plainText).join("\n") : b.rows ? b.rows.map((row) => row.map((c) => plainText(c.blocks)).join(" | ")).join("\n") : b.blocks ? plainText(b.blocks) : "")
     ).join("\n");
   }
 
@@ -103509,6 +103526,21 @@
   }
   function convert(bs, s) {
     return bs.flatMap((b) => {
+      if (b.type === "layout") {
+        const maxHeight = (s.orientation === "landscape" ? 595.28 : 841.89) - 2 * (s.margin + 9) - 16;
+        const scale = Math.min(
+          0.75,
+          s.equationWidth / b.width,
+          maxHeight / b.height
+        );
+        return {
+          svg: printableLayoutSVG(b),
+          font: "sans",
+          width: b.width * scale,
+          height: b.height * scale,
+          margin: [0, 4, 0, 9]
+        };
+      }
       if (b.type === "figure" || b.type === "gallery") {
         const items = b.items || [b.blocks], gap = 6, pad = 8;
         const columns = Math.max(
@@ -117695,7 +117727,8 @@
         }
         if (b.type === "gallery")
           return b.items.flatMap((item) => convert2(item, depth, quoted));
-        if (b.type === "figure") return convert2(b.blocks, depth, quoted);
+        if (b.type === "figure" || b.type === "layout")
+          return convert2(b.blocks, depth, quoted);
         if (b.type === "heading")
           return p(runs2(b.runs), {
             heading: HeadingLevel[`HEADING_${Math.min(b.level, 6)}`],
@@ -117908,11 +117941,74 @@
     return Packer.toBlob(wordDocument(doc, s));
   }
 
+  // src/modules/transfer.js
+  var CHUNK = 512 * 1024;
+  var BUDGET = 96 * 1024 * 1024;
+  function stagedDocuments() {
+    const jobs = /* @__PURE__ */ new Map();
+    function release(key) {
+      clearTimeout(jobs.get(key)?.timer);
+      jobs.delete(key);
+    }
+    function append({ key, owner, offset, bytes, chunk }) {
+      if (typeof key !== "string" || key.length > 64 || typeof owner !== "string" || typeof chunk !== "string" || !chunk.length || chunk.length > CHUNK || !Number.isSafeInteger(bytes) || bytes <= 0 || bytes > BUDGET)
+        throw new Error("Invalid document chunk.");
+      let job = jobs.get(key);
+      if (!job) {
+        const reserved = [...jobs.values()].reduce(
+          (sum, item) => sum + item.bytes,
+          0
+        );
+        if (offset !== 0 || reserved + bytes > BUDGET)
+          throw new Error(
+            "Document transfer is out of order or memory is in use."
+          );
+        job = { owner, bytes, received: 0, offset: 0, parts: [] };
+      }
+      if (owner !== job.owner || offset !== job.offset || bytes !== job.bytes)
+        throw new Error("Unexpected document chunk.");
+      const size = new TextEncoder().encode(chunk).length;
+      if (job.received + size > bytes)
+        throw new Error("Document chunk exceeds the declared size.");
+      jobs.set(key, job);
+      job.parts.push(chunk);
+      job.offset += chunk.length;
+      job.received += size;
+      clearTimeout(job.timer);
+      job.timer = setTimeout(() => release(key), 12e4);
+    }
+    function take(key, owner) {
+      const job = jobs.get(key);
+      if (!job || job.owner !== owner || job.received !== job.bytes)
+        throw new Error("Document transfer is incomplete. Please retry.");
+      release(key);
+      return JSON.parse(job.parts.join(""));
+    }
+    return {
+      append,
+      take,
+      discard(key, owner) {
+        if (jobs.get(key)?.owner === owner) release(key);
+      }
+    };
+  }
+
   // src/offscreen.js
+  var stages = stagedDocuments();
   var blobs = /* @__PURE__ */ new Map();
   var generating = false;
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-    if (msg?.target !== "offscreen") return;
+    if (msg?.target !== "offscreen" || sender.tab) return;
+    if (msg.type === "STAGE" || msg.type === "DISCARD") {
+      try {
+        if (msg.type === "STAGE") stages.append(msg);
+        else stages.discard(msg.key, msg.owner);
+        reply({ ok: true });
+      } catch (e) {
+        reply({ ok: false, error: e.message });
+      }
+      return;
+    }
     if (msg.type === "RELEASE") {
       const entry = blobs.get(msg.key);
       if (entry) {
@@ -117938,7 +118034,8 @@
       2e4
     );
     (async () => {
-      const blob = await (msg.format === "pdf" ? generatePDF(msg.document, msg.settings) : generateDOCX(msg.document, msg.settings));
+      const document2 = msg.stagedKey ? stages.take(msg.stagedKey, msg.owner) : msg.document;
+      const blob = await (msg.format === "pdf" ? generatePDF(document2, msg.settings) : generateDOCX(document2, msg.settings));
       const url = URL.createObjectURL(blob);
       const timer = setTimeout(
         () => {

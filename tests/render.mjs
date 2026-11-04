@@ -2,6 +2,13 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile, copyFile } from "node:fs/promises";
+import {
+  careerFixture,
+  photoURL,
+  companyURL,
+  labsURL,
+  jobURL,
+} from "./career-fixture.mjs";
 import { standard, fixture, turn } from "./fixtures.mjs";
 const browser = await chromium.launch({
   headless: true,
@@ -49,6 +56,12 @@ await context.addInitScript(() => {
         return msg.type === "CGE_PROBE"
           ? { ok: true, messages: 6 }
           : { ok: true };
+      },
+    },
+    permissions: {
+      request: async (options) => {
+        window.__granted = options.origins;
+        return true;
       },
     },
     runtime: {
@@ -114,6 +127,9 @@ await generator.goto("https://exporter.test/offscreen.html");
 await generator.waitForFunction(() => window.__listeners.length > 0);
 const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
+let stagedChunks = 0;
+let photoBytes,
+  photoAllowed = false;
 let approvedFixtureImage,
   assetRequests = 0;
 let exported = [],
@@ -124,7 +140,20 @@ await page.exposeFunction("__send", async (msg) => {
       assetRequests++;
       return { ok: true, data: approvedFixtureImage };
     }
+    if (msg.url === photoURL)
+      return photoAllowed
+        ? { ok: true, data: photoBytes }
+        : { ok: false, permissionOrigin: new URL(photoURL).origin };
     return { ok: false, error: "Fixture asset unavailable" };
+  }
+  if (msg.type === "CGE_STAGE" || msg.type === "CGE_DISCARD") {
+    if (msg.type === "CGE_STAGE") stagedChunks++;
+    return generator.evaluate((data) => window.__invoke(data), {
+      ...msg,
+      target: "offscreen",
+      type: msg.type === "CGE_STAGE" ? "STAGE" : "DISCARD",
+      owner: "fixture-tab",
+    });
   }
   if (msg.type !== "CGE_EXPORT") return { ok: true };
   requests.push(msg);
@@ -145,6 +174,8 @@ await page.exposeFunction("__send", async (msg) => {
     target: "offscreen",
     settings,
     key: "test-" + requests.length,
+    stagedKey: msg.key,
+    owner: "fixture-tab",
   });
   console.log("Generated", msg.format, result.ok, result.error || "");
   if (!result.ok) return result;
@@ -212,7 +243,9 @@ try {
         exact: true,
       })
       .click();
-    await page.getByRole("dialog").waitFor({ timeout: 30000 });
+    await page
+      .getByRole("dialog")
+      .waitFor({ timeout: expected > 100 ? 180000 : 30000 });
     assert.match(
       await page.getByRole("dialog").innerText(),
       new RegExp(`Collected ${expected} messages`),
@@ -271,10 +304,10 @@ try {
     main.style.cssText =
       "height:600px;overflow-y:auto;position:relative;padding:0";
     main.innerHTML =
-      '<div id="canvas" style="height:6000px;position:relative"></div>';
+      '<div id="canvas" style="height:93000px;position:relative"></div>';
     const render = () => {
       const first = Math.max(0, Math.floor(main.scrollTop / 150) - 1),
-        last = Math.min(40, first + 7);
+        last = Math.min(620, first + 7);
       document.querySelector("#canvas").innerHTML = Array.from(
         { length: last - first },
         (_, k) => {
@@ -285,16 +318,21 @@ try {
       ).join("");
     };
     main.addEventListener("scroll", render);
+    main.scrollTop = 15000;
     render();
   });
   await page.waitForTimeout(600);
-  await collect("docx", 40);
+  const longStart = Date.now();
+  await collect("pdf", 620);
+  const longSeconds = (Date.now() - longStart) / 1000;
+  assert(longSeconds > 45);
+  assert.equal(await page.locator("main").evaluate((e) => e.scrollTop), 15000);
   assert.deepEqual(
     requests.at(-1).document.messages.map((x) => x.turnIndex),
-    Array.from({ length: 40 }, (_, i) => i),
+    Array.from({ length: 620 }, (_, i) => i),
   );
   results.push(
-    "Virtualized 40-turn history recovered through ordinary scrolling without omissions/duplicates.",
+    `Virtualized 620-message history exported after ${longSeconds.toFixed(1)}s, without omissions or duplicates.`,
   );
   // Replace the fixture with grouped Chat / Work turns without legacy role markers.
   await page.evaluate(() => {
@@ -812,6 +850,117 @@ B -->|No| D[Retry]</code></pre>
   }
   results.push(
     "Both PDF menus keep three illustrated cards together, honor table column widths, and export the reference-style transcript.",
+  );
+  photoBytes = approvedFixtureImage;
+  await context.route(photoURL, (r) =>
+    r.fulfill({
+      body: Buffer.from(photoBytes.split(",")[1], "base64"),
+      contentType: "image/png",
+    }),
+  );
+  await page.evaluate((html) => {
+    document.querySelector(
+      '[data-chatgpt-search-unit-key$=":user"]',
+    ).innerHTML =
+      "<p>Compare research opportunities and the academic career path.</p>";
+    document.querySelector(
+      '[data-chatgpt-search-unit-key$=":assistant"]',
+    ).innerHTML = html;
+  }, careerFixture());
+  await page.waitForFunction(
+    () => document.querySelector("img")?.naturalWidth > 0,
+  );
+  const capture = imagePair("PDF");
+  await page
+    .getByRole("dialog")
+    .getByText("Include images from these sites?")
+    .waitFor();
+  const grantPopup = await context.newPage();
+  await grantPopup.exposeFunction("__tabRelay", async (msg) => {
+    if (msg.type === "CGE_IMAGE_DECISION") photoAllowed = msg.granted;
+    return page.evaluate((data) => window.__invoke(data), msg);
+  });
+  await grantPopup.goto("https://exporter.test/popup.html");
+  await grantPopup
+    .getByRole("button", { name: "Allow images and continue" })
+    .click();
+  await capture;
+  assert.deepEqual(await grantPopup.evaluate(() => window.__granted), [
+    "https://www.microsoft.com/*",
+  ]);
+  await grantPopup.close();
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/career-pair.pdf",
+  );
+  await collect("pdf", 2);
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/career-chat.pdf",
+  );
+  const career = requests.at(-1).document.messages[1].blocks;
+  const layouts = career.filter((b) => b.type === "layout");
+  assert.equal(layouts.length, 2);
+  assert(
+    career.some(
+      (b) => b.type === "image" && b.image.data?.startsWith("data:image/png"),
+    ),
+  );
+  assert(
+    career
+      .find((b) => b.type === "table")
+      .rows[1][0].blocks[0].runs.some(
+        (r) => r.text === "Microsoft" && r.link === companyURL,
+      ),
+  );
+  assert(
+    career.find(
+      (b) => b.type === "heading" && b.runs[0].text === "Cockroach Labs",
+    ).runs[0].link === labsURL,
+  );
+  assert(layouts[1].svg.includes(jobURL));
+  results.push(
+    "Single and full PDF menus embed an external image after a per-site grant and preserve company names, links, the branching career diagram and the job card CTA.",
+  );
+  await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 900;
+    canvas.height = 650;
+    const ctx = canvas.getContext("2d"),
+      pixels = ctx.createImageData(canvas.width, canvas.height);
+    let seed = 29;
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
+      pixels.data[i] = seed >>> 24;
+      pixels.data[i + 1] = (seed >>> 16) & 255;
+      pixels.data[i + 2] = (seed >>> 8) & 255;
+      pixels.data[i + 3] = 255;
+    }
+    ctx.putImageData(pixels, 0, 0);
+    const src = canvas.toDataURL("image/jpeg", 0.94);
+    document.querySelector(
+      '[data-chatgpt-search-unit-key$=":assistant"]',
+    ).innerHTML =
+      "<p>First large image</p>" +
+      Array.from(
+        { length: 3 },
+        (_, i) => `<img alt="large sample ${i + 1}" width="260" src="${src}">`,
+      ).join("") +
+      "<p>Final image caption</p>";
+  });
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll("main img")].every(
+      (i) => i.naturalWidth === 900,
+    ),
+  );
+  await collect("pdf", 2);
+  assert(stagedChunks >= 3);
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/chunked-chat.pdf",
+  );
+  results.push(
+    "The normal whole-chat PDF button sends an image-heavy document in acknowledged chunks and creates the complete PDF.",
   );
   assert.deepEqual(errors, []);
   await writeFile(

@@ -22,14 +22,57 @@ export function meaningfulImage(img) {
   );
 }
 const canvasIds = new WeakMap();
+function imgURLs(el) {
+  const lazy =
+    el.getAttribute("data-src") ||
+    el.getAttribute("data-lazy-src") ||
+    el.getAttribute("data-original");
+  const current = el.currentSrc || el.getAttribute("src");
+  const picture = el.parentElement?.matches("picture")
+    ? [...el.parentElement.querySelectorAll("source")].filter(
+        (n) =>
+          !n.media || el.ownerDocument.defaultView.matchMedia(n.media).matches,
+      )
+    : [];
+  const sets = [...picture, el]
+    .flatMap((n) => [n.getAttribute("srcset"), n.getAttribute("data-srcset")])
+    .filter(Boolean);
+  const sizes = sets.flatMap((set) =>
+    set
+      .split(/,\s*(?=[^,]+\s+[\d.]+[wx])/)
+      .map((v) => v.trim().split(/\s/)[0])
+      .reverse(),
+  );
+  const deferred = lazy || sizes.length;
+  const placeholder =
+    !current ||
+    (current.startsWith("data:") && !el.naturalWidth) ||
+    (el.complete && el.naturalWidth <= 2);
+  const values =
+    deferred && placeholder
+      ? [lazy, ...sizes]
+      : [current, lazy, ...sizes, el.getAttribute("src")];
+  return [
+    ...new Set(
+      values
+        .filter(Boolean)
+        .map((value) => {
+          try {
+            return new URL(value, el.ownerDocument.baseURI).href;
+          } catch {
+            return "";
+          }
+        })
+        .filter(Boolean),
+    ),
+  ];
+}
 export function imageSource(el) {
-  if (el.tagName === "IMG")
-    return el.currentSrc || el.getAttribute("src") || "";
+  if (el.tagName === "IMG") return imgURLs(el)[0] || "";
   if (el.tagName === "CANVAS") return "";
   const css =
     el.ownerDocument.defaultView.getComputedStyle(el).backgroundImage || "";
-  const match = css.match(/^url\((["']?)(.*?)\1\)$/);
-  return match?.[2] || "";
+  return css.match(/url\((["']?)(.*?)\1\)/)?.[2] || "";
 }
 export function imageRef(el) {
   const source = imageSource(el),
@@ -37,8 +80,29 @@ export function imageRef(el) {
   if (!source && !canvasIds.has(el))
     canvasIds.set(el, "surface-" + crypto.randomUUID());
   const key = source || canvasIds.get(el);
-  if (session && (source || el.tagName === "CANVAS"))
-    session.set(key, { el, source });
+  if (session && (source || el.tagName === "CANVAS")) {
+    const old = session.get(key);
+    // Freeze readable pixels before scrolling can evict or recycle the source.
+    const item = {
+      el,
+      source,
+      urls: el.tagName === "IMG" ? imgURLs(el) : [source],
+      pixels: old?.pixels,
+      tried: old?.tried,
+    };
+    if (
+      !item.pixels &&
+      item.tried !== el &&
+      (el.tagName === "CANVAS" ||
+        (el.complete && el.naturalWidth > 1 && el.currentSrc === source))
+    ) {
+      try {
+        item.pixels = raster(el);
+      } catch {} // Cross-origin bitmaps require a byte fetch.
+      item.tried = el;
+    }
+    session.set(key, item);
+  }
   return { text: `[Image: ${alt}]`, image: { key, alt } };
 }
 function raster(el) {
@@ -78,65 +142,123 @@ export function decodeRaster(data) {
 async function resolve(ref) {
   const item = session?.get(ref.key);
   if (!item) return null;
-  try {
-    if (item.el.tagName === "CANVAS") return raster(item.el);
-    if (
-      item.el.complete &&
-      (item.el.currentSrc || item.el.getAttribute("src")) === item.source
-    )
-      return raster(item.el);
-  } catch {
-    /* A visible cross-origin image may taint a canvas. */
+  if (item.pixels) return item.pixels;
+  if (
+    item.el.tagName === "IMG" &&
+    !item.el.complete &&
+    item.el.currentSrc === item.source
+  ) {
+    await Promise.race([
+      item.el.decode().catch(() => {}),
+      new Promise((r) => setTimeout(r, 1600)),
+    ]);
   }
-  try {
-    let source = item.source;
-    if (!/^data:image\/(png|jpeg|webp|gif);base64,/i.test(source)) {
-      const url = new URL(source, location.href);
-      if (url.protocol === "blob:" && url.origin === location.origin) {
-        const response = await fetch(url.href);
-        const blob = await response.blob();
-        if (!response.ok || blob.size > 12_000_000) return null;
-        const bitmap = await createImageBitmap(blob);
-        try {
-          return raster(bitmap);
-        } finally {
-          bitmap.close();
-        }
-      }
-      const result = await chrome.runtime.sendMessage({
-        type: "CGE_IMAGE",
-        url: url.href,
-      });
-      if (!result?.ok) return null;
-      source = result.data;
-    }
-    const bitmap = await decodeRaster(source);
+  if (
+    item.el.tagName === "CANVAS" ||
+    (item.el.complete &&
+      item.el.naturalWidth > 1 &&
+      item.el.currentSrc === item.source)
+  ) {
     try {
-      return raster(bitmap);
-    } finally {
-      bitmap.close();
-    }
-  } catch {
-    return null;
+      return raster(item.el);
+    } catch {}
   }
-}
-export async function embedImages(messages) {
-  const cache = new Map();
-  async function visit(bs) {
-    for (const b of bs) {
-      if (b.type === "image") {
-        const ref = b.image;
-        if (!cache.has(ref.key)) cache.set(ref.key, await resolve(ref));
-        b.image = { alt: ref.alt, ...cache.get(ref.key) };
+  let permissionOrigin;
+  for (let source of item.urls) {
+    try {
+      const u = new URL(source, item.el.ownerDocument.baseURI);
+      let bitmap;
+      if (
+        u.protocol === "blob:" &&
+        u.origin === item.el.ownerDocument.location.origin
+      ) {
+        const response = await fetch(u.href);
+        const blob = await response.blob();
+        if (!response.ok || blob.size > 12_000_000) continue;
+        bitmap = await createImageBitmap(blob);
+      } else {
+        if (!/^data:image\/(png|jpeg|webp|gif|avif);base64,/i.test(source)) {
+          if (u.protocol !== "https:") continue;
+          const result = await chrome.runtime.sendMessage({
+            type: "CGE_IMAGE",
+            url: u.href,
+          });
+          if (!result?.ok) {
+            permissionOrigin ||= result?.permissionOrigin;
+            continue;
+          }
+          source = result.data;
+        }
+        bitmap = await decodeRaster(source);
       }
-      if (b.blocks) await visit(b.blocks);
-      if (b.items) for (const item of b.items) await visit(item);
-      if (b.rows)
-        for (const row of b.rows)
-          for (const cell of row) await visit(cell.blocks);
+      try {
+        return raster(bitmap);
+      } finally {
+        bitmap.close();
+      }
+    } catch {
+      /* Try the source or responsive alternative actually named in the page. */
     }
   }
-  for (const m of messages) await visit(m.blocks);
+  return permissionOrigin ? { permissionOrigin } : null;
+}
+export async function embedImages(
+  messages,
+  { requestAccess, format, signal } = {},
+) {
+  const slots = new Map(),
+    pixels = new Map();
+  function add(ref, set) {
+    if (!slots.has(ref.key)) slots.set(ref.key, { ref, setters: [] });
+    slots.get(ref.key).setters.push(set);
+  }
+  function visit(bs) {
+    for (const b of bs) {
+      if (b.type === "image")
+        add(b.image, (data) => {
+          b.image = { alt: b.image.alt, ...data };
+        });
+      if (b.type === "layout" && format === "docx") {
+        delete b.assets;
+        delete b.svg;
+      }
+      if (b.type === "layout" && format === "pdf") b.blocks = [];
+      for (const asset of b.assets || [])
+        add(asset, (data) =>
+          Object.assign(asset, { key: undefined, data: data.data }),
+        );
+      if (b.blocks) visit(b.blocks);
+      for (const item of b.items || []) visit(item);
+      for (const row of b.rows || []) for (const c of row) visit(c.blocks);
+    }
+  }
+  for (const m of messages) visit(m.blocks);
+  async function resolveKeys(keys) {
+    let index = 0;
+    async function worker() {
+      while (index < keys.length) {
+        if (signal?.aborted) throw new Error("Export cancelled.");
+        const key = keys[index++];
+        pixels.set(key, await resolve(slots.get(key).ref));
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(keys.length, 4) }, worker));
+  }
+  await resolveKeys([...slots.keys()]);
+  const denied = [...pixels].filter(([, data]) => data?.permissionOrigin);
+  if (
+    denied.length &&
+    requestAccess &&
+    (await requestAccess([
+      ...new Set(denied.map(([, d]) => d.permissionOrigin)),
+    ]))
+  ) {
+    await resolveKeys(denied.map(([key]) => key));
+  }
+  for (const [key, item] of slots) {
+    const data = pixels.get(key);
+    for (const set of item.setters) set(data?.data ? data : {});
+  }
 }
 // Move images out of inline runs so both document engines preserve their original order.
 export function liftImages(bs) {

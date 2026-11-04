@@ -1,3 +1,4 @@
+import { publicImageOrigin } from "./modules/image-origins.js";
 import { readDisplayedAsset } from "./modules/media-fetch.js";
 import { getSettings } from "./modules/settings.js";
 import { filename } from "./modules/filename.js";
@@ -52,17 +53,38 @@ chrome.downloads.onChanged.addListener((delta) => {
   if (["complete", "interrupted"].includes(delta.state?.current))
     void settle(delta.id, delta.state.current, delta.error?.current);
 });
-async function exportDocument(msg, sender) {
-  if (!sender.tab || !sender.url?.startsWith("https://chatgpt.com/"))
+function ownerOf(sender) {
+  if (
+    !sender.tab ||
+    !sender.url?.startsWith("https://chatgpt.com/") ||
+    (sender.frameId && sender.frameId !== 0)
+  )
     throw new Error("Exports must originate from the ChatGPT page.");
+  return sender.tab.id + "/" + (sender.documentId || sender.url);
+}
+async function stage(msg, sender) {
+  const owner = ownerOf(sender);
+  if (msg.type === "CGE_STAGE" && msg.offset === 0) await ensureOffscreen();
+  return chrome.runtime.sendMessage({
+    ...msg,
+    target: "offscreen",
+    owner,
+    type: msg.type === "CGE_STAGE" ? "STAGE" : "DISCARD",
+  });
+}
+async function exportDocument(msg, sender) {
+  const owner = ownerOf(sender);
   if (!["pdf", "docx"].includes(msg.format))
     throw new Error("Invalid file format.");
-  if (JSON.stringify(msg.document).length > 20_000_000)
+  if (
+    !msg.key &&
+    (!msg.document || JSON.stringify(msg.document).length > 20_000_000)
+  )
     throw new Error(
-      "This conversation exceeds the 20 MB safety limit. Export smaller question–answer pairs.",
+      "Invalid direct export. Large documents must be transferred in chunks.",
     );
   const settings = await getSettings(),
-    name = filename(msg.document, msg.format),
+    name = filename(msg.key ? msg.meta : msg.document, msg.format),
     key = crypto.randomUUID();
   await status(sender.tab.id, "Generating your document locally…");
   await ensureOffscreen();
@@ -72,6 +94,8 @@ async function exportDocument(msg, sender) {
     key,
     format: msg.format,
     document: msg.document,
+    stagedKey: msg.key,
+    owner,
     settings,
   });
   if (!result?.ok)
@@ -104,6 +128,33 @@ async function exportDocument(msg, sender) {
 }
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg?.target === "offscreen") return;
+  if (msg?.type === "CGE_STAGE" || msg?.type === "CGE_DISCARD") {
+    stage(msg, sender)
+      .then(reply)
+      .catch((e) => reply({ ok: false, error: e.message }));
+    return true;
+  }
+  if (msg?.type === "CGE_IMAGE_HAS_ACCESS") {
+    try {
+      ownerOf(sender);
+      if (
+        !Array.isArray(msg.origins) ||
+        !msg.origins.length ||
+        !msg.origins.every((o) => publicImageOrigin(o) === o)
+      )
+        throw new Error("Invalid image sites.");
+      chrome.permissions
+        .contains({ origins: msg.origins.map((o) => o + "/*") })
+        .then(
+          (granted) => reply({ granted }),
+          () => reply({ granted: false }),
+        );
+      return true;
+    } catch {
+      reply({ granted: false });
+      return;
+    }
+  }
   if (msg?.type === "CGE_IMAGE") {
     const task = readDisplayedAsset(msg.url, sender);
     task.then(reply).catch((e) => reply({ ok: false, error: e.message }));

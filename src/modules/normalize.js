@@ -2,16 +2,9 @@ import { diagramSVG } from "./diagram.js";
 import { proseReader, readCode, textAlignment } from "./pdf-style.js";
 import { imageRef, meaningfulImage } from "./media.js";
 // Convert the rendered DOM to a small, non-executable document model.
-export function safeLink(value, base = "https://chatgpt.com/") {
-  try {
-    const u = new URL(value, base);
-    return ["https:", "http:", "mailto:"].includes(u.protocol)
-      ? u.href
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
+import { contentButton, linkOn, publicLabel } from "./links.js";
+export { safeLink } from "./links.js";
+import { readHtmlLayout } from "./html-layout.js";
 export function visible(el) {
   if (el.nodeType !== 1) return true;
   if (el.closest('[hidden],[aria-hidden="true"],template,[data-cge]'))
@@ -208,8 +201,16 @@ export function inline(
   if (node.nodeType !== 1 || !visible(node)) return [];
   const semantic = semanticRun(node);
   if (semantic) return [semantic];
-  if (node.matches('button,[role="button"]'))
-    return [...node.querySelectorAll("img,canvas,svg")].flatMap((el) => {
+  if (node.matches('button,[role="button"]')) {
+    const readable = contentButton(node);
+    if (readable) {
+      const next = { ...style, link: linkOn(node) || style.link };
+      const children = [...node.childNodes].flatMap((n) =>
+        inline(n, next, read),
+      );
+      if (children.some((r) => r.text.trim())) return children;
+    }
+    const media = [...node.querySelectorAll("img,canvas,svg")].flatMap((el) => {
       if (
         !visible(el) &&
         !(
@@ -224,6 +225,19 @@ export function inline(
       const run = semanticRun(el);
       return run ? [run] : [];
     });
+    if (media.length || !readable) return media;
+    const label = publicLabel(node) || node.textContent.trim();
+    return label
+      ? [
+          {
+            text: label,
+            ...read(node),
+            ...style,
+            link: linkOn(node) || style.link,
+          },
+        ]
+      : [];
+  }
   if (node.matches(OMIT)) return [];
   if (node.matches(".katex-display"))
     return [{ ...equation(node), ...style, math: true, display: true }];
@@ -258,9 +272,17 @@ export function inline(
   }
   if (node.tagName === "SUP") next.sup = true;
   if (node.tagName === "SUB") next.sub = true;
-  if (node.tagName === "A")
-    next.link = safeLink(node.getAttribute("href"), node.ownerDocument.URL);
-  return [...node.childNodes].flatMap((n) => inline(n, next, read));
+  const link = linkOn(node);
+  if (link) next.link = link;
+  const children = [...node.childNodes].flatMap((n) => inline(n, next, read));
+  if (
+    node.matches("a,[role=link],[data-entity-name]") &&
+    !children.some((r) => r.text.trim())
+  ) {
+    const label = publicLabel(node) || node.textContent.trim();
+    if (label) return [{ text: label, ...read(node), ...next }];
+  }
+  return children;
 }
 function trimmed(runs) {
   const r = runs.filter((x) => x.text !== "");
@@ -302,9 +324,12 @@ function gallery(root, read) {
   const cards = [...root.children].filter(visible);
   if (
     cards.length < 2 ||
-    !cards.every(
-      (el) =>
-        el.matches("img,svg,canvas") || el.querySelector("img,svg,canvas"),
+    !cards.every((el) =>
+      [el, ...el.querySelectorAll("img,svg,canvas")].some((n) => {
+        if (!n.matches("img,svg,canvas")) return false;
+        const rect = n.getBoundingClientRect();
+        return rect.width >= 32 && rect.height >= 24;
+      }),
     )
   )
     return null;
@@ -352,7 +377,10 @@ export function blocks(root, read = proseReader(root)) {
       !el.shadowRoot.querySelector("slot")
     ) {
       flush();
-      out.push(...blocks(el.shadowRoot, read));
+      const layout = readHtmlLayout(el),
+        children = blocks(el.shadowRoot, read);
+      if (layout) out.push({ ...layout, blocks: children });
+      else out.push(...children);
       continue;
     }
     const semantic = semanticRun(el);
@@ -388,6 +416,12 @@ export function blocks(root, read = proseReader(root)) {
       continue;
     }
     if (el.matches(OMIT)) continue;
+    const layout = readHtmlLayout(el);
+    if (layout) {
+      flush();
+      out.push({ ...layout, blocks: blocks(el, read) });
+      continue;
+    }
     if (
       el.matches(
         ".mermaid,[data-mermaid],code.language-mermaid,[data-mermaid-source]",
@@ -517,7 +551,9 @@ export function plainText(bs) {
   return bs
     .map(
       (b) =>
-        b.text ??
+        (b.type === "layout" && b.blocks?.length
+          ? plainText(b.blocks)
+          : b.text) ??
         (b.runs
           ? b.runs.map((r) => r.text).join("")
           : b.items

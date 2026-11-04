@@ -5,6 +5,8 @@
   var docx = document.querySelector("#docx");
   var tabId;
   var retryTimer;
+  var pendingImages;
+  var imageAccess = document.querySelector("#imageAccess");
   function show(text, error = false) {
     status.textContent = text;
     status.dataset.state = error ? "error" : "ready";
@@ -19,6 +21,14 @@
     tabId = tab.id;
     try {
       const result = await chrome.tabs.sendMessage(tabId, { type: "CGE_PROBE" });
+      pendingImages = result?.imageAccess;
+      imageAccess.hidden = !pendingImages;
+      if (pendingImages) {
+        pdf.disabled = docx.disabled = true;
+        show("This export is waiting for image access.");
+        document.querySelector("#imageSources").textContent = "Image sites: " + pendingImages.origins.map((o) => new URL(o).hostname).join(", ");
+        return;
+      }
       if (!result?.messages) {
         show(
           "Connected to ChatGPT. No readable messages detected yet. Open a conversation and wait for a reply."
@@ -55,4 +65,24 @@
   docx.addEventListener("click", () => start("docx"));
   document.querySelector("#settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
   init().catch((e) => show(e.message, true));
+  document.querySelector("#grantImages").addEventListener("click", async (event) => {
+    if (!pendingImages) return;
+    event.target.disabled = true;
+    try {
+      const granted = await chrome.permissions.request({
+        origins: pendingImages.origins.map((o) => o + "/*")
+      });
+      const result = await chrome.tabs.sendMessage(tabId, {
+        type: "CGE_IMAGE_DECISION",
+        token: pendingImages.token,
+        granted
+      });
+      if (!result?.ok)
+        throw new Error("The pending export has ended. Start it again.");
+      window.close();
+    } catch (error) {
+      show(error.message, true);
+      event.target.disabled = false;
+    }
+  });
 })();

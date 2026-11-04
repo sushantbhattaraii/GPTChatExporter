@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-04T18:00:00.726Z",
+  "date": "2026-11-04T18:48:48.902Z",
   "browser": "141.0.7390.37",
   "environment": "Standalone Chromium renderer with synthetic DOM and mocked chrome.runtime/storage; no real Chrome download API",
   "results": [
@@ -7,7 +7,7 @@
     "Full history scan, review dialog, chronological PDF and DOCX generation.",
     "Edited prompt/regenerated answer stays paired; observer does not duplicate buttons.",
     "Streaming disables the last response export until completion.",
-    "Virtualized 40-turn history recovered through ordinary scrolling without omissions/duplicates.",
+    "Virtualized 620-message history exported after 53.1s, without omissions or duplicates.",
     "New Chat / Work layout: real page probe finds six messages, controls appear, exact middle pair and full conversation generate.",
     "Floating toolbar clears the prompt box on desktop and on a narrow viewport with an expanded composer.",
     "Single-pair PDF followed by full Word export preserves sibling assistant units and retries an actual mid-scan content update.",
@@ -21,7 +21,9 @@
     "A CSS-backed image card without imagegen classes between two prompts gets a clickable Export this Q&A control and exports with its original prompt.",
     "Pair and conversation PDF menus preserve computed syntax styling, tabs, blank lines and paragraph alignments.",
     "Pair and full-chat PDFs export Mermaid, rendered SVG, checklist states, quotes, nested lists, multilingual text and current widget state.",
-    "Both PDF menus keep three illustrated cards together, honor table column widths, and export the reference-style transcript."
+    "Both PDF menus keep three illustrated cards together, honor table column widths, and export the reference-style transcript.",
+    "Single and full PDF menus embed an external image after a per-site grant and preserve company names, links, the branching career diagram and the job card CTA.",
+    "The normal whole-chat PDF button sends an image-heavy document in acknowledged chunks and creates the complete PDF."
   ],
   "errors": [],
   "files": [
@@ -30,7 +32,7 @@
     "renderer-3.pdf",
     "renderer-4.docx",
     "renderer-5.docx",
-    "renderer-6.docx",
+    "renderer-6.pdf",
     "renderer-7.pdf",
     "renderer-8.docx",
     "renderer-9.docx",
@@ -48,6 +50,9 @@
     "renderer-21.pdf",
     "renderer-22.pdf",
     "renderer-23.pdf",
-    "renderer-24.pdf"
+    "renderer-24.pdf",
+    "renderer-25.pdf",
+    "renderer-26.pdf",
+    "renderer-27.pdf"
   ]
 }

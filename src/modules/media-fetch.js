@@ -1,37 +1,43 @@
-// This path accepts only known image delivery endpoints and OpenAI's media CDN.
-export function allowedAsset(value) {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || url.port || url.username || url.password)
-      return false;
-    if (url.hostname === "chatgpt.com")
-      return /^\/backend-api\/(?:estuary\/content(?:\/|$)|files\/)/.test(
-        url.pathname,
-      );
-    return (
-      url.hostname === "oaiusercontent.com" ||
-      url.hostname.endsWith(".oaiusercontent.com")
-    );
-  } catch {
-    return false;
-  }
-}
+import { allowedAsset, publicImageOrigin } from "./image-origins.js";
+export { allowedAsset } from "./image-origins.js";
 export async function readDisplayedAsset(value, sender) {
   if (
     !sender.tab ||
     !sender.url?.startsWith("https://chatgpt.com/") ||
-    !allowedAsset(value)
+    (!allowedAsset(value) && !publicImageOrigin(value))
   )
     throw new Error("Image origin is unavailable");
-  const res = await fetch(value, {
-    credentials: new URL(value).hostname === "chatgpt.com" ? "include" : "omit",
-    referrerPolicy: "no-referrer",
-    signal: AbortSignal.timeout(12000),
-  });
-  let type = res.headers.get("Content-Type")?.split(";")[0].toLowerCase();
+  const firstParty = allowedAsset(value),
+    origin = publicImageOrigin(value);
+  let res;
+  try {
+    res = await fetch(value, {
+      credentials:
+        new URL(value).hostname === "chatgpt.com" ? "include" : "omit",
+      referrerPolicy: "no-referrer",
+      redirect: firstParty ? "follow" : "error",
+      signal: AbortSignal.timeout(12000),
+    });
+  } catch (error) {
+    if (
+      error.name === "TypeError" &&
+      origin &&
+      !(await chrome.permissions.contains({ origins: [origin + "/*"] }))
+    )
+      return { ok: false, permissionOrigin: origin };
+    throw error;
+  }
+  let type = (
+    res.headers.get("Content-Type")?.split(";")[0].trim() ||
+    "application/octet-stream"
+  ).toLowerCase();
+  if (type === "image/jpg") type = "image/jpeg";
+  if (type === "binary/octet-stream") type = "application/octet-stream";
   if (
     !res.ok ||
-    !allowedAsset(res.url) ||
+    !(firstParty
+      ? allowedAsset(res.url)
+      : publicImageOrigin(res.url) === origin) ||
     !(
       type === "application/octet-stream" ||
       /^image\/(png|jpeg|webp|gif|avif)$/.test(type)
