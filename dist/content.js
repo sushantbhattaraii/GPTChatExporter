@@ -18,17 +18,27 @@
   }
   function meaningfulImage(img) {
     if (img.closest(
-      'nav,form,[data-cge],[aria-hidden="true"],[data-testid*="avatar" i]'
+      'nav,aside,form,[data-cge],[hidden],template,[data-testid*="avatar" i]'
     ))
       return false;
     const rect = img.getBoundingClientRect();
     return !(rect.width > 0 && rect.height > 0 && rect.width <= 24 && rect.height <= 24);
   }
+  function imageSource(el) {
+    if (el.tagName === "IMG")
+      return el.currentSrc || el.getAttribute("src") || "";
+    if (el.tagName === "CANVAS") return "";
+    const css = el.ownerDocument.defaultView.getComputedStyle(el).backgroundImage || "";
+    const match = css.match(/^url\((["']?)(.*?)\1\)$/);
+    return match?.[2] || "";
+  }
   function imageRef(el) {
-    const source = el.currentSrc || el.getAttribute("src") || "";
-    const alt = el.alt || "Image";
-    const key = source || alt;
-    if (session && source) session.set(key, { el, source });
+    const source = imageSource(el), alt = el.alt || el.getAttribute("aria-label") || "Image";
+    if (!source && !canvasIds.has(el))
+      canvasIds.set(el, "surface-" + crypto.randomUUID());
+    const key = source || canvasIds.get(el);
+    if (session && (source || el.tagName === "CANVAS"))
+      session.set(key, { el, source });
     return { text: `[Image: ${alt}]`, image: { key, alt } };
   }
   function raster(el) {
@@ -68,6 +78,7 @@
     const item = session?.get(ref.key);
     if (!item) return null;
     try {
+      if (item.el.tagName === "CANVAS") return raster(item.el);
       if (item.el.complete && (item.el.currentSrc || item.el.getAttribute("src")) === item.source)
         return raster(item.el);
     } catch {
@@ -148,9 +159,10 @@
       return [b];
     });
   }
-  var session;
+  var session, canvasIds;
   var init_media = __esm({
     "src/modules/media.js"() {
+      canvasIds = /* @__PURE__ */ new WeakMap();
     }
   });
 
@@ -374,6 +386,144 @@
   // src/content.js
   init_media();
 
+  // src/modules/stage.js
+  function stageSurface(part) {
+    let surface = part;
+    while (surface && (typeof surface.showPopover !== "function" || !surface.getBoundingClientRect().width)) {
+      surface = surface.parentElement;
+    }
+    if (!surface || surface === document.body || surface === document.documentElement || surface.matches(":popover-open,dialog[open]"))
+      throw new Error("This surface cannot be isolated while it is open.");
+    const rect = surface.getBoundingClientRect(), source = part.getBoundingClientRect();
+    const cs = getComputedStyle(surface), original = surface.getAttribute("popover");
+    const spacer = document.createElement("span");
+    const backdrop = document.createElement("style");
+    const placement = document.createElement("style");
+    let rule;
+    const inlineOverrides = /* @__PURE__ */ new Map();
+    const originalStyle = surface.getAttribute("style");
+    const keep = (name, value) => {
+      if (surface.style.getPropertyPriority(name) === "important") {
+        if (!inlineOverrides.has(name))
+          inlineOverrides.set(name, surface.style.getPropertyValue(name));
+        surface.style.removeProperty(name);
+      }
+      rule.style.setProperty(name, value, "important");
+    };
+    const paint = {};
+    for (const key of [
+      "display",
+      "color",
+      "background-color",
+      "overflow-x",
+      "overflow-y",
+      "padding-top",
+      "padding-bottom",
+      "padding-left",
+      "padding-right",
+      "border-top",
+      "border-bottom",
+      "border-left",
+      "border-right"
+    ])
+      paint[key] = cs.getPropertyValue(key);
+    const scale = Math.min(1, innerWidth / Math.max(source.width, 1));
+    const marker = "cge-stage-" + crypto.randomUUID();
+    let base = "white";
+    for (let p = surface.parentElement; p; p = p.parentElement) {
+      const color = getComputedStyle(p).backgroundColor;
+      if (color && color !== "transparent" && color !== "rgba(0, 0, 0, 0)") {
+        base = color;
+        break;
+      }
+    }
+    spacer.setAttribute("aria-hidden", "true");
+    spacer.inert = true;
+    spacer.style.cssText = "visibility:hidden!important;pointer-events:none!important;box-sizing:border-box!important;";
+    for (const key of [
+      "display",
+      "margin-top",
+      "margin-bottom",
+      "margin-left",
+      "margin-right",
+      "flex",
+      "align-self",
+      "grid-area",
+      "order"
+    ])
+      spacer.style.setProperty(key, cs.getPropertyValue(key));
+    spacer.style.width = rect.width + "px";
+    spacer.style.height = rect.height + "px";
+    const hadClass = surface.hasAttribute("class");
+    let expectedStyle = originalStyle;
+    function restore() {
+      if (surface.matches(":popover-open")) surface.hidePopover();
+      if (original === null) surface.removeAttribute("popover");
+      else surface.setAttribute("popover", original);
+      surface.classList.remove(marker);
+      if (!hadClass && !surface.className) surface.removeAttribute("class");
+      placement.remove();
+      if (inlineOverrides.size) {
+        if (surface.getAttribute("style") === expectedStyle) {
+          if (originalStyle === null) surface.removeAttribute("style");
+          else surface.setAttribute("style", originalStyle);
+        } else
+          for (const [name, val] of inlineOverrides)
+            if (!surface.style.getPropertyValue(name))
+              surface.style.setProperty(name, val, "important");
+      }
+      spacer.remove();
+      backdrop.remove();
+    }
+    try {
+      placement.textContent = `.${marker}.${marker}:popover-open{}`;
+      document.head.append(placement);
+      rule = placement.sheet.cssRules[0];
+      surface.before(spacer);
+      surface.classList.add(marker);
+      backdrop.textContent = `.${marker}::backdrop{background:${base}!important;opacity:1!important;pointer-events:none!important}`;
+      document.head.append(backdrop);
+      surface.setAttribute("popover", "manual");
+      for (const [key, value] of Object.entries(paint)) keep(key, value);
+      for (const [key, value] of Object.entries({
+        position: "fixed",
+        inset: "auto",
+        margin: "0",
+        "box-sizing": "border-box",
+        width: rect.width + "px",
+        height: rect.height + "px",
+        "max-width": "none",
+        "max-height": "none",
+        "min-width": "0",
+        "min-height": "0",
+        transform: `scale(${scale})`,
+        "transform-origin": "0 0",
+        transition: "none",
+        animation: "none",
+        left: "0px",
+        top: "0px"
+      }))
+        keep(key, value);
+      expectedStyle = surface.getAttribute("style");
+      surface.showPopover();
+      const initial = part.getBoundingClientRect();
+      keep("left", -initial.left + "px");
+      return {
+        scale,
+        width: source.width,
+        height: source.height,
+        originalLeft: source.left,
+        reveal(offset) {
+          keep("top", -initial.top - offset * scale + "px");
+        },
+        restore
+      };
+    } catch (e) {
+      restore();
+      throw e;
+    }
+  }
+
   // src/modules/appearance.js
   init_media();
 
@@ -394,7 +544,7 @@
   var roleContainer = '[data-conversation-role="assistant"],[data-conversation-role="user"]';
   var roleHeading = 'h1,h2,h3,h4,h5,h6,[role="heading"]';
   var unitKey = (el) => unitAttrs.map((attr) => el.getAttribute(attr)).find(Boolean);
-  var generatedCard = '[data-testid*="imagegen" i],[data-testid*="image-gen" i],[data-testid*="generated-image" i],[data-generated-image],[data-content-search-unit-key$=":tool"],[data-chatgpt-search-unit-key$=":tool"],[class*="group/imagegen-image"],[data-testid*="image_generation" i]';
+  var generatedCard = '[data-testid*="imagegen" i],[data-testid*="image-gen" i],[data-testid*="generated-image" i],[data-generated-image],[data-content-search-unit-key$=":tool"],[data-chatgpt-search-unit-key$=":tool"],[class*="imagegen" i],[data-testid*="image-generation" i],[data-testid*="image-output" i],[data-message-author-role="tool"],[data-turn="tool"],[data-testid*="image_generation" i]';
   var generatedImgs = 'img[alt^="generated image" i],img[alt^="image generated" i],' + generatedCard.split(",").map((k) => k + " img").join(",");
   var adoptedTurns = /* @__PURE__ */ new WeakMap();
   var extraImages = /* @__PURE__ */ new WeakMap();
@@ -404,19 +554,121 @@
       (a, b) => a.compareDocumentPosition(b) & 4 ? -1 : 1
     );
   }
-  function mountPairHost(el, host) {
-    const end = visualRoots(el).at(-1);
-    if (end !== el || imageRoots.has(el) || el.matches(generatedCard + ",img,button,[role=button]") || el.closest('button,[role="button"]')) {
-      const card = end.closest(generatedCard) || end;
-      (card.closest('button,[role="button"],picture') || card).after(host);
-    } else el.append(host);
+  function imageVisible(img) {
+    if (!meaningfulImage(img)) return false;
+    const turn = img.closest(turnSelector);
+    if (turn && !visible(turn)) return false;
+    const scope = img.closest(ROLE_SELECTOR + "," + unitSelector);
+    if (scope && !visible(scope)) return false;
+    for (let n = img; n; n = n.parentElement) {
+      const css = getComputedStyleFor(n);
+      if (css.display === "none" || css.visibility === "hidden" || css.contentVisibility === "hidden" || Number.parseFloat(css.opacity) === 0)
+        return false;
+      if (n !== img && n.getAttribute("aria-hidden") === "true" && !n.closest(generatedCard) && (!turn || !turn.contains(n) || n === turn || n.querySelector(ROLE_SELECTOR + "," + unitSelector)))
+        return false;
+    }
+    return true;
   }
-  function adjacentTurn(img) {
-    let card = img.closest(generatedCard);
-    while (card && !card.matches("main,body")) {
-      const previous = card.previousElementSibling;
-      if (previous) return previous.matches(turnSelector) ? previous : null;
-      card = card.parentElement;
+  function getComputedStyleFor(el) {
+    return el.ownerDocument.defaultView.getComputedStyle(el);
+  }
+  var surfaces = "img,canvas,[role=img],[style*=background]," + generatedCard;
+  function rasterSurface(el) {
+    return el.tagName === "IMG" || el.tagName === "CANVAS" || !!imageSource(el);
+  }
+  function mediaIn(el) {
+    return visualRoots(el).flatMap((n) => [n, ...n.querySelectorAll(surfaces)]).filter((n) => n.matches(surfaces) && rasterSurface(n) && imageVisible(n));
+  }
+  function large(el) {
+    const r = el.getBoundingClientRect();
+    return Math.min(r.width, r.height) >= 48 || Math.min(el.naturalWidth || 0, el.naturalHeight || 0) >= 96;
+  }
+  function ready(el) {
+    return el.tagName === "IMG" ? el.complete && el.naturalWidth > 0 : large(el);
+  }
+  function pairImage(el) {
+    return mediaIn(el).at(-1) || null;
+  }
+  var slots = /* @__PURE__ */ new WeakMap();
+  function removePairHost(host) {
+    slots.get(host)?.remove();
+    slots.delete(host);
+    host.remove();
+  }
+  function mountPairHost(el, host, image) {
+    const end = visualRoots(el).at(-1), turn = turnFor(el);
+    if (image) {
+      let anchor = turn.contains(end) ? turn : end;
+      if (!turn.contains(end))
+        while (anchor.parentElement && !anchor.parentElement.contains(turn) && !anchor.parentElement.matches("main,body,[role=main]"))
+          anchor = anchor.parentElement;
+      let slot = slots.get(host);
+      if (!slot) {
+        slot = document.createElement("div");
+        slot.dataset.cge = "image-action-row";
+        slot.style.cssText = "display:block;min-height:36px;";
+        slots.set(host, slot);
+      }
+      anchor.after(slot);
+      slot.append(host);
+      host.style.cssText = "display:block";
+      return;
+    }
+    slots.get(host)?.remove();
+    slots.delete(host);
+    host.style.cssText = "";
+    if (el.closest('button,[role="button"],picture'))
+      el.closest('button,[role="button"],picture').after(host);
+    else el.append(host);
+  }
+  function exposed(el) {
+    const r = el.getBoundingClientRect();
+    let top = Math.max(r.top, 0), bottom = Math.min(r.bottom, innerHeight), left = Math.max(r.left, 0), right = Math.min(r.right, innerWidth);
+    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      const style = getComputedStyleFor(p);
+      if (style.display === "contents") continue;
+      const b = p.getBoundingClientRect();
+      if (/hidden|clip|auto|scroll/.test(style.overflowY)) {
+        top = Math.max(top, b.top + p.clientTop);
+        bottom = Math.min(bottom, b.top + p.clientTop + p.clientHeight);
+      }
+      if (/hidden|clip|auto|scroll/.test(style.overflowX)) {
+        left = Math.max(left, b.left + p.clientLeft);
+        right = Math.min(right, b.left + p.clientLeft + p.clientWidth);
+      }
+    }
+    return { top, bottom, left, right };
+  }
+  function updateImageControl(image, host) {
+    const slot = slots.get(host);
+    if (!slot?.isConnected || !image?.isConnected) return;
+    const row = exposed(slot), pic = exposed(image);
+    if (row.bottom - row.top >= 32 && row.right - row.left >= 115 || pic.bottom - pic.top < 12 || pic.right - pic.left < 30) {
+      if (host.parentElement !== slot) {
+        slot.append(host);
+        host.style.cssText = "display:block";
+      }
+      return;
+    }
+    if (host.parentElement !== document.body) document.body.append(host);
+    host.style.cssText = `position:fixed;display:block;z-index:2147483645;left:${Math.max(4, Math.min(pic.left, innerWidth - 160))}px;top:${Math.max(4, Math.min(pic.bottom - 4, innerHeight - host.offsetHeight - 8))}px`;
+  }
+  function adjacentTurn(img, nodes) {
+    const main = img.closest("main,[role=main],#thread") || img.ownerDocument.body;
+    for (let card = img; card && card !== main; card = card.parentElement) {
+      for (let prev = card.previousElementSibling; prev; prev = prev.previousElementSibling) {
+        if (prev.matches("[data-cge],script,style,[hidden]")) continue;
+        const last = nodes.filter((n) => prev === n || prev.contains(n)).at(-1);
+        if (last) return turnFor(last);
+        if (prev.matches(turnSelector)) return null;
+        if (/^(?:image created|generated image|image generated|chatgpt said)[:.!\s]*$/i.test(
+          prev.textContent.trim()
+        ))
+          continue;
+        if (!prev.textContent.trim() && !prev.querySelector("img,iframe,canvas,video"))
+          continue;
+        return null;
+      }
     }
     return null;
   }
@@ -431,6 +683,9 @@
     return el.dataset.conversationRole || el.dataset.turn;
   }
   function messageNodes(root = document) {
+    adoptedTurns = /* @__PURE__ */ new WeakMap();
+    extraImages = /* @__PURE__ */ new WeakMap();
+    imageRoots = /* @__PURE__ */ new WeakSet();
     const candidates = /* @__PURE__ */ new Set(), ancestors = /* @__PURE__ */ new Set();
     const groups = [
       ROLE_SELECTOR,
@@ -456,14 +711,30 @@
         candidates.add(el);
         for (let p = el.parentElement; p; p = p.parentElement) ancestors.add(p);
       }
-    for (const el of candidates) extraImages.delete(el);
-    for (const img of root.querySelectorAll(generatedImgs)) {
-      if (!visible(img) || !meaningfulImage(img) || img.closest(
-        userBubble + ',[data-turn="user"],[data-message-author-role="user"],[data-conversation-role="user"]'
+    for (const img of root.querySelectorAll(surfaces)) {
+      if (!rasterSurface(img)) continue;
+      if (!imageVisible(img) || img.closest(
+        userBubble + ',[data-turn="user"],[data-message-author-role="user"],[data-conversation-role="user"],[data-testid*="attachment" i]'
       ))
         continue;
-      const turn = img.closest(turnSelector) || adjacentTurn(img);
-      if (!turn || [...candidates].some((el) => el.contains(img))) continue;
+      const list = [...candidates];
+      if (list.some((el) => el.contains(img))) continue;
+      const marked = img.matches(generatedImgs) || img.closest(
+        '[data-message-author-role="tool"],[data-role="assistant"],[data-turn="assistant"]'
+      );
+      if (!marked && !large(img)) continue;
+      const ownTurn = img.closest(turnSelector);
+      const turn = ownTurn || adjacentTurn(img, list);
+      if (!turn) continue;
+      if (!marked && !list.some(
+        (el) => turnFor(el) === turn && el.compareDocumentPosition(img) & 4
+      )) {
+        const previous = adjacentTurn(img, list);
+        if (!ownTurn || !previous || !list.some(
+          (el) => turnFor(el) === previous && messageRole(el) === "user"
+        ))
+          continue;
+      }
       const peers = [...candidates].filter((el) => turnFor(el) === turn);
       const before = peers.filter((el) => el.compareDocumentPosition(img) & 4).at(-1);
       const next = peers.find((el) => img.compareDocumentPosition(el) & 4);
@@ -475,11 +746,15 @@
       const root2 = img.closest(
         unitAttrs.map((attr) => "[" + attr + "]").join(",") + "," + generatedCard
       ) || img.closest("button") || img;
-      if (root2.contains(turn) || peers.some((el) => root2.contains(el))) continue;
-      adoptedTurns.set(root2, turn);
-      extraImages.delete(root2);
-      imageRoots.add(root2);
-      candidates.add(root2);
+      let candidate = root2;
+      if (candidate.contains(turn) || peers.some((n) => candidate.contains(n)))
+        candidate = img.closest("picture,button") || img;
+      if (candidate.contains(turn) || peers.some((n) => candidate.contains(n)))
+        continue;
+      adoptedTurns.set(candidate, turn);
+      extraImages.delete(candidate);
+      imageRoots.add(candidate);
+      candidates.add(candidate);
     }
     return [...candidates].sort(
       (a, b) => a.compareDocumentPosition(b) & 4 ? -1 : 1
@@ -533,10 +808,8 @@
       )
     ].some((action) => visible(action) && followsAnswer(action)))
       return true;
-    const images = visualRoots(el).flatMap(
-      (node) => node.matches("img") ? [node] : [...node.querySelectorAll("img")]
-    ).filter((img) => visible(img) && meaningfulImage(img));
-    if (images.length && images.every((img) => img.complete && img.naturalWidth > 0) && (imageRoots.has(el) || images.some((img) => img.matches(generatedImgs)) || !el.textContent.trim()) && !isStreaming(el.ownerDocument) && ![
+    const images = mediaIn(el);
+    if (images.length && images.every(ready) && (imageRoots.has(el) || images.some((img) => img.matches(generatedImgs) || large(img)) || !el.textContent.trim()) && !isStreaming(el.ownerDocument) && ![
       ...turn.querySelectorAll(
         '[aria-busy="true"],[data-is-streaming="true"],[role="progressbar"]'
       )
@@ -573,6 +846,23 @@
         return blocks(node);
       })
     );
+    const present = /* @__PURE__ */ new Set();
+    function known(bs) {
+      for (const b of bs) {
+        if (b.image) present.add(b.image.key);
+        if (b.blocks) known(b.blocks);
+        if (b.items) b.items.forEach(known);
+        if (b.rows) b.rows.forEach((row) => row.forEach((c) => known(c.blocks)));
+      }
+    }
+    known(content);
+    for (const img of role === "assistant" ? mediaIn(el) : []) {
+      const ref = imageRef(img);
+      if (!present.has(ref.image.key)) {
+        content.push({ type: "image", ...ref });
+        present.add(ref.image.key);
+      }
+    }
     const rich = roots.some(
       (n) => n.matches("img,canvas,iframe,video,audio,svg") || n.querySelector("img,canvas,iframe,video,audio,svg")
     );
@@ -837,21 +1127,6 @@
   var layOut = () => new Promise(
     (resolve2) => requestAnimationFrame(() => requestAnimationFrame(resolve2))
   );
-  function limits(el) {
-    let top = 0, left = 0, bottom = innerHeight, right = innerWidth;
-    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
-      const style = getComputedStyle(p), r = p.getBoundingClientRect();
-      if (/auto|scroll|hidden|clip/.test(style.overflowY)) {
-        top = Math.max(top, r.top + p.clientTop);
-        bottom = Math.min(bottom, r.top + p.clientTop + p.clientHeight);
-      }
-      if (/auto|scroll|hidden|clip/.test(style.overflowX)) {
-        left = Math.max(left, r.left + p.clientLeft);
-        right = Math.min(right, r.left + p.clientLeft + p.clientWidth);
-      }
-    }
-    return { top, left, bottom, right };
-  }
   function visibleSurfaces(el) {
     const r = el.getBoundingClientRect();
     if (r.width >= 1 && r.height >= 1) return [el];
@@ -940,10 +1215,12 @@
     const route2 = location.href, scroller = scrollContainer(), original = scroller.scrollTop;
     const oldBehavior = scroller.style.scrollBehavior;
     const pages = pageComposer(settings);
-    const transcript = document.querySelector("main") || document.body;
+    const transcript = messageNodes()[0]?.closest('main,[role="main"]') || scroller;
     const viewportWidth = innerWidth, viewportHeight = innerHeight;
     const transcriptRect = transcript.getBoundingClientRect();
-    const left = Math.max(0, transcriptRect.left), right = Math.min(innerWidth, transcriptRect.right);
+    const hasColumn = transcriptRect.width > 1 && transcriptRect.right > 0 && transcriptRect.left < innerWidth;
+    const left = hasColumn ? Math.max(0, transcriptRect.left) : 0;
+    const right = hasColumn ? Math.min(innerWidth, transcriptRect.right) : innerWidth;
     const scale = pages.width / Math.max(1, right - left);
     const token = crypto.randomUUID(), attr = "data-cge-visual-target";
     const shield = document.createElement("style");
@@ -1024,57 +1301,64 @@
             throw new Error(
               "The page could not isolate the selected message for capture."
             );
-          const start = part.getBoundingClientRect();
-          if (start.width < 1 || start.height < 1) continue;
-          let captured = 0;
-          while (captured < start.height - 0.75) {
-            guard();
-            if (!part.isConnected)
-              throw new Error(
-                "The page unloaded a message during visual capture. Try the formatted PDF."
+          const stage = stageSurface(part);
+          try {
+            const outputScale = Math.min(scale, pages.width / stage.width);
+            const dx = Math.max(
+              0,
+              Math.min(
+                pages.width - stage.width * outputScale,
+                (stage.originalLeft - left) * scale
+              )
+            );
+            let captured = 0;
+            while (captured < stage.height - 0.01) {
+              guard();
+              stage.reveal(captured);
+              await layOut();
+              guard();
+              const r = part.getBoundingClientRect(), y = r.top + captured * stage.scale;
+              const slice = Math.min(
+                stage.height - captured,
+                (innerHeight - Math.max(0, y)) / stage.scale
               );
-            const before = part.getBoundingClientRect(), clip = limits(part);
-            scroller.scrollTop += before.top + captured - clip.top;
-            await layOut();
-            guard();
-            const r = part.getBoundingClientRect(), v = limits(part);
-            if (Math.abs(r.height - start.height) > 2)
-              throw new Error(
-                "A message resized during visual capture. Let its images finish loading, then retry."
-              );
-            const x = Math.max(r.left, v.left, left), x2 = Math.min(r.right, v.right, right), y = r.top + captured;
-            const available = Math.min(v.bottom - y, start.height - captured);
-            if (y < v.top - 2 || available < 0.75 || x2 - x < 1)
-              throw new Error(
-                "The message cannot be fully exposed in this viewport. Expand it or use formatted PDF."
-              );
-            const shot = await chrome.runtime.sendMessage({ type: "CGE_SCREEN" });
-            if (!shot?.ok)
-              throw new Error(
-                shot?.error || "Chrome could not capture this tab."
-              );
-            guard();
-            const after = part.getBoundingClientRect();
-            if (!part.isConnected || Math.abs(after.top - r.top) > 1 || Math.abs(after.left - r.left) > 1 || Math.abs(after.height - r.height) > 1)
-              throw new Error(
-                "The page moved during visual capture. Retry without scrolling."
-              );
-            const img = await decodeRaster(shot.data), px = img.width / innerWidth, py = img.height / innerHeight;
-            try {
-              pages.tile(
-                img,
-                x * px,
-                Math.max(0, y) * py,
-                (x2 - x) * px,
-                available * py,
-                (x - left) * scale,
-                (x2 - x) * scale,
-                available * scale
-              );
-            } finally {
-              img.close();
+              if (!part.isConnected || Math.abs(r.width - stage.width * stage.scale) > 2 || Math.abs(r.height - stage.height * stage.scale) > 2 || Math.abs(r.left) > 2 || Math.abs(y) > 2 || slice <= 0)
+                throw new Error(
+                  "The live message changed size or position during capture. Retry after it settles."
+                );
+              const shot = await chrome.runtime.sendMessage({
+                type: "CGE_SCREEN"
+              });
+              if (!shot?.ok)
+                throw new Error(
+                  shot?.error || "Chrome could not capture this tab."
+                );
+              guard();
+              const after = part.getBoundingClientRect();
+              if (!part.isConnected || Math.abs(after.top - r.top) > 1 || Math.abs(after.left - r.left) > 1 || Math.abs(after.height - r.height) > 1)
+                throw new Error(
+                  "The message moved during capture. Retry after it settles."
+                );
+              const img = await decodeRaster(shot.data);
+              try {
+                const px = img.width / innerWidth, py = img.height / innerHeight;
+                pages.tile(
+                  img,
+                  Math.max(0, r.left) * px,
+                  Math.max(0, y) * py,
+                  r.width * px,
+                  slice * stage.scale * py,
+                  dx,
+                  stage.width * outputScale,
+                  slice * outputScale
+                );
+              } finally {
+                img.close();
+              }
+              captured += slice;
             }
-            captured += available;
+          } finally {
+            stage.restore();
           }
         }
         unmark();
@@ -1101,6 +1385,10 @@
   var CSS = `
 :host{all:initial;font:13px/1.45 system-ui,-apple-system,sans-serif;color:#172335;color-scheme:light;--ink:#172335;--accent:#146d62}
 *{box-sizing:border-box}button,select,input{font:inherit}button{cursor:pointer;border:1px solid #cfd8df;background:#fff;color:var(--ink);border-radius:8px;padding:7px 11px}button:hover{background:#edf6f4}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #3aa694;outline-offset:2px}button:disabled{opacity:.5;cursor:wait}.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.primary:hover{background:#0c594f}.pair{display:inline-block;margin:8px 0}.menu[hidden]{display:none}.menu{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.toolbar{position:fixed;right:12px;top:min(62px,9vh);max-width:calc(100vw - 24px);max-height:var(--cge-room,80vh);overflow:auto;z-index:2147483645;box-shadow:0 5px 24px #0002;border:1px solid #d8e3e0;background:#fff;border-radius:12px;padding:9px}.toolbar>div{display:flex;gap:6px}.status{max-width:320px;white-space:pre-wrap;font-size:12px;margin-top:7px}.status:empty{display:none}.status[data-state=error]{color:#a51c30}.status[data-state=success]{color:#08644d}dialog{color:var(--ink);background:#fff;border:1px solid #d8e3e0;border-radius:16px;padding:24px;width:min(520px,90vw);box-shadow:0 20px 90px #0004}dialog::backdrop{background:#14202a77}h2{font-size:20px;margin:0 0 12px}p{margin:10px 0}.preview{background:#f2f5f7;border-radius:8px;padding:12px;max-height:160px;overflow:auto;white-space:pre-wrap}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.small{font-size:12px;color:#536472}.check{display:flex;align-items:start;gap:8px}a{color:#146d62}
+.toolbar{display:grid;grid-template-columns:32px minmax(32px,auto);align-items:center;gap:4px;padding:5px}
+.toolbar[hidden]{display:none}.toolbar>.pair{display:contents}.toolbar>.pair>button{grid-area:1/1}.toolbar>button{grid-area:1/2;justify-self:start}
+.toolbar .menu{grid-row:2;grid-column:1/-1;margin:0}.toolbar>.status{grid-column:1/-1;display:block;margin:0;padding:3px}.toolbar>.status:empty{display:none}
+button.glyph{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:6px}.glyph svg{width:18px;height:18px}
 `;
   function positionToolbar(toolbar2) {
     let composer, frame;
@@ -1148,6 +1436,30 @@
     b.addEventListener("click", fn);
     return b;
   }
+  var glyphs = {
+    download: "M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5",
+    settings: "M10 3h4l.6 2.3 2 .9 2.2-.8 2 3.4-1.6 1.6.2 2.3 1.5 1.7-2 3.4-2.2-.7-2 .9L14 21h-4l-.7-2.4-2-.9-2.1.7-2-3.4 1.6-1.7v-2.4L3.2 9l2-3.4 2.2.8 2-.9L10 3z M15 12a3 3 0 1 1-6 0 3 3 0 1 1 6 0",
+    pdf: "M5 2h9l5 5v15H5z M14 2v6h5 M8 12h8m-8 4h6",
+    appearance: "M3 7h4l2-3h6l2 3h4v13H3z M15.5 13a3.5 3.5 0 1 1-7 0 3.5 3.5 0 1 1 7 0",
+    docx: "M5 2h9l5 5v15H5z M14 2v6h5 M7.5 11l2 7 2.5-5 2.5 5 2-7"
+  };
+  function iconButton(b, icon, label) {
+    const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg"), path = document.createElementNS(ns, "path");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.7");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    path.setAttribute("d", glyphs[icon]);
+    svg.append(path);
+    b.replaceChildren(svg);
+    b.classList.add("glyph");
+    b.setAttribute("aria-label", label);
+    b.title = label;
+    return b;
+  }
   function menu(shadow, label, onExport) {
     const wrap = document.createElement("div");
     wrap.className = "pair";
@@ -1169,6 +1481,15 @@
     const pdf = button("PDF", () => run2("pdf")), word = button("Word (.docx)", () => run2("docx"));
     const visual = button("PDF as shown", () => run2("appearance"));
     visual.title = "Capture the displayed messages as static PDF pages. Click the Chrome extension icon first to allow tab capture.";
+    if (shadow.classList?.contains("toolbar")) {
+      iconButton(trigger, "download", label);
+      iconButton(pdf, "pdf", "PDF");
+      iconButton(visual, "appearance", "PDF as shown");
+      iconButton(word, "docx", "Word (.docx)");
+      pdf.title = "Formatted PDF";
+      visual.title = "PDF as shown";
+      word.title = "Word document";
+    }
     options.append(pdf, visual, word);
     wrap.append(trigger, options);
     shadow.append(wrap);
@@ -1300,9 +1621,13 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
   var updateToolbarPosition = positionToolbar(toolbar);
   menu(toolbar, "Export conversation", (format) => run("conversation", format));
   toolbar.append(
-    button(
-      "Settings",
-      () => chrome.runtime.sendMessage({ type: "CGE_SETTINGS" })
+    iconButton(
+      button(
+        "Settings",
+        () => chrome.runtime.sendMessage({ type: "CGE_SETTINGS" })
+      ),
+      "settings",
+      "Settings"
     )
   );
   var status = document.createElement("div");
@@ -1412,7 +1737,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       feedback("");
       for (const [el, entry] of pairs) {
         entry.cleanup();
-        entry.host.remove();
+        removePairHost(entry.host);
       }
       pairs.clear();
     }
@@ -1420,28 +1745,32 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     for (const [el, entry] of pairs)
       if (!entry.host.isConnected || !el.isConnected || !nodes.includes(el) || !completed(el, nodes)) {
         entry.cleanup();
-        entry.host.remove();
+        removePairHost(entry.host);
         pairs.delete(el);
       }
     for (const el of nodes) {
       if (messageRole(el) !== "assistant" || pairs.has(el) || !completed(el, nodes))
         continue;
       const ui = mount(null, "pair");
-      mountPairHost(el, ui.host);
+      const image = pairImage(el);
+      mountPairHost(el, ui.host, image);
       const cleanup = menu(
         ui.shadow,
         "\u2193 Export this Q&A",
         (format) => run("pair", format, el)
       );
-      pairs.set(el, { ...ui, cleanup, anchor: visualRoots(el).at(-1) });
+      pairs.set(el, { ...ui, cleanup, image, anchor: visualRoots(el).at(-1) });
     }
     for (const [el, entry] of pairs) {
       const end = visualRoots(el).at(-1);
-      if (entry.anchor !== end) {
-        mountPairHost(el, entry.host);
+      const image = pairImage(el);
+      if (entry.anchor !== end || entry.image !== image) {
+        mountPairHost(el, entry.host, image);
+        entry.image = image;
         entry.anchor = end;
       }
     }
+    queueImagePositions();
     updateToolbarPosition();
     if (!panel.host.isConnected) document.body.append(panel.host);
     panel.host.style.display = nodes.length || /\/(?:c|share)\//.test(location.pathname) ? "block" : "none";
@@ -1452,18 +1781,36 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     else if (status.textContent.startsWith("No readable messages detected"))
       feedback("");
   }
-  var observer = new MutationObserver((records) => {
-    if (records.every(
-      (r) => r.target.nodeType === 1 && r.target.closest("[data-cge]")
-    ))
-      return;
-    if (!scheduled)
+  var imageFrame = 0;
+  function queueImagePositions() {
+    if (imageFrame || visualCapturing) return;
+    imageFrame = requestAnimationFrame(() => {
+      imageFrame = 0;
+      if (!visualCapturing) {
+        for (const entry of pairs.values())
+          if (entry.image) updateImageControl(entry.image, entry.host);
+      }
+    });
+  }
+  window.addEventListener("scroll", queueImagePositions, {
+    capture: true,
+    passive: true
+  });
+  window.addEventListener("resize", queueImagePositions);
+  function queueScan() {
+    if (!scheduled && !visualCapturing)
       scheduled = setTimeout(() => {
         scheduled = null;
         scan();
-      }, 200);
+      }, 150);
+  }
+  var observer = new MutationObserver((records) => {
+    if (records.some(
+      (r) => r.target.nodeType !== 1 || !r.target.closest("[data-cge]")
+    ))
+      queueScan();
   });
-  observer.observe(document.body, {
+  var watch = {
     subtree: true,
     childList: true,
     attributes: true,
@@ -1479,17 +1826,29 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       "data-is-streaming",
       "aria-busy",
       "hidden",
-      "aria-hidden"
+      "aria-hidden",
+      "src",
+      "srcset",
+      "style",
+      "class",
+      "data-testid",
+      "aria-label",
+      "data-generated-image"
     ]
-  });
+  };
+  observer.observe(document.body, watch);
   document.addEventListener(
     "load",
     (e) => {
-      if (e.target?.tagName === "IMG" && !scheduled)
-        scheduled = setTimeout(() => {
-          scheduled = null;
-          scan();
-        }, 150);
+      if (e.target?.tagName === "IMG") queueScan();
+    },
+    true
+  );
+  document.addEventListener(
+    "transitionend",
+    (e) => {
+      if (e.propertyName === "opacity" && !e.target.closest("[data-cge]"))
+        queueScan();
     },
     true
   );
@@ -1524,25 +1883,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
   );
   window.addEventListener("pageshow", (event) => {
     if (event.persisted) {
-      observer.observe(document.body, {
-        subtree: true,
-        childList: true,
-        attributes: true,
-        attributeFilter: [
-          "data-message-id",
-          "data-message-author-role",
-          "data-content-search-unit-key",
-          "data-chatgpt-search-unit-key",
-          "data-turn",
-          "data-turn-key",
-          "data-markdown-text-style",
-          "data-conversation-role",
-          "data-is-streaming",
-          "aria-busy",
-          "hidden",
-          "aria-hidden"
-        ]
-      });
+      observer.observe(document.body, watch);
       scan();
     }
   });

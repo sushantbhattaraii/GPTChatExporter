@@ -1,4 +1,4 @@
-import { liftImages, meaningfulImage, imageRef } from "./media.js";
+import { liftImages, meaningfulImage, imageRef, imageSource } from "./media.js";
 import { blocks, visible, plainText } from "./normalize.js";
 export const ROLE_SELECTOR =
   '[data-message-author-role="user"],[data-message-author-role="assistant"]';
@@ -21,40 +21,183 @@ const roleHeading = 'h1,h2,h3,h4,h5,h6,[role="heading"]';
 const unitKey = (el) =>
   unitAttrs.map((attr) => el.getAttribute(attr)).find(Boolean);
 const generatedCard =
-  '[data-testid*="imagegen" i],[data-testid*="image-gen" i],[data-testid*="generated-image" i],[data-generated-image],[data-content-search-unit-key$=":tool"],[data-chatgpt-search-unit-key$=":tool"],[class*="group/imagegen-image"],[data-testid*="image_generation" i]';
+  '[data-testid*="imagegen" i],[data-testid*="image-gen" i],[data-testid*="generated-image" i],[data-generated-image],[data-content-search-unit-key$=":tool"],[data-chatgpt-search-unit-key$=":tool"],[class*="imagegen" i],[data-testid*="image-generation" i],[data-testid*="image-output" i],[data-message-author-role="tool"],[data-turn="tool"],[data-testid*="image_generation" i]';
 const generatedImgs =
   'img[alt^="generated image" i],img[alt^="image generated" i],' +
   generatedCard
     .split(",")
     .map((k) => k + " img")
     .join(",");
-const adoptedTurns = new WeakMap();
-const extraImages = new WeakMap(),
+let adoptedTurns = new WeakMap();
+let extraImages = new WeakMap(),
   imageRoots = new WeakSet();
 export function visualRoots(el) {
   return [el, ...(extraImages.get(el) || [])].sort((a, b) =>
     a.compareDocumentPosition(b) & 4 ? -1 : 1,
   );
 }
-export function mountPairHost(el, host) {
-  const end = visualRoots(el).at(-1);
-  if (
-    end !== el ||
-    imageRoots.has(el) ||
-    el.matches(generatedCard + ",img,button,[role=button]") ||
-    el.closest('button,[role="button"]')
-  ) {
-    const card = end.closest(generatedCard) || end;
-    (card.closest('button,[role="button"],picture') || card).after(host);
-  } else el.append(host);
+function imageVisible(img) {
+  if (!meaningfulImage(img)) return false;
+  const turn = img.closest(turnSelector);
+  if (turn && !visible(turn)) return false;
+  const scope = img.closest(ROLE_SELECTOR + "," + unitSelector);
+  if (scope && !visible(scope)) return false;
+  for (let n = img; n; n = n.parentElement) {
+    const css = getComputedStyleFor(n);
+    if (
+      css.display === "none" ||
+      css.visibility === "hidden" ||
+      css.contentVisibility === "hidden" ||
+      Number.parseFloat(css.opacity) === 0
+    )
+      return false;
+    if (
+      n !== img &&
+      n.getAttribute("aria-hidden") === "true" &&
+      !n.closest(generatedCard) &&
+      (!turn ||
+        !turn.contains(n) ||
+        n === turn ||
+        n.querySelector(ROLE_SELECTOR + "," + unitSelector))
+    )
+      return false;
+  }
+  return true;
 }
-// Some layouts put a generated-image gallery directly after the owning turn.
-function adjacentTurn(img) {
-  let card = img.closest(generatedCard);
-  while (card && !card.matches("main,body")) {
-    const previous = card.previousElementSibling;
-    if (previous) return previous.matches(turnSelector) ? previous : null;
-    card = card.parentElement;
+function getComputedStyleFor(el) {
+  return el.ownerDocument.defaultView.getComputedStyle(el);
+}
+const surfaces = "img,canvas,[role=img],[style*=background]," + generatedCard;
+function rasterSurface(el) {
+  return el.tagName === "IMG" || el.tagName === "CANVAS" || !!imageSource(el);
+}
+function mediaIn(el) {
+  return visualRoots(el)
+    .flatMap((n) => [n, ...n.querySelectorAll(surfaces)])
+    .filter((n) => n.matches(surfaces) && rasterSurface(n) && imageVisible(n));
+}
+function large(el) {
+  const r = el.getBoundingClientRect();
+  return (
+    Math.min(r.width, r.height) >= 48 ||
+    Math.min(el.naturalWidth || 0, el.naturalHeight || 0) >= 96
+  );
+}
+function ready(el) {
+  return el.tagName === "IMG" ? el.complete && el.naturalWidth > 0 : large(el);
+}
+export function pairImage(el) {
+  return mediaIn(el).at(-1) || null;
+}
+const slots = new WeakMap();
+export function removePairHost(host) {
+  slots.get(host)?.remove();
+  slots.delete(host);
+  host.remove();
+}
+export function mountPairHost(el, host, image) {
+  const end = visualRoots(el).at(-1),
+    turn = turnFor(el);
+  if (image) {
+    let anchor = turn.contains(end) ? turn : end;
+    if (!turn.contains(end))
+      while (
+        anchor.parentElement &&
+        !anchor.parentElement.contains(turn) &&
+        !anchor.parentElement.matches("main,body,[role=main]")
+      )
+        anchor = anchor.parentElement;
+    let slot = slots.get(host);
+    if (!slot) {
+      slot = document.createElement("div");
+      slot.dataset.cge = "image-action-row";
+      slot.style.cssText = "display:block;min-height:36px;";
+      slots.set(host, slot);
+    }
+    anchor.after(slot);
+    slot.append(host);
+    host.style.cssText = "display:block";
+    return;
+  }
+  slots.get(host)?.remove();
+  slots.delete(host);
+  host.style.cssText = "";
+  if (el.closest('button,[role="button"],picture'))
+    el.closest('button,[role="button"],picture').after(host);
+  else el.append(host);
+}
+// When an outer fixed-height layout clips the flow row, pin the same control to the visible image.
+function exposed(el) {
+  const r = el.getBoundingClientRect();
+  let top = Math.max(r.top, 0),
+    bottom = Math.min(r.bottom, innerHeight),
+    left = Math.max(r.left, 0),
+    right = Math.min(r.right, innerWidth);
+  for (
+    let p = el.parentElement;
+    p && p !== document.body;
+    p = p.parentElement
+  ) {
+    const style = getComputedStyleFor(p);
+    if (style.display === "contents") continue;
+    const b = p.getBoundingClientRect();
+    if (/hidden|clip|auto|scroll/.test(style.overflowY)) {
+      top = Math.max(top, b.top + p.clientTop);
+      bottom = Math.min(bottom, b.top + p.clientTop + p.clientHeight);
+    }
+    if (/hidden|clip|auto|scroll/.test(style.overflowX)) {
+      left = Math.max(left, b.left + p.clientLeft);
+      right = Math.min(right, b.left + p.clientLeft + p.clientWidth);
+    }
+  }
+  return { top, bottom, left, right };
+}
+export function updateImageControl(image, host) {
+  const slot = slots.get(host);
+  if (!slot?.isConnected || !image?.isConnected) return;
+  const row = exposed(slot),
+    pic = exposed(image);
+  if (
+    (row.bottom - row.top >= 32 && row.right - row.left >= 115) ||
+    pic.bottom - pic.top < 12 ||
+    pic.right - pic.left < 30
+  ) {
+    if (host.parentElement !== slot) {
+      slot.append(host);
+      host.style.cssText = "display:block";
+    }
+    return;
+  }
+  if (host.parentElement !== document.body) document.body.append(host);
+  host.style.cssText = `position:fixed;display:block;z-index:2147483645;left:${Math.max(4, Math.min(pic.left, innerWidth - 160))}px;top:${Math.max(4, Math.min(pic.bottom - 4, innerHeight - host.offsetHeight - 8))}px`;
+}
+function adjacentTurn(img, nodes) {
+  // Walk out through wrappers and look through empty spacers, not through a different reply.
+  const main =
+    img.closest("main,[role=main],#thread") || img.ownerDocument.body;
+  for (let card = img; card && card !== main; card = card.parentElement) {
+    for (
+      let prev = card.previousElementSibling;
+      prev;
+      prev = prev.previousElementSibling
+    ) {
+      if (prev.matches("[data-cge],script,style,[hidden]")) continue;
+      const last = nodes.filter((n) => prev === n || prev.contains(n)).at(-1);
+      if (last) return turnFor(last);
+      if (prev.matches(turnSelector)) return null;
+      if (
+        /^(?:image created|generated image|image generated|chatgpt said)[:.!\s]*$/i.test(
+          prev.textContent.trim(),
+        )
+      )
+        continue;
+      if (
+        !prev.textContent.trim() &&
+        !prev.querySelector("img,iframe,canvas,video")
+      )
+        continue;
+      return null;
+    }
   }
   return null;
 }
@@ -71,6 +214,9 @@ export function messageRole(el) {
 export function messageNodes(root = document) {
   // Prefer authoritative message bodies, then explicitly role-labelled search units.
   // A combined turn can contain both roles. Never export the combined wrapper twice.
+  adoptedTurns = new WeakMap();
+  extraImages = new WeakMap();
+  imageRoots = new WeakSet();
   const candidates = new Set(),
     ancestors = new Set();
   const groups = [
@@ -105,21 +251,47 @@ export function messageNodes(root = document) {
       candidates.add(el);
       for (let p = el.parentElement; p; p = p.parentElement) ancestors.add(p);
     }
-  for (const el of candidates) extraImages.delete(el);
+
   // Image generation may render a tool card beside an empty assistant text root.
   // Associate it only within its own chat turn. Never adopt an image from a prompt.
-  for (const img of root.querySelectorAll(generatedImgs)) {
+  for (const img of root.querySelectorAll(surfaces)) {
+    if (!rasterSurface(img)) continue;
     if (
-      !visible(img) ||
-      !meaningfulImage(img) ||
+      !imageVisible(img) ||
       img.closest(
         userBubble +
-          ',[data-turn="user"],[data-message-author-role="user"],[data-conversation-role="user"]',
+          ',[data-turn="user"],[data-message-author-role="user"],[data-conversation-role="user"],[data-testid*="attachment" i]',
       )
     )
       continue;
-    const turn = img.closest(turnSelector) || adjacentTurn(img);
-    if (!turn || [...candidates].some((el) => el.contains(img))) continue;
+    const list = [...candidates];
+    if (list.some((el) => el.contains(img))) continue;
+    const marked =
+      img.matches(generatedImgs) ||
+      img.closest(
+        '[data-message-author-role="tool"],[data-role="assistant"],[data-turn="assistant"]',
+      );
+    if (!marked && !large(img)) continue;
+    const ownTurn = img.closest(turnSelector);
+    const turn = ownTurn || adjacentTurn(img, list);
+    if (!turn) continue;
+    // For unlabelled media, require a transcript boundary and an actual earlier message.
+    if (
+      !marked &&
+      !list.some(
+        (el) => turnFor(el) === turn && el.compareDocumentPosition(img) & 4,
+      )
+    ) {
+      const previous = adjacentTurn(img, list);
+      if (
+        !ownTurn ||
+        !previous ||
+        !list.some(
+          (el) => turnFor(el) === previous && messageRole(el) === "user",
+        )
+      )
+        continue;
+    }
     const peers = [...candidates].filter((el) => turnFor(el) === turn);
     const before = peers
       .filter((el) => el.compareDocumentPosition(img) & 4)
@@ -143,11 +315,15 @@ export function messageNodes(root = document) {
       ) ||
       img.closest("button") ||
       img;
-    if (root.contains(turn) || peers.some((el) => root.contains(el))) continue;
-    adoptedTurns.set(root, turn);
-    extraImages.delete(root);
-    imageRoots.add(root);
-    candidates.add(root);
+    let candidate = root;
+    if (candidate.contains(turn) || peers.some((n) => candidate.contains(n)))
+      candidate = img.closest("picture,button") || img;
+    if (candidate.contains(turn) || peers.some((n) => candidate.contains(n)))
+      continue;
+    adoptedTurns.set(candidate, turn);
+    extraImages.delete(candidate);
+    imageRoots.add(candidate);
+    candidates.add(candidate);
   }
   return [...candidates].sort((a, b) =>
     a.compareDocumentPosition(b) & 4 ? -1 : 1,
@@ -232,16 +408,12 @@ export function completed(el, nodes = messageNodes(el.ownerDocument)) {
     ].some((action) => visible(action) && followsAnswer(action))
   )
     return true;
-  const images = visualRoots(el)
-    .flatMap((node) =>
-      node.matches("img") ? [node] : [...node.querySelectorAll("img")],
-    )
-    .filter((img) => visible(img) && meaningfulImage(img));
+  const images = mediaIn(el);
   if (
     images.length &&
-    images.every((img) => img.complete && img.naturalWidth > 0) &&
+    images.every(ready) &&
     (imageRoots.has(el) ||
-      images.some((img) => img.matches(generatedImgs)) ||
+      images.some((img) => img.matches(generatedImgs) || large(img)) ||
       !el.textContent.trim()) &&
     !isStreaming(el.ownerDocument) &&
     ![
@@ -298,6 +470,25 @@ export function extractMessage(el, order) {
       return blocks(node);
     }),
   );
+  // aria-hidden on the bitmap itself is common when a parent button supplies its label.
+  // Recover visually painted images that the ordinary accessibility filter skipped.
+  const present = new Set();
+  function known(bs) {
+    for (const b of bs) {
+      if (b.image) present.add(b.image.key);
+      if (b.blocks) known(b.blocks);
+      if (b.items) b.items.forEach(known);
+      if (b.rows) b.rows.forEach((row) => row.forEach((c) => known(c.blocks)));
+    }
+  }
+  known(content);
+  for (const img of role === "assistant" ? mediaIn(el) : []) {
+    const ref = imageRef(img);
+    if (!present.has(ref.image.key)) {
+      content.push({ type: "image", ...ref });
+      present.add(ref.image.key);
+    }
+  }
   const rich = roots.some(
     (n) =>
       n.matches("img,canvas,iframe,video,audio,svg") ||

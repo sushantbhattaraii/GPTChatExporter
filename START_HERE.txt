@@ -1,9 +1,9 @@
-ChatGPT Conversation Exporter 1.1.0
+ChatGPT Conversation Exporter 1.1.1
 
 Updating an earlier version: Extract the ZIP and replace the contents of your
 previously loaded dist folder with the new dist contents. Click Reload
 on the extension card at chrome://extensions/, then refresh your chat.
-Verify the popup says v1.1.0.
+Verify the popup says v1.1.1.
 
 New installation:
 1. Extract this ZIP completely.
@@ -12,7 +12,8 @@ New installation:
 4. Click Load unpacked.
 5. Select the dist folder inside chatgpt-conversation-exporter.
 6. Enable/pin the extension and refresh ChatGPT.
-7. Use Export this Q&A below a completed response, or Export conversation.
+7. Use Export this Q&A below a completed response, or the floating download
+   arrow for whole-chat export. The gear opens settings.
 
 No Node.js installation is required for the included dist build.
 

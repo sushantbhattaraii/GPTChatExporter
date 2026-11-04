@@ -52,7 +52,7 @@ Worker restart is tolerated for downloads whose session record exists; no succes
 
 ## Visual PDF
 
-A user-invoked visual export collects stable message identities and records virtualized turn positions. In the active tab it temporarily masks unrelated regions, scrolls each requested surface into view, and crops viewport captures to verified message rectangles. Crops are assembled into paginated raster PDF pages locally. A tab/URL change, lost geometry, cancellation or size limit aborts the job. The mask and original scroll position are restored in a finally block. The formatted path uses readable source pixels or a size-limited, allowlisted asset retrieval fallback.
+A user-invoked visual export collects stable message identities and records virtualized turn positions. In the active tab it temporarily masks unrelated regions, promotes the original live message to a temporary manual popover above ancestor overflow clipping, and moves it one verified tile at a time. A spacer preserves flow. Styles, popover attributes, masking rules and the scroll position are restored in finally blocks. Crops are assembled into paginated raster PDF pages locally. A tab/URL change, lost geometry, cancellation or size limit aborts the job. The mask and original scroll position are restored in a finally block. The formatted path uses readable source pixels or a size-limited, allowlisted asset retrieval fallback.
 
 ## Release boundary
 

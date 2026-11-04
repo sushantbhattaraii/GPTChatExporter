@@ -9,7 +9,7 @@ export function endImages() {
 export function meaningfulImage(img) {
   if (
     img.closest(
-      'nav,form,[data-cge],[aria-hidden="true"],[data-testid*="avatar" i]',
+      'nav,aside,form,[data-cge],[hidden],template,[data-testid*="avatar" i]',
     )
   )
     return false;
@@ -21,11 +21,24 @@ export function meaningfulImage(img) {
     rect.height <= 24
   );
 }
+const canvasIds = new WeakMap();
+export function imageSource(el) {
+  if (el.tagName === "IMG")
+    return el.currentSrc || el.getAttribute("src") || "";
+  if (el.tagName === "CANVAS") return "";
+  const css =
+    el.ownerDocument.defaultView.getComputedStyle(el).backgroundImage || "";
+  const match = css.match(/^url\((["']?)(.*?)\1\)$/);
+  return match?.[2] || "";
+}
 export function imageRef(el) {
-  const source = el.currentSrc || el.getAttribute("src") || "";
-  const alt = el.alt || "Image";
-  const key = source || alt;
-  if (session && source) session.set(key, { el, source });
+  const source = imageSource(el),
+    alt = el.alt || el.getAttribute("aria-label") || "Image";
+  if (!source && !canvasIds.has(el))
+    canvasIds.set(el, "surface-" + crypto.randomUUID());
+  const key = source || canvasIds.get(el);
+  if (session && (source || el.tagName === "CANVAS"))
+    session.set(key, { el, source });
   return { text: `[Image: ${alt}]`, image: { key, alt } };
 }
 function raster(el) {
@@ -66,6 +79,7 @@ async function resolve(ref) {
   const item = session?.get(ref.key);
   if (!item) return null;
   try {
+    if (item.el.tagName === "CANVAS") return raster(item.el);
     if (
       item.el.complete &&
       (item.el.currentSrc || item.el.getAttribute("src")) === item.source

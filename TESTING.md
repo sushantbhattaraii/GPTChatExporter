@@ -1,5 +1,12 @@
 # Validation report and release checklist
 
+## Version 1.1.1
+
+34 automated tests and 19 Chromium renderer scenarios passed.
+
+The previous release reproduced “The message cannot be fully exposed in this viewport” when the chat used nested overflow/clip containers and a boxless layout wrapper. Regression fixtures exercise pair and whole-chat visual exports on that layout. They verify the original inline styling survives capture, and a rendered PDF contains the initially clipped prompt stripe and both source-image colors. Other fixtures cover icon-only toolbar buttons, keyboard operation, refused capture cleanup, a pinned image control when the outer row is clipped, and a CSS-backed image card that hydrates after the initial scan. See `test-results/ready-1.1.1.log`, `test-results/render-results.json` and `test-results/image-validation.json`. These are Chromium renderer tests. Native Chrome tab capture and the user’s signed-in chat remain live checks.
+
+
 ## Version 1.1.0
 
 34 automated tests and 14 Chromium renderer scenarios passed. The two-page visual PDF retained the fixture’s image, canvas, SVG and frame colors. The unrelated green overlay contributed zero matching pixels. See `test-results/image-validation.json`, `test-results/render-results.json` and `test-results/ship-1.1.0.log`.

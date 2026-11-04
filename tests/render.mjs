@@ -113,11 +113,14 @@ await generator.goto("https://exporter.test/offscreen.html");
 await generator.waitForFunction(() => window.__listeners.length > 0);
 const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
+let failCapture = false;
 let approvedFixtureImage,
   assetRequests = 0;
 let exported = [],
   requests = [];
 await page.exposeFunction("__send", async (msg) => {
+  if (msg.type === "CGE_SCREEN" && failCapture)
+    return { ok: false, error: "Fixture capture denied" };
   if (msg.type === "CGE_SCREEN")
     return {
       ok: true,
@@ -382,7 +385,10 @@ try {
     const listener = (e) => {
       if (
         !e.composedPath().includes(host) ||
-        e.composedPath()[0].textContent !== "Word (.docx)"
+        e
+          .composedPath()
+          .find((n) => n.tagName === "BUTTON")
+          ?.getAttribute("aria-label") !== "Word (.docx)"
       )
         return;
       document.removeEventListener("click", listener, true);
@@ -600,6 +606,163 @@ try {
   assert.ok(assetRequests >= 1);
   results.push(
     "A cross-origin gallery adjacent to its user turn exports through the raster asset fallback (simulated worker response) with no duplicate button.",
+  );
+  await page.evaluate((src) => {
+    document.querySelector("main").innerHTML = `
+      <div style="overflow:auto;height:370px;width:85vw"><div style="display:contents;overflow:hidden">
+        <section data-turn-key="fallback-turn-0" style="overflow:clip;height:135px">
+          <div data-chatgpt-search-unit-key="fallback-turn-0:0:user" style="position:relative;top:-36px;height:100px"><span style="display:block;height:28px;background:#f49e11">First stripe</span>Give me a random image.</div>
+          <div data-chatgpt-search-unit-key="fallback-turn-0:1:assistant"><img alt="Sunrise over a mountain" aria-hidden="true" width="240" height="120" src="${src}"></div>
+        </section>
+        <section data-turn-key="fallback-turn-1"><div data-chatgpt-search-unit-key="fallback-turn-1:0:user">What do you see?</div>
+        <div data-chatgpt-search-unit-key="fallback-turn-1:1:assistant" data-is-streaming="false"><p>Two colors.</p></div></section>
+      </div></div>`;
+  }, approvedFixtureImage);
+  await page.waitForFunction(
+    () => document.querySelectorAll('[data-cge="pair"]').length === 2,
+  );
+  const accessible = await page
+    .locator('[data-cge="pair"]')
+    .first()
+    .getByRole("button", { name: "↓ Export this Q&A", exact: true })
+    .isVisible();
+  assert.equal(accessible, true);
+  assert.ok(
+    await page.evaluate(() =>
+      document
+        .querySelector("[data-turn-key]")
+        .nextElementSibling.matches('[data-cge="image-action-row"]'),
+    ),
+  );
+  const styleBefore = await page
+    .locator("[data-chatgpt-search-unit-key]")
+    .first()
+    .getAttribute("style");
+  await imagePair("PDF");
+  checkArt();
+  await imagePair("PDF as shown");
+  assert.equal(
+    await page
+      .locator("[data-chatgpt-search-unit-key]")
+      .first()
+      .getAttribute("style"),
+    styleBefore,
+  );
+  const n = exported.length;
+  await tool
+    .getByRole("button", { name: "Export conversation", exact: true })
+    .click();
+  await tool.getByRole("button", { name: "PDF as shown", exact: true }).click();
+  await page.getByRole("dialog").waitFor();
+  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("button", { name: "Download PDF as shown", exact: true })
+    .click();
+  await waitExport(n);
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/nested-appearance.pdf",
+  );
+  assert.equal(
+    await page.locator(":popover-open,[data-cge-visual-target]").count(),
+    0,
+  );
+  results.push(
+    "Nested scroll/clip containers: pair and whole-chat capture succeed and restore the original styles. A descriptive, aria-hidden bitmap gets a visible control outside its clipped turn.",
+  );
+  assert.equal(
+    await tool
+      .getByRole("button", { name: "Export conversation", exact: true })
+      .textContent(),
+    "",
+  );
+  assert.equal(
+    await tool
+      .getByRole("button", { name: "Settings", exact: true })
+      .textContent(),
+    "",
+  );
+  await tool
+    .getByRole("button", { name: "Export conversation", exact: true })
+    .focus();
+  await page.keyboard.press("Enter");
+  await tool
+    .getByRole("button", { name: "Word (.docx)", exact: true })
+    .waitFor();
+  await page.keyboard.press("Escape");
+  results.push(
+    "Floating export/settings buttons have icon-only faces, accessible names, tooltips and a keyboard-operable format menu.",
+  );
+  failCapture = true;
+  const action = page.locator('[data-cge="pair"]').first();
+  await action
+    .getByRole("button", { name: "↓ Export this Q&A", exact: true })
+    .click();
+  await action
+    .getByRole("button", { name: "PDF as shown", exact: true })
+    .click();
+  await page.getByText("Fixture capture denied", { exact: true }).waitFor();
+  failCapture = false;
+  assert.equal(
+    await page.locator(":popover-open,[data-cge-visual-target]").count(),
+    0,
+  );
+  assert.equal(
+    await page
+      .locator("[data-chatgpt-search-unit-key]")
+      .first()
+      .getAttribute("style"),
+    styleBefore,
+  );
+  results.push(
+    "A refused screenshot restores the original message styles and removes all temporary capture markers.",
+  );
+  await page.evaluate(() => {
+    const turn = document.querySelector("[data-turn-key]"),
+      slot = turn.nextElementSibling;
+    const outer = document.createElement("div");
+    outer.style.cssText = "height:130px;overflow:clip";
+    turn.before(outer);
+    outer.append(turn, slot);
+    document.querySelector("main div[style*=overflow]").scrollTop = 0;
+    window.dispatchEvent(new Event("resize"));
+  });
+  const pinned = page.locator('body > [data-cge="pair"]');
+  await pinned
+    .getByRole("button", { name: "↓ Export this Q&A", exact: true })
+    .click();
+  await pinned.getByRole("button", { name: "PDF", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  results.push(
+    "When an outer wrapper clips the entire image action row, the same button is pinned at the visible picture and remains clickable.",
+  );
+  // Generated media can be delivered through an unlabelled CSS-backed card between user turns.
+  await page.evaluate((src) => {
+    document.querySelector("main").innerHTML =
+      `<section data-turn-key="fallback-turn-0"><div data-chatgpt-search-unit-key="fallback-turn-0:0:user">Draw a mountain.</div></section>
+      <div aria-hidden="true"></div><div><div><button><span role="img" aria-label="Mountain sunrise" style="display:block;width:240px;height:120px;"></span></button></div></div>
+      <section data-turn-key="fallback-turn-1"><div data-chatgpt-search-unit-key="fallback-turn-1:0:user">Describe it.</div><div data-chatgpt-search-unit-key="fallback-turn-1:1:assistant" data-is-streaming="false">A mountain.</div></section>`;
+  }, approvedFixtureImage);
+  await page.waitForFunction(
+    () => document.querySelectorAll('[data-cge="pair"]').length === 1,
+  );
+  await page.evaluate(
+    (src) =>
+      (document.querySelector('[role="img"]').style.backgroundImage =
+        `url("${src}")`),
+    approvedFixtureImage,
+  );
+  await page.waitForFunction(
+    () => document.querySelectorAll('[data-cge="pair"]').length === 2,
+  );
+  await imagePair("PDF");
+  checkArt();
+  assert.match(
+    JSON.stringify(requests.at(-1).document.messages[0].blocks),
+    /Draw a mountain/,
+  );
+  results.push(
+    "A CSS-backed image card without imagegen classes between two prompts gets a clickable Export this Q&A control and exports with its original prompt.",
   );
   assert.deepEqual(errors, []);
   await writeFile(

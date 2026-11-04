@@ -4,6 +4,9 @@ import {
   messageNodes,
   messageRole,
   mountPairHost,
+  removePairHost,
+  updateImageControl,
+  pairImage,
   visualRoots,
   historyKey,
   completed,
@@ -12,7 +15,14 @@ import {
   snapshot,
 } from "./modules/extractor.js";
 import { collectHistory } from "./modules/history.js";
-import { mount, menu, button, review, positionToolbar } from "./modules/ui.js";
+import {
+  mount,
+  menu,
+  button,
+  iconButton,
+  review,
+  positionToolbar,
+} from "./modules/ui.js";
 import { plainText } from "./modules/normalize.js";
 import { getSettings } from "./modules/settings.js";
 let visualCapturing = false;
@@ -28,8 +38,12 @@ panel.shadow.append(toolbar);
 const updateToolbarPosition = positionToolbar(toolbar);
 menu(toolbar, "Export conversation", (format) => run("conversation", format));
 toolbar.append(
-  button("Settings", () =>
-    chrome.runtime.sendMessage({ type: "CGE_SETTINGS" }),
+  iconButton(
+    button("Settings", () =>
+      chrome.runtime.sendMessage({ type: "CGE_SETTINGS" }),
+    ),
+    "settings",
+    "Settings",
   ),
 );
 const status = document.createElement("div");
@@ -149,7 +163,7 @@ function scan() {
     feedback("");
     for (const [el, entry] of pairs) {
       entry.cleanup();
-      entry.host.remove();
+      removePairHost(entry.host);
     }
     pairs.clear();
   }
@@ -162,7 +176,7 @@ function scan() {
       !completed(el, nodes)
     ) {
       entry.cleanup();
-      entry.host.remove();
+      removePairHost(entry.host);
       pairs.delete(el);
     }
   for (const el of nodes) {
@@ -173,19 +187,23 @@ function scan() {
     )
       continue;
     const ui = mount(null, "pair");
-    mountPairHost(el, ui.host);
+    const image = pairImage(el);
+    mountPairHost(el, ui.host, image);
     const cleanup = menu(ui.shadow, "↓ Export this Q&A", (format) =>
       run("pair", format, el),
     );
-    pairs.set(el, { ...ui, cleanup, anchor: visualRoots(el).at(-1) });
+    pairs.set(el, { ...ui, cleanup, image, anchor: visualRoots(el).at(-1) });
   }
   for (const [el, entry] of pairs) {
     const end = visualRoots(el).at(-1);
-    if (entry.anchor !== end) {
-      mountPairHost(el, entry.host);
+    const image = pairImage(el);
+    if (entry.anchor !== end || entry.image !== image) {
+      mountPairHost(el, entry.host, image);
+      entry.image = image;
       entry.anchor = end;
     }
   }
+  queueImagePositions();
   updateToolbarPosition();
   if (!panel.host.isConnected) document.body.append(panel.host);
   panel.host.style.display =
@@ -199,20 +217,37 @@ function scan() {
   else if (status.textContent.startsWith("No readable messages detected"))
     feedback("");
 }
-const observer = new MutationObserver((records) => {
-  if (
-    records.every(
-      (r) => r.target.nodeType === 1 && r.target.closest("[data-cge]"),
-    )
-  )
-    return;
-  if (!scheduled)
+let imageFrame = 0;
+function queueImagePositions() {
+  if (imageFrame || visualCapturing) return;
+  imageFrame = requestAnimationFrame(() => {
+    imageFrame = 0;
+    if (!visualCapturing)
+      for (const entry of pairs.values())
+        if (entry.image) updateImageControl(entry.image, entry.host);
+  });
+}
+window.addEventListener("scroll", queueImagePositions, {
+  capture: true,
+  passive: true,
+});
+window.addEventListener("resize", queueImagePositions);
+function queueScan() {
+  if (!scheduled && !visualCapturing)
     scheduled = setTimeout(() => {
       scheduled = null;
       scan();
-    }, 200);
+    }, 150);
+}
+const observer = new MutationObserver((records) => {
+  if (
+    records.some(
+      (r) => r.target.nodeType !== 1 || !r.target.closest("[data-cge]"),
+    )
+  )
+    queueScan();
 });
-observer.observe(document.body, {
+const watch = {
   subtree: true,
   childList: true,
   attributes: true,
@@ -229,16 +264,28 @@ observer.observe(document.body, {
     "aria-busy",
     "hidden",
     "aria-hidden",
+    "src",
+    "srcset",
+    "style",
+    "class",
+    "data-testid",
+    "aria-label",
+    "data-generated-image",
   ],
-});
+};
+observer.observe(document.body, watch);
 document.addEventListener(
   "load",
   (e) => {
-    if (e.target?.tagName === "IMG" && !scheduled)
-      scheduled = setTimeout(() => {
-        scheduled = null;
-        scan();
-      }, 150);
+    if (e.target?.tagName === "IMG") queueScan();
+  },
+  true,
+);
+document.addEventListener(
+  "transitionend",
+  (e) => {
+    if (e.propertyName === "opacity" && !e.target.closest("[data-cge]"))
+      queueScan();
   },
   true,
 );
@@ -274,25 +321,7 @@ window.addEventListener(
 
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) {
-    observer.observe(document.body, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: [
-        "data-message-id",
-        "data-message-author-role",
-        "data-content-search-unit-key",
-        "data-chatgpt-search-unit-key",
-        "data-turn",
-        "data-turn-key",
-        "data-markdown-text-style",
-        "data-conversation-role",
-        "data-is-streaming",
-        "aria-busy",
-        "hidden",
-        "aria-hidden",
-      ],
-    });
+    observer.observe(document.body, watch);
     scan();
   }
 });

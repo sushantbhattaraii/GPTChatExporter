@@ -32,5 +32,14 @@ with fitz.open(root/"as-shown.pdf") as d:
     assert counts.pop(str((0,255,0)))==0, "An unrelated fixed overlay leaked into the visual PDF."
     assert min(counts.values())>100,counts
     result={"embedded_source_pixels":"pass","word_inline_image":"pass","visual_pdf_pages":len(d),"visible_color_pixel_counts":counts,"unrelated_overlay_pixels":0}
+with fitz.open(root/"nested-appearance.pdf") as d:
+    colors=[(244,158,17),(19,106,201),(237,139,36)]
+    count={str(k):0 for k in colors}
+    for pg in d:
+        pix=pg.get_pixmap()
+        ar=np.asarray(Image.frombytes("RGB",(pix.width,pix.height),pix.samples)).astype(int)
+        for k in colors:count[str(k)]+=int(np.all(abs(ar-np.array(k))<15,axis=-1).sum())
+    assert min(count.values())>100,count
+    result["clipped_prompt_and_image_pixels"]=count
 (root/"image-validation.json").write_text(json.dumps(result,indent=2))
 print(json.dumps(result))

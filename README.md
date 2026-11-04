@@ -1,8 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.1.0.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.1.1.
 
-**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.1.0** in the popup.
+**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.1.1** in the popup.
 
 The new version requests site access for ChatGPT and OpenAI image delivery. Review the extension card if Chrome asks you to enable it after the update.
 
@@ -20,7 +20,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 - Headings, emphasis, nested lists, tables, clickable links, monospaced code, role labels and page numbers.
 - Typeset PDF formulas and editable Word equations for recognized TeX and MathML.
 - Font family, size, A4 orientation, margins, timestamps, title, question visibility, code visibility and Save As settings.
-- Generated images embedded in formatted PDF and Word when readable. Image-only replies can have their own Q&A control.
+- Generated images embedded in formatted PDF and Word when readable. Image-only replies get a Q&A control in a separate row outside the gallery. When an outer layout clips that row, the control appears at the visible image edge.
 - **PDF as shown** captures the displayed chat styling, code, images, charts and visible widget surfaces into static pages.
 - Document generation runs locally. Image retrieval is limited to displayed assets from approved ChatGPT/OpenAI image hosts.
 
@@ -33,7 +33,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.1.0** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.1.1** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 
@@ -55,10 +55,12 @@ By default questions and code are included. If you disable them in settings, the
 
 1. Open the conversation and let its images finish loading. Expand the content you want to include, set the desired theme and browser zoom, and leave this tab active.
 2. Click the Chrome toolbar icon for **ChatGPT Conversation Exporter**. For a whole chat, choose **Export as shown (PDF)** in the popup. For one reply, close the popup and choose **Export this Q&A → PDF as shown** under that reply.
-3. For a whole chat, review the message range and confirm. The extension scrolls while it captures the selected message rectangles. Avoid scrolling, switching tabs or resizing the window. Escape cancels and the original scroll offset is restored.
+3. For a whole chat, review the message range and confirm. The extension temporarily presents each live message above clipping containers, captures its visible surface in strips, and restores its original placement. Avoid scrolling, switching tabs or resizing the window. Escape cancels and the original scroll offset is restored.
 4. The PDF contains static pictures of the selected message regions at the displayed zoom, with page breaks and role labels. Figures, syntax colors, visible canvas/SVG graphics and the visible state of embedded widgets are preserved when Chrome permits capture. Visual pages do not provide selectable text, clickable links, playback or widget interaction. The formatted PDF and Word options retain structured text, equations and links.
 
 **What is included.** Only recognized, displayed conversation messages are eligible. Collapsed controls, horizontally clipped content inside a nested widget, off-page files, hidden branches and protected media may be unavailable. Expand and horizontally scroll a widget to the view you need before starting. Chrome must be able to expose each captured message region. The visual PDF has an 18 MB encoded-page limit. A large chat may need individual exports. A PDF cannot reproduce every possible live ChatGPT output exactly.
+
+The floating bubble uses a **download arrow** to open the export menu and a **gear** to open settings. Hover over a format icon or focus it with the keyboard to see its label. The individual **Export this Q&A** control retains its text label.
 
 ## Export the active conversation
 
@@ -227,7 +229,7 @@ This separate script exercises actual extension loading and downloads against a 
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
 
-**Equation looks like LaTeX:** check the popup shows v1.1.0 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
+**Equation looks like LaTeX:** check the popup shows v1.1.1 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
 **Boxes/missing glyphs in PDF:** export Word and use a font installed for that language. The font coverage limitation is explicit above.
 

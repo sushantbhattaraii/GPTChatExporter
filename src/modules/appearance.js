@@ -1,3 +1,4 @@
+import { stageSurface } from "./stage.js";
 import { decodeRaster } from "./media.js";
 // Export only the requested message rectangles. Unrelated UI is masked during capture.
 import {
@@ -14,29 +15,6 @@ const layOut = () =>
   new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   );
-function limits(el) {
-  let top = 0,
-    left = 0,
-    bottom = innerHeight,
-    right = innerWidth;
-  for (
-    let p = el.parentElement;
-    p && p !== document.body;
-    p = p.parentElement
-  ) {
-    const style = getComputedStyle(p),
-      r = p.getBoundingClientRect();
-    if (/auto|scroll|hidden|clip/.test(style.overflowY)) {
-      top = Math.max(top, r.top + p.clientTop);
-      bottom = Math.min(bottom, r.top + p.clientTop + p.clientHeight);
-    }
-    if (/auto|scroll|hidden|clip/.test(style.overflowX)) {
-      left = Math.max(left, r.left + p.clientLeft);
-      right = Math.min(right, r.left + p.clientLeft + p.clientWidth);
-    }
-  }
-  return { top, left, bottom, right };
-}
 function visibleSurfaces(el) {
   const r = el.getBoundingClientRect();
   if (r.width >= 1 && r.height >= 1) return [el];
@@ -140,12 +118,19 @@ export async function captureAppearance(
     original = scroller.scrollTop;
   const oldBehavior = scroller.style.scrollBehavior;
   const pages = pageComposer(settings);
-  const transcript = document.querySelector("main") || document.body;
+  const transcript =
+    messageNodes()[0]?.closest('main,[role="main"]') || scroller;
   const viewportWidth = innerWidth,
     viewportHeight = innerHeight;
   const transcriptRect = transcript.getBoundingClientRect();
-  const left = Math.max(0, transcriptRect.left),
-    right = Math.min(innerWidth, transcriptRect.right);
+  const hasColumn =
+    transcriptRect.width > 1 &&
+    transcriptRect.right > 0 &&
+    transcriptRect.left < innerWidth;
+  const left = hasColumn ? Math.max(0, transcriptRect.left) : 0;
+  const right = hasColumn
+    ? Math.min(innerWidth, transcriptRect.right)
+    : innerWidth;
   const scale = pages.width / Math.max(1, right - left);
   const token = crypto.randomUUID(),
     attr = "data-cge-visual-target";
@@ -238,68 +223,78 @@ export async function captureAppearance(
           throw new Error(
             "The page could not isolate the selected message for capture.",
           );
-        const start = part.getBoundingClientRect();
-        if (start.width < 1 || start.height < 1) continue;
-        let captured = 0;
-        while (captured < start.height - 0.75) {
-          guard();
-          if (!part.isConnected)
-            throw new Error(
-              "The page unloaded a message during visual capture. Try the formatted PDF.",
+        const stage = stageSurface(part);
+        try {
+          const outputScale = Math.min(scale, pages.width / stage.width);
+          const dx = Math.max(
+            0,
+            Math.min(
+              pages.width - stage.width * outputScale,
+              (stage.originalLeft - left) * scale,
+            ),
+          );
+          let captured = 0;
+          while (captured < stage.height - 0.01) {
+            guard();
+            stage.reveal(captured);
+            await layOut();
+            guard();
+            const r = part.getBoundingClientRect(),
+              y = r.top + captured * stage.scale;
+            const slice = Math.min(
+              stage.height - captured,
+              (innerHeight - Math.max(0, y)) / stage.scale,
             );
-          const before = part.getBoundingClientRect(),
-            clip = limits(part);
-          scroller.scrollTop += before.top + captured - clip.top;
-          await layOut();
-          guard();
-          const r = part.getBoundingClientRect(),
-            v = limits(part);
-          if (Math.abs(r.height - start.height) > 2)
-            throw new Error(
-              "A message resized during visual capture. Let its images finish loading, then retry.",
-            );
-          const x = Math.max(r.left, v.left, left),
-            x2 = Math.min(r.right, v.right, right),
-            y = r.top + captured;
-          const available = Math.min(v.bottom - y, start.height - captured);
-          if (y < v.top - 2 || available < 0.75 || x2 - x < 1)
-            throw new Error(
-              "The message cannot be fully exposed in this viewport. Expand it or use formatted PDF.",
-            );
-          const shot = await chrome.runtime.sendMessage({ type: "CGE_SCREEN" });
-          if (!shot?.ok)
-            throw new Error(
-              shot?.error || "Chrome could not capture this tab.",
-            );
-          guard();
-          const after = part.getBoundingClientRect();
-          if (
-            !part.isConnected ||
-            Math.abs(after.top - r.top) > 1 ||
-            Math.abs(after.left - r.left) > 1 ||
-            Math.abs(after.height - r.height) > 1
-          )
-            throw new Error(
-              "The page moved during visual capture. Retry without scrolling.",
-            );
-          const img = await decodeRaster(shot.data),
-            px = img.width / innerWidth,
-            py = img.height / innerHeight;
-          try {
-            pages.tile(
-              img,
-              x * px,
-              Math.max(0, y) * py,
-              (x2 - x) * px,
-              available * py,
-              (x - left) * scale,
-              (x2 - x) * scale,
-              available * scale,
-            );
-          } finally {
-            img.close();
+            if (
+              !part.isConnected ||
+              Math.abs(r.width - stage.width * stage.scale) > 2 ||
+              Math.abs(r.height - stage.height * stage.scale) > 2 ||
+              Math.abs(r.left) > 2 ||
+              Math.abs(y) > 2 ||
+              slice <= 0
+            )
+              throw new Error(
+                "The live message changed size or position during capture. Retry after it settles.",
+              );
+            const shot = await chrome.runtime.sendMessage({
+              type: "CGE_SCREEN",
+            });
+            if (!shot?.ok)
+              throw new Error(
+                shot?.error || "Chrome could not capture this tab.",
+              );
+            guard();
+            const after = part.getBoundingClientRect();
+            if (
+              !part.isConnected ||
+              Math.abs(after.top - r.top) > 1 ||
+              Math.abs(after.left - r.left) > 1 ||
+              Math.abs(after.height - r.height) > 1
+            )
+              throw new Error(
+                "The message moved during capture. Retry after it settles.",
+              );
+            const img = await decodeRaster(shot.data);
+            try {
+              const px = img.width / innerWidth,
+                py = img.height / innerHeight;
+              pages.tile(
+                img,
+                Math.max(0, r.left) * px,
+                Math.max(0, y) * py,
+                r.width * px,
+                slice * stage.scale * py,
+                dx,
+                stage.width * outputScale,
+                slice * outputScale,
+              );
+            } finally {
+              img.close();
+            }
+            captured += slice;
           }
-          captured += available;
+        } finally {
+          stage.restore();
         }
       }
       unmark();
