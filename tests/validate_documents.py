@@ -11,11 +11,7 @@ for path in sorted(ROOT.glob('*.pdf')):
     reader=PdfReader(path)
     text='\n'.join(p.extract_text() or '' for p in reader.pages)
     assert len(reader.pages)>0,path
-    if not text.strip():
-        # Visual PDF pages contain cropped images of text and other rendered surfaces.
-        for page in reader.pages:
-            objects=page["/Resources"]["/XObject"].get_object()
-            assert any(ref.get_object().get("/Subtype")=="/Image" for ref in objects.values()),path
+    assert text.strip(),path
     if path.name in ['pair.pdf','renderer-1.pdf']:
         assert 'Question TWO' in text and 'Question ONE' not in text and 'Question THREE' not in text,path
         assert 'def greet' in text and 'OPArrow' in text and 'x²+y²' in text and '\\frac' not in text,path

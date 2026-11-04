@@ -1,9 +1,9 @@
-ChatGPT Conversation Exporter 1.1.1
+ChatGPT Conversation Exporter 1.2.0
 
 Updating an earlier version: Extract the ZIP and replace the contents of your
 previously loaded dist folder with the new dist contents. Click Reload
 on the extension card at chrome://extensions/, then refresh your chat.
-Verify the popup says v1.1.1.
+Verify the popup says v1.2.0.
 
 New installation:
 1. Extract this ZIP completely.
@@ -21,8 +21,8 @@ README.md contains the full guide, settings, privacy and limitations.
 TESTING.md separates executed tests from live checks still required.
 
 PDF typesets equations. Word includes editable equations. Images are embedded when readable.
-For the closest on-screen match, first click the Chrome extension icon in the
-active chat. Choose Export as shown (PDF) for the whole chat, or use PDF as
-shown in the Q&A menu. Keep the tab active until the download starts.
+PDF preserves visible syntax colors, whitespace and paragraph alignment.
+User prompts sit on the left in off-white panels and replies on the right in pale green.
+See examples/formatted-chat.pdf for a sample.
 Live signed-in ChatGPT, real Chrome downloads and Microsoft Word need the
 local smoke test. The interface can change; permanent compatibility is not guaranteed.

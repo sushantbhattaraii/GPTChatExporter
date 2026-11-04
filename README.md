@@ -1,8 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.1.1.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.2.0.
 
-**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.1.1** in the popup.
+**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.2.0** in the popup.
 
 The new version requests site access for ChatGPT and OpenAI image delivery. Review the extension card if Chrome asks you to enable it after the update.
 
@@ -21,7 +21,6 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 - Typeset PDF formulas and editable Word equations for recognized TeX and MathML.
 - Font family, size, A4 orientation, margins, timestamps, title, question visibility, code visibility and Save As settings.
 - Generated images embedded in formatted PDF and Word when readable. Image-only replies get a Q&A control in a separate row outside the gallery. When an outer layout clips that row, the control appears at the visible image edge.
-- **PDF as shown** captures the displayed chat styling, code, images, charts and visible widget surfaces into static pages.
 - Document generation runs locally. Image retrieval is limited to displayed assets from approved ChatGPT/OpenAI image hosts.
 
 ## Install in Google Chrome — no build required
@@ -33,7 +32,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.1.1** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.2.0** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 
@@ -51,14 +50,9 @@ For Q1/A1, Q2/A2, Q3/A3, clicking under A2 exports only Q2 and A2. Switching a r
 
 By default questions and code are included. If you disable them in settings, the export intentionally follows that choice.
 
-## Preserve the on-screen appearance
+## PDF formatting
 
-1. Open the conversation and let its images finish loading. Expand the content you want to include, set the desired theme and browser zoom, and leave this tab active.
-2. Click the Chrome toolbar icon for **ChatGPT Conversation Exporter**. For a whole chat, choose **Export as shown (PDF)** in the popup. For one reply, close the popup and choose **Export this Q&A → PDF as shown** under that reply.
-3. For a whole chat, review the message range and confirm. The extension temporarily presents each live message above clipping containers, captures its visible surface in strips, and restores its original placement. Avoid scrolling, switching tabs or resizing the window. Escape cancels and the original scroll offset is restored.
-4. The PDF contains static pictures of the selected message regions at the displayed zoom, with page breaks and role labels. Figures, syntax colors, visible canvas/SVG graphics and the visible state of embedded widgets are preserved when Chrome permits capture. Visual pages do not provide selectable text, clickable links, playback or widget interaction. The formatted PDF and Word options retain structured text, equations and links.
-
-**What is included.** Only recognized, displayed conversation messages are eligible. Collapsed controls, horizontally clipped content inside a nested widget, off-page files, hidden branches and protected media may be unavailable. Expand and horizontally scroll a widget to the view you need before starting. Chrome must be able to expose each captured message region. The visual PDF has an 18 MB encoded-page limit. A large chat may need individual exports. A PDF cannot reproduce every possible live ChatGPT output exactly.
+The same PDF renderer serves one Q&A and a full conversation. Prompts sit on the left in off-white panels and replies on the right in light green. Each paragraph keeps its own alignment, including justified text. Code uses the visible syntax-token colors and background, indentation, tab stops, line breaks and emphasis. Code is selectable text in a bundled monospaced font. A long line wraps at the panel edge, and page breaks follow the available paper size. See `examples/formatted-chat.pdf`.
 
 The floating bubble uses a **download arrow** to open the export menu and a **gear** to open settings. Hover over a format icon or focus it with the keyboard to see its label. The individual **Export this Q&A** control retains its text label.
 
@@ -105,10 +99,10 @@ PDF embeds DejaVu Sans, Serif and Mono; Word requests Arial, Times New Roman or 
 ## Formatting and known limitations
 
 - **Equations:** PDF uses vector graphics for display formulas, fractions and radicals. Simple expressions stay inline, and complex inline formulas receive their own line. Word uses editable Office Math equations. Explicit math delimiters and formula-only LaTeX fences are recognized. Unsupported expressions retain their source with an “Unrendered equation” label. Ordinary programming examples stay as code.
-- **Images/media/files:** formatted PDF and Word include accessible image pixels in message order. Images are scaled proportionally, up to 1600 pixels on the longer side, and a source asset fetch is limited to 12 MB. If an asset is unreadable a labelled placeholder appears. Use **PDF as shown** for the displayed appearance, including the visible frame of an animation or interactive surface. Attachment file contents are not opened.
+- **Images/media/files:** formatted PDF and Word include accessible image pixels in message order. Images are scaled proportionally, up to 1600 pixels on the longer side, and a source asset fetch is limited to 12 MB. If an asset is unreadable a labelled placeholder appears. Attachment file contents are not opened.
 - **Fonts:** PDFs support the bundled fonts' glyph coverage, including much Latin/Greek/Cyrillic and many math symbols. CJK, Devanagari, color emoji and other uncovered glyphs may be missing. A warning is added when the chosen PDF body font lacks characters. Word preserves the Unicode text and may substitute installed fonts; script shaping/rendering is reader-dependent. Some code/math symbols may have narrower monospace coverage.
 - **Tables:** standard tables remain tables. Merged cells are flattened with placeholders and an export note. Tables wider than eight columns are represented row-by-row to avoid horizontal clipping. Long rows may split across pages.
-- **Code:** indentation and line breaks are retained; tabs become four spaces. Syntax colors are not retained. Very long PDF tokens get zero-width wrapping opportunities; use Word when exact code copy/paste is important. Code can span pages to avoid clipping.
+- **Code.** The PDF uses rendered token styles, expands tabs to the displayed tab stops and preserves blank lines. Long lines wrap at the available panel width. Only code present in the page can be read.
 - **Pagination:** PDF headings are kept with following content where feasible; Word headings use keep-next. Long paragraphs, rows and code may span pages. This is not a pixel-for-pixel screenshot.
 - **Links/citations:** safe HTTP(S) and mailto hyperlinks are retained. Script/data links are discarded. Citation widgets without accessible anchors may degrade to visible text or be omitted if they are interface buttons.
 - **Completion:** unknown final-message completion markers fail closed. Responses without recognized role attributes are unsupported. Work-mode Pages, embedded documents and multi-pane content outside the conversation DOM are not exported as separate artifacts.
@@ -120,7 +114,6 @@ PDF embeds DejaVu Sans, Serif and Mono; Word requests Arial, Times New Roman or 
 
 | Permission / access | Why it is needed |
 |---|---|
-| `activeTab` | Identify the selected ChatGPT tab and capture its visible viewport when the user chooses PDF as shown |
 | `downloads` | Start local file downloads and report Chrome-confirmed completion/interruption |
 | `offscreen` | Generate documents and hold Blob URLs in a separate local extension document |
 | `storage` | Save formatting preferences and temporary download status/filename metadata |
@@ -128,7 +121,6 @@ PDF embeds DejaVu Sans, Serif and Mono; Word requests Arial, Times New Roman or 
 
 Chrome site permissions cover `chatgpt.com` and the OpenAI image-hosting domain `*.oaiusercontent.com`. The worker can retrieve an image already referenced by the selected message from approved raster asset endpoints. ChatGPT-hosted requests can use the browser session. CDN fetches omit credentials. The extension does not read cookies, use a conversation-history API or send message content to an external rendering service. The extension-page CSP limits connections to these hosts and scripts to bundled code.
 
-For **PDF as shown**, Chrome supplies the current viewport to the extension in memory. The extension checks the active tab before and after capture, masks unrelated page regions and crops the selected message areas. Only the cropped pages enter the PDF. The extension stores neither the viewport captures nor the conversation model in persistent storage. Local settings and short-lived download status metadata are separate. If Chrome requests the new site permissions when updating, review them on the extension card.
 
 Links inside exported documents can contact their destinations if you click them. Normal ChatGPT page activity and its requests when you scroll remain ChatGPT's own behavior.
 
@@ -229,7 +221,7 @@ This separate script exercises actual extension loading and downloads against a 
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
 
-**Equation looks like LaTeX:** check the popup shows v1.1.1 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
+**Equation looks like LaTeX:** check the popup shows v1.2.0 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
 **Boxes/missing glyphs in PDF:** export Word and use a font installed for that language. The font coverage limitation is explicit above.
 

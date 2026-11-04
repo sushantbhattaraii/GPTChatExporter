@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-04T02:57:28.515Z",
+  "date": "2026-11-04T03:18:18.935Z",
   "browser": "141.0.7390.37",
   "environment": "Standalone Chromium renderer with synthetic DOM and mocked chrome.runtime/storage; no real Chrome download API",
   "results": [
@@ -15,13 +15,11 @@
     "Settings interface operates under shipped CSP with mock Chrome Storage.",
     "Popup detects ChatGPT, dispatches export, and disables export on other sites (mock tabs API).",
     "Generated-image-only card without a text role or footer receives its Q&A button and embeds pixels in both pair and whole-chat PDF and Word exports.",
-    "As-shown pair and whole-chat PDFs capture real Chromium viewport pixels across a tall response with an image, styled code and canvas; the Chrome capture API is simulated with Playwright screenshots.",
     "A cross-origin gallery adjacent to its user turn exports through the raster asset fallback (simulated worker response) with no duplicate button.",
-    "Nested scroll/clip containers: pair and whole-chat capture succeed and restore the original styles. A descriptive, aria-hidden bitmap gets a visible control outside its clipped turn.",
     "Floating export/settings buttons have icon-only faces, accessible names, tooltips and a keyboard-operable format menu.",
-    "A refused screenshot restores the original message styles and removes all temporary capture markers.",
     "When an outer wrapper clips the entire image action row, the same button is pinned at the visible picture and remains clickable.",
-    "A CSS-backed image card without imagegen classes between two prompts gets a clickable Export this Q&A control and exports with its original prompt."
+    "A CSS-backed image card without imagegen classes between two prompts gets a clickable Export this Q&A control and exports with its original prompt.",
+    "Pair and conversation PDF menus preserve computed syntax styling, tabs, blank lines and paragraph alignments."
   ],
   "errors": [],
   "files": [
@@ -44,8 +42,6 @@
     "renderer-17.pdf",
     "renderer-18.pdf",
     "renderer-19.pdf",
-    "renderer-20.pdf",
-    "renderer-21.pdf",
-    "renderer-22.pdf"
+    "renderer-20.pdf"
   ]
 }

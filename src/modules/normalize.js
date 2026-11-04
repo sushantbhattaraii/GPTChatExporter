@@ -1,3 +1,4 @@
+import { readCode, textAlignment } from "./pdf-style.js";
 import { imageRef, meaningfulImage } from "./media.js";
 // Convert the rendered DOM to a small, non-executable document model.
 export function safeLink(value, base = "https://chatgpt.com/") {
@@ -126,7 +127,24 @@ export function inline(node, style = {}) {
   if (["STRONG", "B"].includes(node.tagName)) next.bold = true;
   if (["EM", "I"].includes(node.tagName)) next.italic = true;
   if (["S", "DEL"].includes(node.tagName)) next.strike = true;
-  if (node.tagName === "CODE") next.code = true;
+  if (node.tagName === "CODE") {
+    const snippet = readCode(node);
+    return snippet.tokens.map(
+      ({ text, color, background, bold, italics, decoration, fontSize }) => ({
+        ...next,
+        text,
+        code: true,
+        bold: bold || next.bold,
+        italic: italics || next.italic,
+        pdfStyle: {
+          color,
+          background: background || snippet.background,
+          decoration,
+          fontSize: fontSize || snippet.fontSize,
+        },
+      }),
+    );
+  }
   if (node.tagName === "SUP") next.sup = true;
   if (node.tagName === "SUB") next.sub = true;
   if (node.tagName === "A")
@@ -149,7 +167,8 @@ export function blocks(root) {
   let pending = [];
   const flush = () => {
     const runs = trimmed(pending);
-    if (runs.length) out.push({ type: "paragraph", runs });
+    if (runs.length)
+      out.push({ type: "paragraph", runs, alignment: textAlignment(root) });
     pending = [];
   };
   for (const el of root.childNodes) {
@@ -170,10 +189,10 @@ export function blocks(root) {
       (el.matches(equationSelector) && BLOCK.split(",").includes(el.tagName))
     ) {
       flush();
-      out.push({ type: "math", ...equation(el) });
+      out.push({ type: "math", ...equation(el), alignment: textAlignment(el) });
       continue;
     }
-    if (!BLOCK.split(",").includes(el.tagName)) {
+    if (!BLOCK.split(",").includes(el.tagName) && !el.matches(".cm-content")) {
       pending.push(...inline(el));
       continue;
     }
@@ -183,17 +202,12 @@ export function blocks(root) {
       out.push({
         type: "heading",
         level: Number(tag[1]),
+        alignment: textAlignment(el),
         runs: trimmed(inline(el)),
       });
-    else if (tag === "PRE") {
-      const code = el.querySelector("code") || el;
-      const clone = code.cloneNode(true);
-      clone.querySelectorAll(OMIT).forEach((n) => n.remove());
-      const text = clone.textContent.replace(/\n$/, "");
-      const language =
-        code.className.match(/language-([\w+-]+)/)?.[1] ||
-        code.closest("[data-language]")?.dataset.language ||
-        "";
+    else if (tag === "PRE" || el.matches(".cm-content")) {
+      const snippet = readCode(el),
+        { text, language } = snippet;
       // An explicitly mathematical fence can contain a formula, or an entire LaTeX program.
       // Keep program source intact when it contains document/preamble commands.
       if (
@@ -208,7 +222,7 @@ export function blocks(root) {
         )
       )
         out.push({ type: "math", text, fromCode: true });
-      else out.push({ type: "code", text, language });
+      else out.push({ type: "code", ...snippet });
     } else if (tag === "UL" || tag === "OL") {
       out.push({
         type: "list",
@@ -233,7 +247,8 @@ export function blocks(root) {
     else if (tag === "HR") out.push({ type: "rule" });
     else if (tag === "P") {
       const runs = trimmed(inline(el));
-      if (runs.length) out.push({ type: "paragraph", runs });
+      if (runs.length)
+        out.push({ type: "paragraph", runs, alignment: textAlignment(el) });
     } else out.push(...blocks(el));
   }
   flush();

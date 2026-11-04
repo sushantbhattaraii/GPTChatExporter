@@ -35,6 +35,7 @@ function runs(rs) {
     font: r.code ? "mono" : undefined,
     color: r.link ? "#175d9d" : undefined,
     background: r.code ? "#f0f2f5" : undefined,
+    ...r.pdfStyle,
   }));
 }
 const nonempty = (value) => (value.length ? value : [{ text: " " }]);
@@ -69,7 +70,8 @@ function paragraph(b, s) {
   const out = [];
   let pending = [];
   const flush = () => {
-    if (pending.length) out.push({ text: runs(pending), ...style });
+    if (pending.length)
+      out.push({ text: runs(pending), ...style, alignment: b.alignment });
     pending = [];
   };
   for (const r of b.runs) {
@@ -83,10 +85,92 @@ function paragraph(b, s) {
       continue;
     }
     flush();
-    out.push(formulaBlock(eq, s));
+    out.push({ ...formulaBlock(eq, s), alignment: b.alignment });
   }
   flush();
   return out;
+}
+// Wrap on glyph boundaries while retaining the original token and logical tab column.
+function codeBlock(block, s) {
+  const size = block.fontSize || Math.max(8, s.fontSize - 2);
+  const width = Math.max(1, s.equationWidth - 14);
+  const rows = [[]];
+  let column = 0,
+    used = 0;
+  const nextRow = () => {
+    rows.push([]);
+    used = 0;
+  };
+  for (const source of block.tokens || [{ text: block.text }]) {
+    const { text, ...style } = source;
+    let chunk = "";
+    function flush() {
+      if (chunk) rows.at(-1).push({ ...style, text: chunk });
+      chunk = "";
+    }
+    const advance = (style.fontSize || size) * 0.603;
+    for (const char of text) {
+      if (char === "\n") {
+        flush();
+        nextRow();
+        column = 0;
+        continue;
+      }
+      const tab = block.tabSize ?? 4;
+      const value =
+        char === "\t" ? " ".repeat(tab ? tab - (column % tab) : 0) : char;
+      for (const glyph of value) {
+        if (used && used + advance > width) {
+          flush();
+          nextRow();
+        }
+        chunk += glyph;
+        used += advance;
+        column++;
+      }
+    }
+    flush();
+  }
+  const fillColor = block.background || "#f1f3f6";
+  return [
+    {
+      text: block.language || "Code",
+      fontSize: 8,
+      color: "#526174",
+      margin: [0, 5, 0, 3],
+    },
+    {
+      table: {
+        widths: ["*"],
+        body: [
+          [
+            {
+              fillColor,
+              stack: rows.map((line) => ({
+                text: line.length ? line : " ",
+                font: "mono",
+                fontSize: size,
+                preserveLeadingSpaces: true,
+                preserveTrailingSpaces: true,
+                noWrap: true,
+                alignment: block.alignment,
+                lineHeight: block.lineHeight || 1,
+              })),
+            },
+          ],
+        ],
+      },
+      layout: {
+        hLineWidth: () => 0,
+        vLineWidth: () => 0,
+        paddingLeft: () => 6,
+        paddingRight: () => 6,
+        paddingTop: () => 5,
+        paddingBottom: () => 5,
+      },
+      margin: [0, 0, 0, 7],
+    },
+  ];
 }
 function convert(bs, s) {
   return bs.flatMap((b) => {
@@ -114,29 +198,17 @@ function convert(bs, s) {
     }
     if (b.type === "heading" || b.type === "paragraph") return paragraph(b, s);
     if (b.type === "math")
-      return formulaBlock(renderEquation(b.text, true, b.mathml), s);
-    if (b.type === "code")
-      return [
-        {
-          text: b.language || "Code",
-          fontSize: 8,
-          color: "#526174",
-          margin: [0, 5, 0, 3],
-        },
-        ...b.text.split("\n").map((line) => ({
-          text: codeWrap(line.replace(/\t/g, "    ")) || " ",
-          font: "mono",
-          fontSize: Math.max(8, s.fontSize - 2),
-          preserveLeadingSpaces: true,
-          background: "#f1f3f6",
-          margin: [8, 0, 0, 1],
-        })),
-        { text: " ", fontSize: 3 },
-      ];
+      return {
+        ...formulaBlock(renderEquation(b.text, true, b.mathml), s),
+        alignment: b.alignment,
+      };
+    if (b.type === "code") return codeBlock(b, s);
     if (b.type === "list")
       return {
         [b.ordered ? "ol" : "ul"]: b.items.map((item) => ({
-          stack: nonempty(convert(item, s)),
+          stack: nonempty(
+            convert(item, { ...s, equationWidth: s.equationWidth - 20 }),
+          ),
         })),
         start: b.start,
         margin: [0, 0, 0, 8],
@@ -190,7 +262,7 @@ function convert(bs, s) {
     }
     if (b.type === "quote")
       return {
-        stack: convert(b.blocks, s),
+        stack: convert(b.blocks, { ...s, equationWidth: s.equationWidth - 16 }),
         margin: [16, 4, 0, 10],
         color: "#526174",
         italics: true,
@@ -214,23 +286,6 @@ function convert(bs, s) {
   });
 }
 export function pdfDefinition(input, s) {
-  if (input?.layout === "appearance") {
-    if (!input.pages?.length)
-      throw new Error("No visible pages were captured.");
-    const pw = s.orientation === "landscape" ? 842 : 595,
-      ph = s.orientation === "landscape" ? 595 : 842;
-    return {
-      pageSize: "A4",
-      pageOrientation: s.orientation,
-      pageMargins: s.margin,
-      info: { title: s.includeTitle ? input.title : "ChatGPT export" },
-      content: input.pages.map((image, i) => ({
-        image,
-        fit: [pw - 2 * s.margin - 1, ph - 2 * s.margin - 1],
-        pageBreak: i ? "before" : undefined,
-      })),
-    };
-  }
   const doc = prepareDocument(input, s),
     content = [];
   const chars = new Set([...coverage[s.font]]);
@@ -252,15 +307,38 @@ export function pdfDefinition(input, s) {
     });
   if (doc.warnings.length)
     content.push({ text: doc.warnings.join("\n"), style: "note" });
+  const usable =
+    (s.orientation === "landscape" ? 841.89 : 595.28) - 2 * s.margin;
+  const offset = Math.round(usable * 0.13);
   for (const m of doc.messages) {
-    content.push({
-      text: m.role === "user" ? "USER" : "CHATGPT",
-      style: "label",
-      headlineLevel: 1,
-    });
+    const user = m.role === "user";
+    const stack = [
+      {
+        text: user ? "USER" : "CHATGPT",
+        style: "label",
+        color: user ? "#405168" : "#246048",
+      },
+    ];
     if (s.includeTimestamps && m.timestamp)
-      content.push({ text: m.timestamp, style: "meta" });
-    content.push(...convert(m.blocks, s));
+      stack.push({ text: m.timestamp, style: "meta" });
+    stack.push(
+      ...convert(m.blocks, { ...s, equationWidth: usable - offset - 24 }),
+    );
+    content.push({
+      table: {
+        widths: ["*"],
+        body: [[{ stack, fillColor: user ? "#F7F8FA" : "#E8F5EC" }]],
+      },
+      layout: {
+        hLineWidth: () => 0,
+        vLineWidth: () => 0,
+        paddingLeft: () => 12,
+        paddingRight: () => 12,
+        paddingTop: () => 9,
+        paddingBottom: () => 6,
+      },
+      margin: user ? [0, 0, offset, 10] : [offset, 0, 0, 10],
+    });
   }
   return {
     info: {
@@ -280,7 +358,7 @@ export function pdfDefinition(input, s) {
         fontSize: 10,
         bold: true,
         color: "#175d9d",
-        margin: [0, 16, 0, 8],
+        margin: [0, 0, 0, 5],
       },
       h1: { fontSize: s.fontSize + 7, bold: true, margin: [0, 12, 0, 6] },
       h2: { fontSize: s.fontSize + 4, bold: true, margin: [0, 10, 0, 6] },

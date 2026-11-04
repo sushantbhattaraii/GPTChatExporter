@@ -113,21 +113,11 @@ await generator.goto("https://exporter.test/offscreen.html");
 await generator.waitForFunction(() => window.__listeners.length > 0);
 const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
-let failCapture = false;
 let approvedFixtureImage,
   assetRequests = 0;
 let exported = [],
   requests = [];
 await page.exposeFunction("__send", async (msg) => {
-  if (msg.type === "CGE_SCREEN" && failCapture)
-    return { ok: false, error: "Fixture capture denied" };
-  if (msg.type === "CGE_SCREEN")
-    return {
-      ok: true,
-      data:
-        "data:image/png;base64," +
-        (await page.screenshot({ type: "png" })).toString("base64"),
-    };
   if (msg.type === "CGE_IMAGE") {
     if (msg.url === "https://cdn.oaiusercontent.com/example-generated.png") {
       assetRequests++;
@@ -531,49 +521,7 @@ try {
   results.push(
     "Generated-image-only card without a text role or footer receives its Q&A button and embeds pixels in both pair and whole-chat PDF and Word exports.",
   );
-  await page.evaluate(() => {
-    const section = document.querySelector("[data-turn-key]");
-    const body = document.createElement("div");
-    body.dataset.chatgptSearchUnitKey = "fallback-turn-0:1:assistant";
-    body.innerHTML =
-      '<p style="color:#1244bd">A plotted result with <b>formatted text</b>.</p><pre style="background:#202124;color:#fff"><code><span style="color:#ee7898">print</span>("colors")</code></pre><canvas width="300" height="90"></canvas><svg width="90" height="55"><rect width="90" height="55" fill="#dd3344"></rect></svg><iframe style="display:block;width:125px;height:45px;border:0" srcdoc="&lt;body style=&quot;margin:0;background:#00a98f&quot;&gt;Widget&lt;/body&gt;"></iframe><div style="height:850px;background:linear-gradient(#aaddff,#114488)">Tall visual output</div>';
-    const ctx = body.querySelector("canvas").getContext("2d");
-    ctx.fillStyle = "#bb29a5";
-    ctx.fillRect(0, 0, 300, 90);
-    section.insertBefore(body, section.querySelector("div[class]"));
-    const overlay = document.createElement("div");
-    overlay.style.cssText =
-      "position:fixed;top:20px;left:40%;width:160px;height:82px;background:#00ff00;z-index:2147483647;pointer-events:none";
-    document.body.append(overlay);
-    section.insertAdjacentHTML(
-      "beforeend",
-      '<div class="turn-action-controls"><button>Copy response</button></div>',
-    );
-  });
-  await page.waitForTimeout(600);
-  assert.equal(await page.locator('[data-cge="pair"]').count(), 1);
-  await imagePair("PDF as shown");
-  assert.ok(requests.at(-1).document.pages.length);
-  const count = exported.length,
-    tool = page.locator('[data-cge="toolbar"]');
-  await tool
-    .getByRole("button", { name: "Export conversation", exact: true })
-    .click();
-  await tool.getByRole("button", { name: "PDF as shown", exact: true }).click();
-  await page.getByRole("dialog").waitFor();
-  await page.getByRole("checkbox").check();
-  await page
-    .getByRole("button", { name: "Download PDF as shown", exact: true })
-    .click();
-  await waitExport(count);
-  assert.equal(requests.at(-1).document.layout, "appearance");
-  results.push(
-    "As-shown pair and whole-chat PDFs capture real Chromium viewport pixels across a tall response with an image, styled code and canvas; the Chrome capture API is simulated with Playwright screenshots.",
-  );
-  await copyFile(
-    "test-results/" + exported.at(-1),
-    "test-results/as-shown.pdf",
-  );
+  const tool = page.locator('[data-cge="toolbar"]');
   approvedFixtureImage = await page
     .locator('img[alt^="Generated image"]')
     .getAttribute("src");
@@ -589,7 +537,9 @@ try {
     const img = document.querySelector('img[alt^="Generated image"]');
     const card = img.closest('[class*="group/imagegen-image"]');
     const turn = card.closest("[data-turn-key]");
-    turn.querySelector('[data-chatgpt-search-unit-key$=":assistant"]').remove();
+    turn
+      .querySelector('[data-chatgpt-search-unit-key$=":assistant"]')
+      ?.remove();
     turn.querySelector(".turn-action-controls")?.remove();
     turn.after(card);
     img.src = "https://cdn.oaiusercontent.com/example-generated.png";
@@ -634,42 +584,8 @@ try {
         .nextElementSibling.matches('[data-cge="image-action-row"]'),
     ),
   );
-  const styleBefore = await page
-    .locator("[data-chatgpt-search-unit-key]")
-    .first()
-    .getAttribute("style");
   await imagePair("PDF");
   checkArt();
-  await imagePair("PDF as shown");
-  assert.equal(
-    await page
-      .locator("[data-chatgpt-search-unit-key]")
-      .first()
-      .getAttribute("style"),
-    styleBefore,
-  );
-  const n = exported.length;
-  await tool
-    .getByRole("button", { name: "Export conversation", exact: true })
-    .click();
-  await tool.getByRole("button", { name: "PDF as shown", exact: true }).click();
-  await page.getByRole("dialog").waitFor();
-  await page.getByRole("checkbox").check();
-  await page
-    .getByRole("button", { name: "Download PDF as shown", exact: true })
-    .click();
-  await waitExport(n);
-  await copyFile(
-    "test-results/" + exported.at(-1),
-    "test-results/nested-appearance.pdf",
-  );
-  assert.equal(
-    await page.locator(":popover-open,[data-cge-visual-target]").count(),
-    0,
-  );
-  results.push(
-    "Nested scroll/clip containers: pair and whole-chat capture succeed and restore the original styles. A descriptive, aria-hidden bitmap gets a visible control outside its clipped turn.",
-  );
   assert.equal(
     await tool
       .getByRole("button", { name: "Export conversation", exact: true })
@@ -692,30 +608,6 @@ try {
   await page.keyboard.press("Escape");
   results.push(
     "Floating export/settings buttons have icon-only faces, accessible names, tooltips and a keyboard-operable format menu.",
-  );
-  failCapture = true;
-  const action = page.locator('[data-cge="pair"]').first();
-  await action
-    .getByRole("button", { name: "↓ Export this Q&A", exact: true })
-    .click();
-  await action
-    .getByRole("button", { name: "PDF as shown", exact: true })
-    .click();
-  await page.getByText("Fixture capture denied", { exact: true }).waitFor();
-  failCapture = false;
-  assert.equal(
-    await page.locator(":popover-open,[data-cge-visual-target]").count(),
-    0,
-  );
-  assert.equal(
-    await page
-      .locator("[data-chatgpt-search-unit-key]")
-      .first()
-      .getAttribute("style"),
-    styleBefore,
-  );
-  results.push(
-    "A refused screenshot restores the original message styles and removes all temporary capture markers.",
   );
   await page.evaluate(() => {
     const turn = document.querySelector("[data-turn-key]"),
@@ -763,6 +655,50 @@ try {
   );
   results.push(
     "A CSS-backed image card without imagegen classes between two prompts gets a clickable Export this Q&A control and exports with its original prompt.",
+  );
+  await page.evaluate(() => {
+    document.title = "Code and paragraph alignment";
+    document.querySelector("main").innerHTML =
+      `<section data-turn-key="fallback-turn-0">
+    <div data-chatgpt-search-unit-key="fallback-turn-0:0:user"><p>Show a Python greeting and demonstrate paragraph alignment.</p></div>
+    <div data-chatgpt-search-unit-key="fallback-turn-0:1:assistant" data-is-streaming="false">
+    <p style="text-align:left">Left aligned introduction</p>
+    <pre style="background:#172233;color:#f0e1d2;tab-size:4;font:16px/20px monospace"><code class="language-python" style="font:inherit"><span style="color:#ff77aa;font-weight:bold">def</span> greet(name):
+\t<span style="color:#80dbc4">return</span> <span style="color:#ffcb86;font-style:italic">f"Hello, {name}!"</span>
+
+print(greet("Ada"))</code></pre>
+    <p style="text-align:center">Centered caption</p>
+    <p style="text-align:right">Right aligned note</p>
+    <p style="text-align:justify">The paragraph below the code uses justified alignment. Its words spread across the available line width while the last line ends naturally inside the reply.</p>
+    </div></section>`;
+  });
+  await page.waitForFunction(
+    () => document.querySelectorAll('[data-cge="pair"]').length === 1,
+  );
+  await imagePair("PDF");
+  const blocks = requests.at(-1).document.messages[1].blocks;
+  const snippet = blocks.find((b) => b.type === "code");
+  assert.equal(
+    snippet.text,
+    'def greet(name):\n\treturn f"Hello, {name}!"\n\nprint(greet("Ada"))',
+  );
+  assert.equal(snippet.tabSize, 4);
+  assert.equal(snippet.tokens.find((t) => t.text === "def").color, "#ff77aa");
+  assert.deepEqual(
+    blocks.filter((b) => b.type === "paragraph").map((b) => b.alignment),
+    ["left", "center", "right", "justify"],
+  );
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/formatted-pair.pdf",
+  );
+  await collect("pdf", 2);
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/formatted-chat.pdf",
+  );
+  results.push(
+    "Pair and conversation PDF menus preserve computed syntax styling, tabs, blank lines and paragraph alignments.",
   );
   assert.deepEqual(errors, []);
   await writeFile(

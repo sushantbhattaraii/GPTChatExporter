@@ -1,5 +1,0 @@
-{
-  "status": "blocked",
-  "command": "npm run test:browser",
-  "reason": "Chromium persistent-profile startup could not create the process-singleton Unix socket: Operation not permitted. No installed-extension or real Chrome download tests completed."
-}

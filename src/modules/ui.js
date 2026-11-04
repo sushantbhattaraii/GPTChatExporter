@@ -61,8 +61,6 @@ const glyphs = {
   settings:
     "M10 3h4l.6 2.3 2 .9 2.2-.8 2 3.4-1.6 1.6.2 2.3 1.5 1.7-2 3.4-2.2-.7-2 .9L14 21h-4l-.7-2.4-2-.9-2.1.7-2-3.4 1.6-1.7v-2.4L3.2 9l2-3.4 2.2.8 2-.9L10 3z M15 12a3 3 0 1 1-6 0 3 3 0 1 1 6 0",
   pdf: "M5 2h9l5 5v15H5z M14 2v6h5 M8 12h8m-8 4h6",
-  appearance:
-    "M3 7h4l2-3h6l2 3h4v13H3z M15.5 13a3.5 3.5 0 1 1-7 0 3.5 3.5 0 1 1 7 0",
   docx: "M5 2h9l5 5v15H5z M14 2v6h5 M7.5 11l2 7 2.5-5 2.5 5 2-7",
 };
 export function iconButton(b, icon, label) {
@@ -104,19 +102,14 @@ export function menu(shadow, label, onExport) {
   };
   const pdf = button("PDF", () => run("pdf")),
     word = button("Word (.docx)", () => run("docx"));
-  const visual = button("PDF as shown", () => run("appearance"));
-  visual.title =
-    "Capture the displayed messages as static PDF pages. Click the Chrome extension icon first to allow tab capture.";
   if (shadow.classList?.contains("toolbar")) {
     iconButton(trigger, "download", label);
     iconButton(pdf, "pdf", "PDF");
-    iconButton(visual, "appearance", "PDF as shown");
     iconButton(word, "docx", "Word (.docx)");
     pdf.title = "Formatted PDF";
-    visual.title = "PDF as shown";
     word.title = "Word document";
   }
-  options.append(pdf, visual, word);
+  options.append(pdf, word);
   wrap.append(trigger, options);
   shadow.append(wrap);
   wrap.addEventListener("keydown", (e) => {
@@ -147,7 +140,7 @@ export async function review(shadow, data, format, settings) {
   const note = document.createElement("p");
   note.className = "small";
   note.textContent =
-    "ChatGPT does not expose a DOM-only guarantee of complete history. Hidden branches are excluded. Equations are typeset where supported. Formatted exports embed readable images. PDF as shown captures the displayed pixels. " +
+    "ChatGPT does not expose a DOM-only guarantee of complete history. Hidden branches are excluded. Equations are typeset where supported. Formatted exports embed readable images. " +
     (!settings.includeUsers ? "Your settings exclude user messages. " : "") +
     (!settings.includeCode ? "Your settings exclude code blocks. " : "");
   const label = document.createElement("label");
@@ -173,7 +166,7 @@ export async function review(shadow, data, format, settings) {
     };
     const cancel = button("Cancel", () => finish(false));
     const go = button(
-      `Download ${format === "docx" ? "Word" : format === "appearance" ? "PDF as shown" : "PDF"}`,
+      `Download ${format === "docx" ? "Word" : "PDF"}`,
       () => finish(true),
       true,
     );

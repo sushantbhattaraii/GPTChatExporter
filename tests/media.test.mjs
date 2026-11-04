@@ -4,7 +4,6 @@ import {
   allowedAsset,
   readDisplayedAsset,
 } from "../src/modules/media-fetch.js";
-import { captureChatTab } from "../src/modules/screen.js";
 test("media fetch is limited to image-serving origins and signed-in ChatGPT page callers", async () => {
   assert.equal(
     allowedAsset("https://chatgpt.com/backend-api/estuary/content?id=fixture"),
@@ -24,30 +23,6 @@ test("media fetch is limited to image-serving origins and signed-in ChatGPT page
       tab: { id: 1 },
     }),
   );
-});
-test("visual capture refuses a changed active tab before returning any pixels", async () => {
-  const old = globalThis.chrome;
-  let queries = 0;
-  globalThis.chrome = {
-    tabs: {
-      query: async () => [
-        { id: ++queries === 1 ? 1 : 2, url: "https://chatgpt.com/c/test" },
-      ],
-      captureVisibleTab: async () => "data:image/png;base64,x",
-    },
-  };
-  try {
-    await assert.rejects(
-      captureChatTab({
-        frameId: 0,
-        tab: { windowId: 1, id: 1 },
-        url: "https://chatgpt.com/c/test",
-      }),
-      /original ChatGPT tab/,
-    );
-  } finally {
-    globalThis.chrome = old;
-  }
 });
 test("binary media response must have an actual raster signature", async () => {
   const old = globalThis.fetch,

@@ -499,7 +499,7 @@ export function extractMessage(el, order) {
       type: "paragraph",
       runs: [
         {
-          text: "[Visual content – use PDF as shown for its displayed appearance.]",
+          text: "[Interactive content without a static representation.]",
         },
       ],
     });

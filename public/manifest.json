@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Conversation Exporter",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Export the displayed ChatGPT question\u2013answer pair or conversation to PDF and editable Word, locally.",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "downloads", "offscreen", "storage"],
+  "permissions": ["downloads", "offscreen", "storage"],
   "background": {
     "service_worker": "background.js"
   },

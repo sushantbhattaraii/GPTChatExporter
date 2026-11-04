@@ -50,10 +50,6 @@ MathJax compiles recognized equations locally. PDF uses vector formula graphics 
 
 Worker restart is tolerated for downloads whose session record exists; no success is inferred from document creation. Extension/browser shutdown can interrupt an in-flight job; it is not automatically replayed. The last status remains session-scoped until browser shutdown and is shown in the popup for two minutes.
 
-## Visual PDF
+## PDF styling
 
-A user-invoked visual export collects stable message identities and records virtualized turn positions. In the active tab it temporarily masks unrelated regions, promotes the original live message to a temporary manual popover above ancestor overflow clipping, and moves it one verified tile at a time. A spacer preserves flow. Styles, popover attributes, masking rules and the scroll position are restored in finally blocks. Crops are assembled into paginated raster PDF pages locally. A tab/URL change, lost geometry, cancellation or size limit aborts the job. The mask and original scroll position are restored in a finally block. The formatted path uses readable source pixels or a size-limited, allowlisted asset retrieval fallback.
-
-## Release boundary
-
-This is a complete local implementation with reproducible source/build artifacts and automated fixtures. The signed-in site and real extension APIs must still pass the live checklist on the target Chrome installation. No claim is made about every ChatGPT experiment, Work-mode rich artifact, reasoning mode's UI layout, or future DOM change.
+The content script serializes computed paragraph alignments and styled text runs for code. The PDF generator embeds those runs as text and paginates each message inside a role-colored panel.

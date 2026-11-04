@@ -60,48 +60,6 @@
     return { ok: true, data: `data:${type};base64,${btoa(binary)}` };
   }
 
-  // src/modules/screen.js
-  var shooting = false;
-  var lastShot = 0;
-  async function captureChatTab(sender) {
-    if (sender.frameId !== 0 || !sender.tab || !sender.url?.startsWith("https://chatgpt.com/"))
-      throw new Error("Page capture must start in the active ChatGPT tab.");
-    if (shooting)
-      throw new Error(
-        "Another visual export is running. Retry when it finishes."
-      );
-    shooting = true;
-    const { windowId, id } = sender.tab;
-    async function check() {
-      const [tab] = await chrome.tabs.query({ active: true, windowId });
-      if (tab?.id !== id || tab.url !== sender.url)
-        throw new Error("Return to the original ChatGPT tab and retry.");
-    }
-    try {
-      await new Promise(
-        (r) => setTimeout(r, Math.max(0, lastShot + 650 - Date.now()))
-      );
-      await check();
-      lastShot = Date.now();
-      let data;
-      try {
-        data = await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
-      } catch (e) {
-        if (!/permission|activeTab|all_urls/i.test(e.message || ""))
-          throw new Error(
-            "Chrome could not capture the page: " + (e.message || "Capture unavailable")
-          );
-        throw new Error(
-          "Click the extension icon in this ChatGPT tab to grant visual capture access, close the popup, then retry PDF as shown."
-        );
-      }
-      await check();
-      return { ok: true, data };
-    } finally {
-      shooting = false;
-    }
-  }
-
   // src/modules/settings.js
   var DEFAULTS = Object.freeze({
     font: "sans",
@@ -247,8 +205,8 @@
   }
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (msg?.target === "offscreen") return;
-    if (msg?.type === "CGE_IMAGE" || msg?.type === "CGE_SCREEN") {
-      const task = msg.type === "CGE_IMAGE" ? readDisplayedAsset(msg.url, sender) : captureChatTab(sender);
+    if (msg?.type === "CGE_IMAGE") {
+      const task = readDisplayedAsset(msg.url, sender);
       task.then(reply).catch((e) => reply({ ok: false, error: e.message }));
       return true;
     }

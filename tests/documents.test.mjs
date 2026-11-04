@@ -58,6 +58,10 @@ test("long response, long code, oversize table and landscape settings", async ()
           rich +
             "<pre><code>" +
             "x".repeat(900) +
+            Array.from(
+              { length: 180 },
+              (_, i) => "\n    code_line_" + String(i).padStart(3, "0"),
+            ).join("") +
             "</code></pre>" +
             (
               "<p>Long technical paragraph. " +

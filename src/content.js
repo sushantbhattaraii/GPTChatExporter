@@ -1,5 +1,4 @@
 import { beginImages, endImages, embedImages } from "./modules/media.js";
-import { captureAppearance, rememberPositions } from "./modules/appearance.js";
 import {
   messageNodes,
   messageRole,
@@ -25,7 +24,6 @@ import {
 } from "./modules/ui.js";
 import { plainText } from "./modules/normalize.js";
 import { getSettings } from "./modules/settings.js";
-let visualCapturing = false;
 let busy = false,
   route = location.href,
   scheduled,
@@ -62,8 +60,6 @@ async function run(scope, format, target) {
   }
   busy = true;
   beginImages();
-  const visual = format === "appearance",
-    positions = new Map();
   controller = new AbortController();
   const startRoute = location.href;
   const stop = (e) => {
@@ -82,9 +78,6 @@ async function run(scope, format, target) {
       const data = await collectHistory({
         signal: controller.signal,
         onProgress: feedback,
-        onViewport: visual
-          ? (scroller) => rememberPositions(positions, scroller)
-          : undefined,
       });
       document.removeEventListener("keydown", stop);
       if (!(await review(panel.shadow, data, format, await getSettings()))) {
@@ -113,21 +106,7 @@ async function run(scope, format, target) {
       exportedAt: new Date().toISOString(),
       messages,
     };
-    if (visual) {
-      document.addEventListener("keydown", stop);
-      visualCapturing = true;
-      model.pages = await captureAppearance(messages, {
-        signal: controller.signal,
-        settings: await getSettings(),
-        positions,
-        title: model.title,
-        onProgress: feedback,
-      });
-      model.layout = "appearance";
-      model.messages = [];
-    } else {
-      await embedImages(messages);
-    }
+    await embedImages(messages);
     if (controller.signal.aborted || location.href !== startRoute)
       throw new Error("Export cancelled or conversation changed.");
     if (JSON.stringify(model).length > 20_000_000)
@@ -136,7 +115,7 @@ async function run(scope, format, target) {
       );
     const response = await chrome.runtime.sendMessage({
       type: "CGE_EXPORT",
-      format: visual ? "pdf" : format,
+      format,
       document: model,
     });
     if (!response?.ok)
@@ -148,7 +127,6 @@ async function run(scope, format, target) {
     feedback(e.message || "Export failed.", "error");
   } finally {
     endImages();
-    visualCapturing = false;
     busy = false;
     scan();
     document.removeEventListener("keydown", stop);
@@ -156,7 +134,6 @@ async function run(scope, format, target) {
   }
 }
 function scan() {
-  if (visualCapturing) return;
   if (route !== location.href) {
     route = location.href;
     controller?.abort();
@@ -219,12 +196,11 @@ function scan() {
 }
 let imageFrame = 0;
 function queueImagePositions() {
-  if (imageFrame || visualCapturing) return;
+  if (imageFrame) return;
   imageFrame = requestAnimationFrame(() => {
     imageFrame = 0;
-    if (!visualCapturing)
-      for (const entry of pairs.values())
-        if (entry.image) updateImageControl(entry.image, entry.host);
+    for (const entry of pairs.values())
+      if (entry.image) updateImageControl(entry.image, entry.host);
   });
 }
 window.addEventListener("scroll", queueImagePositions, {
@@ -233,7 +209,7 @@ window.addEventListener("scroll", queueImagePositions, {
 });
 window.addEventListener("resize", queueImagePositions);
 function queueScan() {
-  if (!scheduled && !visualCapturing)
+  if (!scheduled)
     scheduled = setTimeout(() => {
       scheduled = null;
       scan();

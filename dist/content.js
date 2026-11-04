@@ -166,6 +166,141 @@
     }
   });
 
+  // src/modules/pdf-style.js
+  function textAlignment(el) {
+    let value = "", direction = "";
+    for (let node = el; node && (!value || !direction); node = node.parentElement) {
+      const css = view(node);
+      value ||= css.textAlign || node.getAttribute("align") || "";
+      direction ||= css.direction || node.getAttribute("dir") || "";
+    }
+    if (value === "start" || !value)
+      return direction === "rtl" ? "right" : "left";
+    if (value === "end") return direction === "rtl" ? "left" : "right";
+    const physical = value.replace(/^-webkit-/, "");
+    return ["left", "right", "center", "justify"].includes(physical) ? physical : "left";
+  }
+  function rgba(value, doc) {
+    const match = value?.match(
+      /^rgba?\(\s*([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/i
+    );
+    if (match)
+      return [
+        +match[1],
+        +match[2],
+        +match[3],
+        match[4] === void 0 ? 1 : +match[4]
+      ];
+    if (!value || value === "transparent") return [0, 0, 0, 0];
+    if (!doc.defaultView.CSS?.supports("color", value)) return null;
+    const canvas = doc.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = value;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    return [r, g, b, a / 255];
+  }
+  function blend(fg, bg) {
+    return bg.map(
+      (v, i) => fg ? Math.round(fg[i] * fg[3] + v * (1 - fg[3])) : v
+    );
+  }
+  function readCode(pre) {
+    const code = pre.tagName === "PRE" && pre.querySelectorAll("code").length === 1 ? pre.querySelector("code") : pre;
+    const doc = pre.ownerDocument, colors = /* @__PURE__ */ new Map(), styles = /* @__PURE__ */ new WeakMap(), backgrounds = /* @__PURE__ */ new WeakMap();
+    function parse(value) {
+      if (!colors.has(value)) colors.set(value, rgba(value, doc));
+      return colors.get(value);
+    }
+    function bg(el) {
+      if (!el) return [255, 255, 255];
+      if (!backgrounds.has(el))
+        backgrounds.set(
+          el,
+          blend(parse(view(el).backgroundColor), bg(el.parentElement))
+        );
+      return backgrounds.get(el);
+    }
+    const base = hex(bg(code)), css = view(code);
+    const size = parseFloat(css.fontSize) || 14;
+    function tokenStyle(el) {
+      if (styles.has(el)) return styles.get(el);
+      const cs = view(el), back = bg(el);
+      const foreground = parse(cs.color) || [32, 33, 36, 1];
+      const style = {
+        color: hex(blend(foreground, back)),
+        bold: cs.fontWeight === "bold" || Number(cs.fontWeight) >= 600,
+        italics: /italic|oblique/.test(cs.fontStyle)
+      };
+      if (hex(back) !== base) style.background = hex(back);
+      if (cs.textDecorationLine?.includes("underline"))
+        style.decoration = "underline";
+      else if (cs.textDecorationLine?.includes("line-through"))
+        style.decoration = "lineThrough";
+      const tokenSize = parseFloat(cs.fontSize);
+      if (tokenSize && tokenSize !== size) style.fontSize = tokenSize * 0.75;
+      styles.set(el, style);
+      return style;
+    }
+    const tokens = [];
+    function emit(text, el) {
+      if (!text) return;
+      const style = tokenStyle(el), last = tokens.at(-1);
+      if (last?.style === style) last.text += text;
+      else tokens.push({ text, style });
+    }
+    function walk(parent) {
+      let afterLine = false;
+      for (const n of parent.childNodes) {
+        if (n.nodeType === 3) {
+          if (afterLine && !n.textContent.startsWith("\n")) emit("\n", parent);
+          emit(n.textContent, parent);
+          afterLine = false;
+          continue;
+        }
+        if (n.nodeType !== 1 || n.matches(
+          'button,[role="button"],[hidden],script,style,.sr-only,[data-cge],.cm-gutters,[data-line-number],[data-code-block-controls]'
+        ))
+          continue;
+        const cs = view(n);
+        if (cs.display === "none" || cs.visibility === "hidden") continue;
+        const line = n.matches(".cm-line") || cs.display === "block" || n.tagName === "DIV";
+        if ((afterLine || line) && tokens.length && !tokens.at(-1).text.endsWith("\n"))
+          emit("\n", parent);
+        else if (afterLine && line) emit("\n", parent);
+        afterLine = false;
+        if (n.tagName === "BR") {
+          if (!(parent.matches(".cm-line") && parent.childNodes.length === 1))
+            emit("\n", parent);
+        } else {
+          walk(n);
+          afterLine = line;
+        }
+      }
+    }
+    walk(code);
+    const tab = css.tabSize || "8";
+    const tabSize = tab.endsWith("px") ? parseFloat(tab) / (size * 0.602) : Number(tab);
+    return {
+      text: tokens.map((t) => t.text).join(""),
+      tokens: tokens.map((t) => ({ text: t.text, ...t.style })),
+      background: base,
+      fontSize: size * 0.75,
+      lineHeight: parseFloat(css.lineHeight) ? parseFloat(css.lineHeight) / (size * 1.164) : 1,
+      tabSize: Number.isFinite(tabSize) ? Math.max(0, Math.round(tabSize)) : 8,
+      alignment: textAlignment(code),
+      language: code.className?.match?.(/(?:language|lang)-([\w+-]+)/)?.[1] || code.closest("[data-language]")?.dataset.language || ""
+    };
+  }
+  var view, hex;
+  var init_pdf_style = __esm({
+    "src/modules/pdf-style.js"() {
+      view = (el) => el.ownerDocument.defaultView.getComputedStyle(el);
+      hex = (rgb) => "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("");
+    }
+  });
+
   // src/modules/normalize.js
   var normalize_exports = {};
   __export(normalize_exports, {
@@ -271,7 +406,24 @@
     if (["STRONG", "B"].includes(node.tagName)) next.bold = true;
     if (["EM", "I"].includes(node.tagName)) next.italic = true;
     if (["S", "DEL"].includes(node.tagName)) next.strike = true;
-    if (node.tagName === "CODE") next.code = true;
+    if (node.tagName === "CODE") {
+      const snippet = readCode(node);
+      return snippet.tokens.map(
+        ({ text, color, background, bold, italics, decoration, fontSize }) => ({
+          ...next,
+          text,
+          code: true,
+          bold: bold || next.bold,
+          italic: italics || next.italic,
+          pdfStyle: {
+            color,
+            background: background || snippet.background,
+            decoration,
+            fontSize: fontSize || snippet.fontSize
+          }
+        })
+      );
+    }
     if (node.tagName === "SUP") next.sup = true;
     if (node.tagName === "SUB") next.sub = true;
     if (node.tagName === "A")
@@ -294,7 +446,8 @@
     let pending = [];
     const flush = () => {
       const runs = trimmed(pending);
-      if (runs.length) out.push({ type: "paragraph", runs });
+      if (runs.length)
+        out.push({ type: "paragraph", runs, alignment: textAlignment(root) });
       pending = [];
     };
     for (const el of root.childNodes) {
@@ -312,10 +465,10 @@
         ".katex-display,math[display=block],mjx-container[display=true]"
       ) || el.matches(equationSelector) && BLOCK.split(",").includes(el.tagName)) {
         flush();
-        out.push({ type: "math", ...equation(el) });
+        out.push({ type: "math", ...equation(el), alignment: textAlignment(el) });
         continue;
       }
-      if (!BLOCK.split(",").includes(el.tagName)) {
+      if (!BLOCK.split(",").includes(el.tagName) && !el.matches(".cm-content")) {
         pending.push(...inline(el));
         continue;
       }
@@ -325,21 +478,18 @@
         out.push({
           type: "heading",
           level: Number(tag[1]),
+          alignment: textAlignment(el),
           runs: trimmed(inline(el))
         });
-      else if (tag === "PRE") {
-        const code = el.querySelector("code") || el;
-        const clone = code.cloneNode(true);
-        clone.querySelectorAll(OMIT).forEach((n) => n.remove());
-        const text = clone.textContent.replace(/\n$/, "");
-        const language = code.className.match(/language-([\w+-]+)/)?.[1] || code.closest("[data-language]")?.dataset.language || "";
+      else if (tag === "PRE" || el.matches(".cm-content")) {
+        const snippet = readCode(el), { text, language } = snippet;
         if ((/^(math|latex|tex)$/i.test(language) || !language && /^\s*(?:\\\[[\s\S]*\\\]|\$\$[\s\S]*\$\$)\s*$/.test(text)) && !/\\(?:documentclass|usepackage|begin\{document\}|section|newcommand|textbf)/.test(
           text
         ) && /^(?:\s*\\[([]|\s*\$\$)|[=^_]|\\(?:frac|sqrt|sum|int|begin\{(?:align|equation|matrix))/.test(
           text
         ))
           out.push({ type: "math", text, fromCode: true });
-        else out.push({ type: "code", text, language });
+        else out.push({ type: "code", ...snippet });
       } else if (tag === "UL" || tag === "OL") {
         out.push({
           type: "list",
@@ -362,7 +512,8 @@
       else if (tag === "HR") out.push({ type: "rule" });
       else if (tag === "P") {
         const runs = trimmed(inline(el));
-        if (runs.length) out.push({ type: "paragraph", runs });
+        if (runs.length)
+          out.push({ type: "paragraph", runs, alignment: textAlignment(el) });
       } else out.push(...blocks(el));
     }
     flush();
@@ -376,6 +527,7 @@
   var OMIT, BLOCK, equationSelector;
   var init_normalize = __esm({
     "src/modules/normalize.js"() {
+      init_pdf_style();
       init_media();
       OMIT = 'button,nav,[data-conversation-role]:is(h1,h2,h3,h4,h5,h6),.turn-action-controls,script,style,textarea,input,select,svg,[role="button"],[data-cge],[data-testid="thought-process"],[data-testid="reasoning"],.katex-html';
       BLOCK = "P,H1,H2,H3,H4,H5,H6,PRE,UL,OL,TABLE,BLOCKQUOTE,HR,DIV,SECTION,ARTICLE,FIGURE";
@@ -384,147 +536,6 @@
   });
 
   // src/content.js
-  init_media();
-
-  // src/modules/stage.js
-  function stageSurface(part) {
-    let surface = part;
-    while (surface && (typeof surface.showPopover !== "function" || !surface.getBoundingClientRect().width)) {
-      surface = surface.parentElement;
-    }
-    if (!surface || surface === document.body || surface === document.documentElement || surface.matches(":popover-open,dialog[open]"))
-      throw new Error("This surface cannot be isolated while it is open.");
-    const rect = surface.getBoundingClientRect(), source = part.getBoundingClientRect();
-    const cs = getComputedStyle(surface), original = surface.getAttribute("popover");
-    const spacer = document.createElement("span");
-    const backdrop = document.createElement("style");
-    const placement = document.createElement("style");
-    let rule;
-    const inlineOverrides = /* @__PURE__ */ new Map();
-    const originalStyle = surface.getAttribute("style");
-    const keep = (name, value) => {
-      if (surface.style.getPropertyPriority(name) === "important") {
-        if (!inlineOverrides.has(name))
-          inlineOverrides.set(name, surface.style.getPropertyValue(name));
-        surface.style.removeProperty(name);
-      }
-      rule.style.setProperty(name, value, "important");
-    };
-    const paint = {};
-    for (const key of [
-      "display",
-      "color",
-      "background-color",
-      "overflow-x",
-      "overflow-y",
-      "padding-top",
-      "padding-bottom",
-      "padding-left",
-      "padding-right",
-      "border-top",
-      "border-bottom",
-      "border-left",
-      "border-right"
-    ])
-      paint[key] = cs.getPropertyValue(key);
-    const scale = Math.min(1, innerWidth / Math.max(source.width, 1));
-    const marker = "cge-stage-" + crypto.randomUUID();
-    let base = "white";
-    for (let p = surface.parentElement; p; p = p.parentElement) {
-      const color = getComputedStyle(p).backgroundColor;
-      if (color && color !== "transparent" && color !== "rgba(0, 0, 0, 0)") {
-        base = color;
-        break;
-      }
-    }
-    spacer.setAttribute("aria-hidden", "true");
-    spacer.inert = true;
-    spacer.style.cssText = "visibility:hidden!important;pointer-events:none!important;box-sizing:border-box!important;";
-    for (const key of [
-      "display",
-      "margin-top",
-      "margin-bottom",
-      "margin-left",
-      "margin-right",
-      "flex",
-      "align-self",
-      "grid-area",
-      "order"
-    ])
-      spacer.style.setProperty(key, cs.getPropertyValue(key));
-    spacer.style.width = rect.width + "px";
-    spacer.style.height = rect.height + "px";
-    const hadClass = surface.hasAttribute("class");
-    let expectedStyle = originalStyle;
-    function restore() {
-      if (surface.matches(":popover-open")) surface.hidePopover();
-      if (original === null) surface.removeAttribute("popover");
-      else surface.setAttribute("popover", original);
-      surface.classList.remove(marker);
-      if (!hadClass && !surface.className) surface.removeAttribute("class");
-      placement.remove();
-      if (inlineOverrides.size) {
-        if (surface.getAttribute("style") === expectedStyle) {
-          if (originalStyle === null) surface.removeAttribute("style");
-          else surface.setAttribute("style", originalStyle);
-        } else
-          for (const [name, val] of inlineOverrides)
-            if (!surface.style.getPropertyValue(name))
-              surface.style.setProperty(name, val, "important");
-      }
-      spacer.remove();
-      backdrop.remove();
-    }
-    try {
-      placement.textContent = `.${marker}.${marker}:popover-open{}`;
-      document.head.append(placement);
-      rule = placement.sheet.cssRules[0];
-      surface.before(spacer);
-      surface.classList.add(marker);
-      backdrop.textContent = `.${marker}::backdrop{background:${base}!important;opacity:1!important;pointer-events:none!important}`;
-      document.head.append(backdrop);
-      surface.setAttribute("popover", "manual");
-      for (const [key, value] of Object.entries(paint)) keep(key, value);
-      for (const [key, value] of Object.entries({
-        position: "fixed",
-        inset: "auto",
-        margin: "0",
-        "box-sizing": "border-box",
-        width: rect.width + "px",
-        height: rect.height + "px",
-        "max-width": "none",
-        "max-height": "none",
-        "min-width": "0",
-        "min-height": "0",
-        transform: `scale(${scale})`,
-        "transform-origin": "0 0",
-        transition: "none",
-        animation: "none",
-        left: "0px",
-        top: "0px"
-      }))
-        keep(key, value);
-      expectedStyle = surface.getAttribute("style");
-      surface.showPopover();
-      const initial = part.getBoundingClientRect();
-      keep("left", -initial.left + "px");
-      return {
-        scale,
-        width: source.width,
-        height: source.height,
-        originalLeft: source.left,
-        reveal(offset) {
-          keep("top", -initial.top - offset * scale + "px");
-        },
-        restore
-      };
-    } catch (e) {
-      restore();
-      throw e;
-    }
-  }
-
-  // src/modules/appearance.js
   init_media();
 
   // src/modules/extractor.js
@@ -871,7 +882,7 @@
         type: "paragraph",
         runs: [
           {
-            text: "[Visual content \u2013 use PDF as shown for its displayed appearance.]"
+            text: "[Interactive content without a static representation.]"
           }
         ]
       });
@@ -974,9 +985,6 @@
     return (selected?.textContent || root.title || "ChatGPT Conversation").replace(/\s*[-|–]\s*ChatGPT\s*$/, "").trim() || "ChatGPT Conversation";
   }
 
-  // src/modules/appearance.js
-  init_normalize();
-
   // src/modules/history.js
   init_normalize();
   var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -994,7 +1002,6 @@
     signal,
     onProgress = () => {
     },
-    onViewport,
     timeout = 45e3
   } = {}) {
     const route2 = location.href, scroller = scrollContainer(), original = scroller.scrollTop;
@@ -1023,7 +1030,6 @@
     function read() {
       guard();
       const current = snapshot();
-      onViewport?.(scroller);
       const indexed = current.every((m) => m.turnIndex !== null);
       if (!indexed) uncertain = true;
       const keys = /* @__PURE__ */ new Set();
@@ -1122,265 +1128,6 @@
     }
   }
 
-  // src/modules/appearance.js
-  var sleep2 = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
-  var layOut = () => new Promise(
-    (resolve2) => requestAnimationFrame(() => requestAnimationFrame(resolve2))
-  );
-  function visibleSurfaces(el) {
-    const r = el.getBoundingClientRect();
-    if (r.width >= 1 && r.height >= 1) return [el];
-    if (getComputedStyle(el).display === "contents") {
-      if ([...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()))
-        throw new Error(
-          "This message has unbounded text. Use the formatted PDF."
-        );
-      return [...el.children].filter((n) => !n.hasAttribute("data-cge")).flatMap(visibleSurfaces);
-    }
-    return [];
-  }
-  function rememberPositions(positions, scroller) {
-    for (const el of messageNodes()) {
-      const key = historyKey(messageIdentity(el));
-      const r = el.getBoundingClientRect();
-      const offset = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top + scroller.clientTop;
-      if (key) positions.set(key, scroller.scrollTop + r.top - offset);
-    }
-  }
-  function pageComposer(settings) {
-    const pw = settings.orientation === "landscape" ? 842 : 595, ph = settings.orientation === "landscape" ? 595 : 842;
-    const w = Math.round((pw - settings.margin * 2) * 2), h = Math.round((ph - settings.margin * 2) * 2);
-    const page = document.createElement("canvas");
-    page.width = w;
-    page.height = h;
-    const ctx = page.getContext("2d");
-    const pages = [];
-    let y = 0, bytes = 0;
-    function reset() {
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, w, h);
-      y = 0;
-    }
-    function flush() {
-      if (!y) return;
-      const data = page.toDataURL("image/jpeg", 0.96);
-      bytes += data.length;
-      if (bytes > 18e6)
-        throw new Error(
-          "This visual PDF exceeds the local size limit. Export a smaller range using the Q&A buttons."
-        );
-      pages.push(data);
-      reset();
-    }
-    reset();
-    return {
-      label(text) {
-        if (y + 68 >= h) flush();
-        ctx.fillStyle = "#334155";
-        ctx.font = "bold 18px sans-serif";
-        ctx.fillText(text, 0, y + 21, w);
-        y += 32;
-      },
-      tile(screenshot, sx, sy, sw, sh, dx, dw, dh) {
-        let consumed = 0;
-        while (consumed < dh - 1e-3) {
-          if (h - y < 1) flush();
-          const n = Math.min(dh - consumed, h - y);
-          ctx.drawImage(
-            screenshot,
-            sx,
-            sy + sh * consumed / dh,
-            sw,
-            sh * n / dh,
-            dx,
-            y,
-            dw,
-            n
-          );
-          consumed += n;
-          y += n;
-        }
-      },
-      space() {
-        y = Math.min(h, y + 15);
-      },
-      finish() {
-        flush();
-        return pages;
-      },
-      width: w
-    };
-  }
-  async function captureAppearance(messages, { signal, settings, positions, title: title2, onProgress }) {
-    const route2 = location.href, scroller = scrollContainer(), original = scroller.scrollTop;
-    const oldBehavior = scroller.style.scrollBehavior;
-    const pages = pageComposer(settings);
-    const transcript = messageNodes()[0]?.closest('main,[role="main"]') || scroller;
-    const viewportWidth = innerWidth, viewportHeight = innerHeight;
-    const transcriptRect = transcript.getBoundingClientRect();
-    const hasColumn = transcriptRect.width > 1 && transcriptRect.right > 0 && transcriptRect.left < innerWidth;
-    const left = hasColumn ? Math.max(0, transcriptRect.left) : 0;
-    const right = hasColumn ? Math.min(innerWidth, transcriptRect.right) : innerWidth;
-    const scale = pages.width / Math.max(1, right - left);
-    const token = crypto.randomUUID(), attr = "data-cge-visual-target";
-    const shield = document.createElement("style");
-    const selected = `[${attr}="${token}"]`;
-    shield.textContent = `body *:not(${selected},${selected} *,:has(${selected})){visibility:hidden!important;opacity:0!important} [data-cge],.turn-action-controls{display:none!important}`;
-    if (!settings.includeCode)
-      shield.textContent += ` ${selected} pre{display:none!important}`;
-    const probe = document.createElement("span");
-    const marked = /* @__PURE__ */ new Set();
-    function guard() {
-      if (signal?.aborted) throw new Error("Visual export cancelled.");
-      if (location.href !== route2 || !scroller.isConnected || document.visibilityState === "hidden")
-        throw new Error(
-          "The active chat changed during visual export. Return to the chat and retry."
-        );
-      if (innerWidth !== viewportWidth || innerHeight !== viewportHeight)
-        throw new Error("The viewport changed size. Retry the visual export.");
-    }
-    function locate(m) {
-      const key = historyKey(m);
-      if (!key)
-        throw new Error(
-          "A stable message identity is required for visual export."
-        );
-      return messageNodes().find((n) => historyKey(messageIdentity(n)) === key);
-    }
-    function unmark() {
-      for (const n of marked) n.removeAttribute(attr);
-      marked.clear();
-    }
-    try {
-      scroller.style.scrollBehavior = "auto";
-      if (settings.includeTitle) pages.label(title2 || "ChatGPT");
-      if (settings.includeTimestamps)
-        pages.label("Exported " + (/* @__PURE__ */ new Date()).toLocaleString());
-      for (let i = 0; i < messages.length; i++) {
-        const m = messages[i];
-        if (m.role === "user" && !settings.includeUsers) continue;
-        guard();
-        unmark();
-        shield.remove();
-        let el = locate(m);
-        if (!el) {
-          const pos = positions.get(historyKey(m));
-          if (pos == null)
-            throw new Error(
-              "A requested message is no longer loaded. Reveal it and retry."
-            );
-          scroller.scrollTop = pos;
-          for (let n = 0; n < 8 && !el; n++) {
-            await sleep2(125);
-            guard();
-            el = locate(m);
-          }
-        }
-        if (!el || plainText(extractMessage(el, 0).blocks) !== plainText(m.blocks))
-          throw new Error(
-            "A message changed while preparing its visual export. Retry."
-          );
-        onProgress(
-          `Capturing message ${i + 1} of ${messages.length}\u2026 Escape cancels.`
-        );
-        pages.label(
-          (m.role === "user" ? "USER" : "CHATGPT") + (settings.includeTimestamps && m.timestamp ? " \xB7 " + m.timestamp : "")
-        );
-        const roots = visualRoots(el).flatMap(visibleSurfaces);
-        if (!roots.length)
-          throw new Error(
-            "A message has no visible capture surface. Reveal it and retry."
-          );
-        for (const part of roots) {
-          unmark();
-          part.setAttribute(attr, token);
-          marked.add(part);
-          if (!shield.isConnected) document.head.append(shield);
-          if (!probe.isConnected) document.body.append(probe);
-          if (getComputedStyle(probe).opacity !== "0")
-            throw new Error(
-              "The page could not isolate the selected message for capture."
-            );
-          const stage = stageSurface(part);
-          try {
-            const outputScale = Math.min(scale, pages.width / stage.width);
-            const dx = Math.max(
-              0,
-              Math.min(
-                pages.width - stage.width * outputScale,
-                (stage.originalLeft - left) * scale
-              )
-            );
-            let captured = 0;
-            while (captured < stage.height - 0.01) {
-              guard();
-              stage.reveal(captured);
-              await layOut();
-              guard();
-              const r = part.getBoundingClientRect(), y = r.top + captured * stage.scale;
-              const slice = Math.min(
-                stage.height - captured,
-                (innerHeight - Math.max(0, y)) / stage.scale
-              );
-              if (!part.isConnected || Math.abs(r.width - stage.width * stage.scale) > 2 || Math.abs(r.height - stage.height * stage.scale) > 2 || Math.abs(r.left) > 2 || Math.abs(y) > 2 || slice <= 0)
-                throw new Error(
-                  "The live message changed size or position during capture. Retry after it settles."
-                );
-              const shot = await chrome.runtime.sendMessage({
-                type: "CGE_SCREEN"
-              });
-              if (!shot?.ok)
-                throw new Error(
-                  shot?.error || "Chrome could not capture this tab."
-                );
-              guard();
-              const after = part.getBoundingClientRect();
-              if (!part.isConnected || Math.abs(after.top - r.top) > 1 || Math.abs(after.left - r.left) > 1 || Math.abs(after.height - r.height) > 1)
-                throw new Error(
-                  "The message moved during capture. Retry after it settles."
-                );
-              const img = await decodeRaster(shot.data);
-              try {
-                const px = img.width / innerWidth, py = img.height / innerHeight;
-                pages.tile(
-                  img,
-                  Math.max(0, r.left) * px,
-                  Math.max(0, y) * py,
-                  r.width * px,
-                  slice * stage.scale * py,
-                  dx,
-                  stage.width * outputScale,
-                  slice * outputScale
-                );
-              } finally {
-                img.close();
-              }
-              captured += slice;
-            }
-          } finally {
-            stage.restore();
-          }
-        }
-        unmark();
-        shield.remove();
-        guard();
-        const current = locate(m);
-        if (!current || plainText(extractMessage(current, 0).blocks) !== plainText(m.blocks))
-          throw new Error(
-            "The message changed during visual capture. Please retry."
-          );
-        pages.space();
-      }
-      return pages.finish();
-    } finally {
-      unmark();
-      probe.remove();
-      shield.remove();
-      if (location.href === route2) scroller.scrollTop = original;
-      scroller.style.scrollBehavior = oldBehavior;
-    }
-  }
-
   // src/modules/ui.js
   var CSS = `
 :host{all:initial;font:13px/1.45 system-ui,-apple-system,sans-serif;color:#172335;color-scheme:light;--ink:#172335;--accent:#146d62}
@@ -1440,7 +1187,6 @@ button.glyph{display:inline-flex;align-items:center;justify-content:center;width
     download: "M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5",
     settings: "M10 3h4l.6 2.3 2 .9 2.2-.8 2 3.4-1.6 1.6.2 2.3 1.5 1.7-2 3.4-2.2-.7-2 .9L14 21h-4l-.7-2.4-2-.9-2.1.7-2-3.4 1.6-1.7v-2.4L3.2 9l2-3.4 2.2.8 2-.9L10 3z M15 12a3 3 0 1 1-6 0 3 3 0 1 1 6 0",
     pdf: "M5 2h9l5 5v15H5z M14 2v6h5 M8 12h8m-8 4h6",
-    appearance: "M3 7h4l2-3h6l2 3h4v13H3z M15.5 13a3.5 3.5 0 1 1-7 0 3.5 3.5 0 1 1 7 0",
     docx: "M5 2h9l5 5v15H5z M14 2v6h5 M7.5 11l2 7 2.5-5 2.5 5 2-7"
   };
   function iconButton(b, icon, label) {
@@ -1479,18 +1225,14 @@ button.glyph{display:inline-flex;align-items:center;justify-content:center;width
       onExport(format);
     };
     const pdf = button("PDF", () => run2("pdf")), word = button("Word (.docx)", () => run2("docx"));
-    const visual = button("PDF as shown", () => run2("appearance"));
-    visual.title = "Capture the displayed messages as static PDF pages. Click the Chrome extension icon first to allow tab capture.";
     if (shadow.classList?.contains("toolbar")) {
       iconButton(trigger, "download", label);
       iconButton(pdf, "pdf", "PDF");
-      iconButton(visual, "appearance", "PDF as shown");
       iconButton(word, "docx", "Word (.docx)");
       pdf.title = "Formatted PDF";
-      visual.title = "PDF as shown";
       word.title = "Word document";
     }
-    options.append(pdf, visual, word);
+    options.append(pdf, word);
     wrap.append(trigger, options);
     shadow.append(wrap);
     wrap.addEventListener("keydown", (e) => {
@@ -1523,7 +1265,7 @@ button.glyph{display:inline-flex;align-items:center;justify-content:center;width
 LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     const note = document.createElement("p");
     note.className = "small";
-    note.textContent = "ChatGPT does not expose a DOM-only guarantee of complete history. Hidden branches are excluded. Equations are typeset where supported. Formatted exports embed readable images. PDF as shown captures the displayed pixels. " + (!settings.includeUsers ? "Your settings exclude user messages. " : "") + (!settings.includeCode ? "Your settings exclude code blocks. " : "");
+    note.textContent = "ChatGPT does not expose a DOM-only guarantee of complete history. Hidden branches are excluded. Equations are typeset where supported. Formatted exports embed readable images. " + (!settings.includeUsers ? "Your settings exclude user messages. " : "") + (!settings.includeCode ? "Your settings exclude code blocks. " : "");
     const label = document.createElement("label");
     label.className = "check";
     const check = document.createElement("input");
@@ -1547,7 +1289,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       };
       const cancel = button("Cancel", () => finish(false));
       const go = button(
-        `Download ${format === "docx" ? "Word" : format === "appearance" ? "PDF as shown" : "PDF"}`,
+        `Download ${format === "docx" ? "Word" : "PDF"}`,
         () => finish(true),
         true
       );
@@ -1608,7 +1350,6 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
   }
 
   // src/content.js
-  var visualCapturing = false;
   var busy = false;
   var route = location.href;
   var scheduled;
@@ -1646,7 +1387,6 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     }
     busy = true;
     beginImages();
-    const visual = format === "appearance", positions = /* @__PURE__ */ new Map();
     controller = new AbortController();
     const startRoute = location.href;
     const stop = (e) => {
@@ -1662,8 +1402,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       else {
         const data = await collectHistory({
           signal: controller.signal,
-          onProgress: feedback,
-          onViewport: visual ? (scroller) => rememberPositions(positions, scroller) : void 0
+          onProgress: feedback
         });
         document.removeEventListener("keydown", stop);
         if (!await review(panel.shadow, data, format, await getSettings())) {
@@ -1688,21 +1427,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
         exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
         messages
       };
-      if (visual) {
-        document.addEventListener("keydown", stop);
-        visualCapturing = true;
-        model.pages = await captureAppearance(messages, {
-          signal: controller.signal,
-          settings: await getSettings(),
-          positions,
-          title: model.title,
-          onProgress: feedback
-        });
-        model.layout = "appearance";
-        model.messages = [];
-      } else {
-        await embedImages(messages);
-      }
+      await embedImages(messages);
       if (controller.signal.aborted || location.href !== startRoute)
         throw new Error("Export cancelled or conversation changed.");
       if (JSON.stringify(model).length > 2e7)
@@ -1711,7 +1436,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
         );
       const response = await chrome.runtime.sendMessage({
         type: "CGE_EXPORT",
-        format: visual ? "pdf" : format,
+        format,
         document: model
       });
       if (!response?.ok)
@@ -1722,7 +1447,6 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       feedback(e.message || "Export failed.", "error");
     } finally {
       endImages();
-      visualCapturing = false;
       busy = false;
       scan();
       document.removeEventListener("keydown", stop);
@@ -1730,7 +1454,6 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     }
   }
   function scan() {
-    if (visualCapturing) return;
     if (route !== location.href) {
       route = location.href;
       controller?.abort();
@@ -1783,13 +1506,11 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
   }
   var imageFrame = 0;
   function queueImagePositions() {
-    if (imageFrame || visualCapturing) return;
+    if (imageFrame) return;
     imageFrame = requestAnimationFrame(() => {
       imageFrame = 0;
-      if (!visualCapturing) {
-        for (const entry of pairs.values())
-          if (entry.image) updateImageControl(entry.image, entry.host);
-      }
+      for (const entry of pairs.values())
+        if (entry.image) updateImageControl(entry.image, entry.host);
     });
   }
   window.addEventListener("scroll", queueImagePositions, {
@@ -1798,7 +1519,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
   });
   window.addEventListener("resize", queueImagePositions);
   function queueScan() {
-    if (!scheduled && !visualCapturing)
+    if (!scheduled)
       scheduled = setTimeout(() => {
         scheduled = null;
         scan();

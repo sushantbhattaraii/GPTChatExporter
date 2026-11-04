@@ -24,7 +24,6 @@ export function scrollContainer(root = document) {
 export async function collectHistory({
   signal,
   onProgress = () => {},
-  onViewport,
   timeout = 45000,
 } = {}) {
   const route = location.href,
@@ -56,7 +55,6 @@ export async function collectHistory({
   function read() {
     guard();
     const current = snapshot();
-    onViewport?.(scroller);
     const indexed = current.every((m) => m.turnIndex !== null);
     if (!indexed) uncertain = true;
     const keys = new Set();

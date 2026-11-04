@@ -21,9 +21,7 @@ export function documentWarnings(doc) {
   let spans = false;
   doc.messages.forEach((m) => walk(m.blocks));
   if (unreadable || doc.messages.some((m) => m.hasInteractive))
-    warnings.push(
-      "For unavailable images or the displayed state of interactive media, use PDF as shown in Chrome.",
-    );
+    warnings.push("Some images or interactive content could not be embedded.");
   if (spans)
     warnings.push("Merged table cells are flattened to a regular grid.");
   return warnings;

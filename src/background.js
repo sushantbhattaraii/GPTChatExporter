@@ -1,5 +1,4 @@
 import { readDisplayedAsset } from "./modules/media-fetch.js";
-import { captureChatTab } from "./modules/screen.js";
 import { getSettings } from "./modules/settings.js";
 import { filename } from "./modules/filename.js";
 let creating;
@@ -105,11 +104,8 @@ async function exportDocument(msg, sender) {
 }
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg?.target === "offscreen") return;
-  if (msg?.type === "CGE_IMAGE" || msg?.type === "CGE_SCREEN") {
-    const task =
-      msg.type === "CGE_IMAGE"
-        ? readDisplayedAsset(msg.url, sender)
-        : captureChatTab(sender);
+  if (msg?.type === "CGE_IMAGE") {
+    const task = readDisplayedAsset(msg.url, sender);
     task.then(reply).catch((e) => reply({ ok: false, error: e.message }));
     return true;
   }
