@@ -41,11 +41,13 @@
         signal: AbortSignal.timeout(12e3)
       });
     } catch (error) {
-      if (error.name === "TypeError" && !firstParty && !await chrome.permissions.contains({ origins: [origin + "/*"] }))
+      if (error.name === "TypeError" && origin && !await chrome.permissions.contains({ origins: [origin + "/*"] }))
         return { ok: false, permissionOrigin: origin };
       throw error;
     }
-    let type = res.headers.get("Content-Type")?.split(";")[0].toLowerCase();
+    let type = (res.headers.get("Content-Type")?.split(";")[0].trim() || "application/octet-stream").toLowerCase();
+    if (type === "image/jpg") type = "image/jpeg";
+    if (type === "binary/octet-stream") type = "application/octet-stream";
     if (!res.ok || !(firstParty ? allowedAsset(res.url) : publicImageOrigin(res.url) === origin) || !(type === "application/octet-stream" || /^image\/(png|jpeg|webp|gif|avif)$/.test(type)))
       throw new Error("Image could not be read");
     const reader = res.body.getReader(), chunks = [];

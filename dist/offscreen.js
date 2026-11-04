@@ -108,9 +108,9 @@
                         _doReset: function _doReset() {
                           this._hash = WordArray.create([1732584193, 4023233417, 2562383102, 271733878, 3285377520]);
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
                           for (var i = 0; i < 16; i++) {
-                            var offset_i = offset + i;
+                            var offset_i = offset2 + i;
                             var M_offset_i = M[offset_i];
                             M[offset_i] = (M_offset_i << 8 | M_offset_i >>> 24) & 16711935 | (M_offset_i << 24 | M_offset_i >>> 8) & 4278255360;
                           }
@@ -130,7 +130,7 @@
                           er = el = H[4];
                           var t;
                           for (var i = 0; i < 80; i += 1) {
-                            t = al + M[offset + zl[i]] | 0;
+                            t = al + M[offset2 + zl[i]] | 0;
                             if (i < 16) {
                               t += f1(bl, cl, dl) + hl[0];
                             } else if (i < 32) {
@@ -150,7 +150,7 @@
                             dl = rotl(cl, 10);
                             cl = bl;
                             bl = t;
-                            t = ar + M[offset + zr[i]] | 0;
+                            t = ar + M[offset2 + zr[i]] | 0;
                             if (i < 16) {
                               t += f5(br, cr, dr) + hr[0];
                             } else if (i < 32) {
@@ -2768,7 +2768,7 @@
                     CryptoJS.mode.OFB = (function() {
                       var OFB = CryptoJS.lib.BlockCipherMode.extend();
                       var Encryptor = OFB.Encryptor = OFB.extend({
-                        processBlock: function processBlock(words, offset) {
+                        processBlock: function processBlock(words, offset2) {
                           var cipher = this._cipher;
                           var blockSize = cipher.blockSize;
                           var iv = this._iv;
@@ -2779,7 +2779,7 @@
                           }
                           cipher.encryptBlock(keystream, 0);
                           for (var i = 0; i < blockSize; i++) {
-                            words[offset + i] ^= keystream[i];
+                            words[offset2 + i] ^= keystream[i];
                           }
                         }
                       });
@@ -3435,7 +3435,7 @@
                             }
                           }
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
                           var X = this._X;
                           nextState.call(this);
                           S[0] = X[0] ^ X[5] >>> 16 ^ X[3] << 16;
@@ -3444,7 +3444,7 @@
                           S[3] = X[6] ^ X[3] >>> 16 ^ X[1] << 16;
                           for (var i = 0; i < 4; i++) {
                             S[i] = (S[i] << 8 | S[i] >>> 24) & 16711935 | (S[i] << 24 | S[i] >>> 8) & 4278255360;
-                            M[offset + i] ^= S[i];
+                            M[offset2 + i] ^= S[i];
                           }
                         },
                         blockSize: 128 / 32,
@@ -6405,8 +6405,8 @@
                     var _proto = Pointer2.prototype;
                     _proto.decode = function decode2(stream, ctx) {
                       var _this = this;
-                      var offset = this.offsetType.decode(stream, ctx);
-                      if (offset === this.options.nullValue && this.options.allowNull) {
+                      var offset2 = this.offsetType.decode(stream, ctx);
+                      if (offset2 === this.options.nullValue && this.options.allowNull) {
                         return null;
                       }
                       var relative;
@@ -6430,7 +6430,7 @@
                       if (this.options.relativeTo) {
                         relative += this.relativeToGetter(ctx);
                       }
-                      var ptr = offset + relative;
+                      var ptr = offset2 + relative;
                       if (this.type != null) {
                         var val = null;
                         var decodeValue = function decodeValue2() {
@@ -8261,25 +8261,25 @@
                         return size2;
                       }
                       var type = this.type || new r.Buffer();
-                      var offset = 1;
+                      var offset2 = 1;
                       for (var i2 = 0; i2 < arr.length; i2++) {
                         var item = arr[i2];
-                        offset += type.size(item, parent);
+                        offset2 += type.size(item, parent);
                       }
                       var offsetType;
-                      if (offset <= 255) {
+                      if (offset2 <= 255) {
                         offsetType = r.uint8;
-                      } else if (offset <= 65535) {
+                      } else if (offset2 <= 65535) {
                         offsetType = r.uint16;
-                      } else if (offset <= 16777215) {
+                      } else if (offset2 <= 16777215) {
                         offsetType = r.uint24;
-                      } else if (offset <= 4294967295) {
+                      } else if (offset2 <= 4294967295) {
                         offsetType = r.uint32;
                       } else {
                         throw new Error("Bad offset in CFFIndex");
                       }
                       size2 += 1 + offsetType.size() * (arr.length + 1);
-                      size2 += offset - 1;
+                      size2 += offset2 - 1;
                       return size2;
                     };
                     _proto.encode = function encode(stream, arr, parent) {
@@ -8289,32 +8289,32 @@
                       }
                       var type = this.type || new r.Buffer();
                       var sizes = [];
-                      var offset = 1;
+                      var offset2 = 1;
                       for (var _iterator2 = _createForOfIteratorHelperLoose(arr), _step2; !(_step2 = _iterator2()).done; ) {
                         var item = _step2.value;
                         var s = type.size(item, parent);
                         sizes.push(s);
-                        offset += s;
+                        offset2 += s;
                       }
                       var offsetType;
-                      if (offset <= 255) {
+                      if (offset2 <= 255) {
                         offsetType = r.uint8;
-                      } else if (offset <= 65535) {
+                      } else if (offset2 <= 65535) {
                         offsetType = r.uint16;
-                      } else if (offset <= 16777215) {
+                      } else if (offset2 <= 16777215) {
                         offsetType = r.uint24;
-                      } else if (offset <= 4294967295) {
+                      } else if (offset2 <= 4294967295) {
                         offsetType = r.uint32;
                       } else {
                         throw new Error("Bad offset in CFFIndex");
                       }
                       stream.writeUInt8(offsetType.size());
-                      offset = 1;
-                      offsetType.encode(stream, offset);
+                      offset2 = 1;
+                      offsetType.encode(stream, offset2);
                       for (var _i0 = 0, _sizes = sizes; _i0 < _sizes.length; _i0++) {
                         var size = _sizes[_i0];
-                        offset += size;
-                        offsetType.encode(stream, offset);
+                        offset2 += size;
+                        offsetType.encode(stream, offset2);
                       }
                       for (var _iterator3 = _createForOfIteratorHelperLoose(arr), _step3; !(_step3 = _iterator3()).done; ) {
                         var _item = _step3.value;
@@ -12618,9 +12618,9 @@
                           var action = actions.getItem(actionIndex++);
                           last = !!(action & LAST_MASK);
                           var store = !!(action & STORE_MASK);
-                          var offset = (action & OFFSET_MASK) << 2 >> 2;
-                          offset += this.glyphs[componentGlyph].id;
-                          var component = components.getItem(offset);
+                          var offset2 = (action & OFFSET_MASK) << 2 >> 2;
+                          offset2 += this.glyphs[componentGlyph].id;
+                          var component = components.getItem(offset2);
                           ligatureIndex += component;
                           if (last || store) {
                             var ligatureEntry = ligatureList.getItem(ligatureIndex);
@@ -15982,16 +15982,16 @@
                       }
                       return;
                     };
-                    _proto32._decodeComposite = function _decodeComposite(glyph2, stream, offset) {
-                      if (offset === void 0) {
-                        offset = 0;
+                    _proto32._decodeComposite = function _decodeComposite(glyph2, stream, offset2) {
+                      if (offset2 === void 0) {
+                        offset2 = 0;
                       }
                       glyph2.components = [];
                       var haveInstructions = false;
                       var flags = MORE_COMPONENTS;
                       while (flags & MORE_COMPONENTS) {
                         flags = stream.readUInt16BE();
-                        var gPos = stream.pos - offset;
+                        var gPos = stream.pos - offset2;
                         var glyphID = stream.readUInt16BE();
                         if (!haveInstructions) {
                           haveInstructions = (flags & WE_HAVE_INSTRUCTIONS) !== 0;
@@ -16820,17 +16820,17 @@
                       if (gid >= gvar2.glyphCount) {
                         return;
                       }
-                      var offset = gvar2.offsets[gid];
-                      if (offset === gvar2.offsets[gid + 1]) {
+                      var offset2 = gvar2.offsets[gid];
+                      if (offset2 === gvar2.offsets[gid + 1]) {
                         return;
                       }
                       var stream = this.font.stream;
-                      stream.pos = offset;
+                      stream.pos = offset2;
                       if (stream.pos >= stream.length) {
                         return;
                       }
                       var tupleCount = stream.readUInt16BE();
-                      var offsetToData = offset + stream.readUInt16BE();
+                      var offsetToData = offset2 + stream.readUInt16BE();
                       if (tupleCount & TUPLES_SHARE_POINT_NUMBERS) {
                         var here = stream.pos;
                         stream.pos = offsetToData;
@@ -18300,9 +18300,9 @@
                     var _proto46 = TrueTypeCollection2.prototype;
                     _proto46.getFont = function getFont(name) {
                       for (var _iterator77 = _createForOfIteratorHelperLoose(this.header.offsets), _step77; !(_step77 = _iterator77()).done; ) {
-                        var offset = _step77.value;
+                        var offset2 = _step77.value;
                         var stream = new r.DecodeStream(this.stream.buffer);
-                        stream.pos = offset;
+                        stream.pos = offset2;
                         var font = new TTFFont(stream);
                         if (font.postscriptName === name) {
                           return font;
@@ -18315,9 +18315,9 @@
                       get: function get() {
                         var fonts = [];
                         for (var _iterator78 = _createForOfIteratorHelperLoose(this.header.offsets), _step78; !(_step78 = _iterator78()).done; ) {
-                          var offset = _step78.value;
+                          var offset2 = _step78.value;
                           var stream = new r.DecodeStream(this.stream.buffer);
-                          stream.pos = offset;
+                          stream.pos = offset2;
                           fonts.push(new TTFFont(stream));
                         }
                         return fonts;
@@ -19696,9 +19696,9 @@
                     }
                     return arr;
                   };
-                  var slicy = function slicy2(arrLike, offset) {
+                  var slicy = function slicy2(arrLike, offset2) {
                     var arr = [];
-                    for (var i = offset || 0, j = 0; i < arrLike.length; i += 1, j += 1) {
+                    for (var i = offset2 || 0, j = 0; i < arrLike.length; i += 1, j += 1) {
                       arr[j] = arrLike[i];
                     }
                     return arr;
@@ -20725,9 +20725,9 @@
                   Buffer2.prototype.lastIndexOf = function lastIndexOf(val, byteOffset, encoding) {
                     return bidirectionalIndexOf(this, val, byteOffset, encoding, false);
                   };
-                  function hexWrite(buf, string, offset, length) {
-                    offset = Number(offset) || 0;
-                    var remaining = buf.length - offset;
+                  function hexWrite(buf, string, offset2, length) {
+                    offset2 = Number(offset2) || 0;
+                    var remaining = buf.length - offset2;
                     if (!length) {
                       length = remaining;
                     } else {
@@ -20744,33 +20744,33 @@
                     for (i = 0; i < length; ++i) {
                       var parsed = parseInt(string.substr(i * 2, 2), 16);
                       if (numberIsNaN(parsed)) return i;
-                      buf[offset + i] = parsed;
+                      buf[offset2 + i] = parsed;
                     }
                     return i;
                   }
-                  function utf8Write(buf, string, offset, length) {
-                    return blitBuffer(utf8ToBytes(string, buf.length - offset), buf, offset, length);
+                  function utf8Write(buf, string, offset2, length) {
+                    return blitBuffer(utf8ToBytes(string, buf.length - offset2), buf, offset2, length);
                   }
-                  function asciiWrite(buf, string, offset, length) {
-                    return blitBuffer(asciiToBytes(string), buf, offset, length);
+                  function asciiWrite(buf, string, offset2, length) {
+                    return blitBuffer(asciiToBytes(string), buf, offset2, length);
                   }
-                  function base64Write(buf, string, offset, length) {
-                    return blitBuffer(base64ToBytes(string), buf, offset, length);
+                  function base64Write(buf, string, offset2, length) {
+                    return blitBuffer(base64ToBytes(string), buf, offset2, length);
                   }
-                  function ucs2Write(buf, string, offset, length) {
-                    return blitBuffer(utf16leToBytes(string, buf.length - offset), buf, offset, length);
+                  function ucs2Write(buf, string, offset2, length) {
+                    return blitBuffer(utf16leToBytes(string, buf.length - offset2), buf, offset2, length);
                   }
-                  Buffer2.prototype.write = function write(string, offset, length, encoding) {
-                    if (offset === void 0) {
+                  Buffer2.prototype.write = function write(string, offset2, length, encoding) {
+                    if (offset2 === void 0) {
                       encoding = "utf8";
                       length = this.length;
-                      offset = 0;
-                    } else if (length === void 0 && typeof offset === "string") {
-                      encoding = offset;
+                      offset2 = 0;
+                    } else if (length === void 0 && typeof offset2 === "string") {
+                      encoding = offset2;
                       length = this.length;
-                      offset = 0;
-                    } else if (isFinite(offset)) {
-                      offset = offset >>> 0;
+                      offset2 = 0;
+                    } else if (isFinite(offset2)) {
+                      offset2 = offset2 >>> 0;
                       if (isFinite(length)) {
                         length = length >>> 0;
                         if (encoding === void 0) encoding = "utf8";
@@ -20781,9 +20781,9 @@
                     } else {
                       throw new Error("Buffer.write(string, encoding, offset[, length]) is no longer supported");
                     }
-                    var remaining = this.length - offset;
+                    var remaining = this.length - offset2;
                     if (length === void 0 || length > remaining) length = remaining;
-                    if (string.length > 0 && (length < 0 || offset < 0) || offset > this.length) {
+                    if (string.length > 0 && (length < 0 || offset2 < 0) || offset2 > this.length) {
                       throw new RangeError("Attempt to write outside buffer bounds");
                     }
                     if (!encoding) encoding = "utf8";
@@ -20791,21 +20791,21 @@
                     for (; ; ) {
                       switch (encoding) {
                         case "hex":
-                          return hexWrite(this, string, offset, length);
+                          return hexWrite(this, string, offset2, length);
                         case "utf8":
                         case "utf-8":
-                          return utf8Write(this, string, offset, length);
+                          return utf8Write(this, string, offset2, length);
                         case "ascii":
                         case "latin1":
                         case "binary":
-                          return asciiWrite(this, string, offset, length);
+                          return asciiWrite(this, string, offset2, length);
                         case "base64":
-                          return base64Write(this, string, offset, length);
+                          return base64Write(this, string, offset2, length);
                         case "ucs2":
                         case "ucs-2":
                         case "utf16le":
                         case "utf-16le":
-                          return ucs2Write(this, string, offset, length);
+                          return ucs2Write(this, string, offset2, length);
                         default:
                           if (loweredCase) throw new TypeError("Unknown encoding: " + encoding);
                           encoding = ("" + encoding).toLowerCase();
@@ -20954,443 +20954,443 @@
                     Object.setPrototypeOf(newBuf, Buffer2.prototype);
                     return newBuf;
                   };
-                  function checkOffset(offset, ext, length) {
-                    if (offset % 1 !== 0 || offset < 0) throw new RangeError("offset is not uint");
-                    if (offset + ext > length) throw new RangeError("Trying to access beyond buffer length");
+                  function checkOffset(offset2, ext, length) {
+                    if (offset2 % 1 !== 0 || offset2 < 0) throw new RangeError("offset is not uint");
+                    if (offset2 + ext > length) throw new RangeError("Trying to access beyond buffer length");
                   }
-                  Buffer2.prototype.readUintLE = Buffer2.prototype.readUIntLE = function readUIntLE(offset, byteLength2, noAssert) {
-                    offset = offset >>> 0;
+                  Buffer2.prototype.readUintLE = Buffer2.prototype.readUIntLE = function readUIntLE(offset2, byteLength2, noAssert) {
+                    offset2 = offset2 >>> 0;
                     byteLength2 = byteLength2 >>> 0;
-                    if (!noAssert) checkOffset(offset, byteLength2, this.length);
-                    var val = this[offset];
+                    if (!noAssert) checkOffset(offset2, byteLength2, this.length);
+                    var val = this[offset2];
                     var mul = 1;
                     var i = 0;
                     while (++i < byteLength2 && (mul *= 256)) {
-                      val += this[offset + i] * mul;
+                      val += this[offset2 + i] * mul;
                     }
                     return val;
                   };
-                  Buffer2.prototype.readUintBE = Buffer2.prototype.readUIntBE = function readUIntBE(offset, byteLength2, noAssert) {
-                    offset = offset >>> 0;
+                  Buffer2.prototype.readUintBE = Buffer2.prototype.readUIntBE = function readUIntBE(offset2, byteLength2, noAssert) {
+                    offset2 = offset2 >>> 0;
                     byteLength2 = byteLength2 >>> 0;
                     if (!noAssert) {
-                      checkOffset(offset, byteLength2, this.length);
+                      checkOffset(offset2, byteLength2, this.length);
                     }
-                    var val = this[offset + --byteLength2];
+                    var val = this[offset2 + --byteLength2];
                     var mul = 1;
                     while (byteLength2 > 0 && (mul *= 256)) {
-                      val += this[offset + --byteLength2] * mul;
+                      val += this[offset2 + --byteLength2] * mul;
                     }
                     return val;
                   };
-                  Buffer2.prototype.readUint8 = Buffer2.prototype.readUInt8 = function readUInt8(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 1, this.length);
-                    return this[offset];
+                  Buffer2.prototype.readUint8 = Buffer2.prototype.readUInt8 = function readUInt8(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 1, this.length);
+                    return this[offset2];
                   };
-                  Buffer2.prototype.readUint16LE = Buffer2.prototype.readUInt16LE = function readUInt16LE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 2, this.length);
-                    return this[offset] | this[offset + 1] << 8;
+                  Buffer2.prototype.readUint16LE = Buffer2.prototype.readUInt16LE = function readUInt16LE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 2, this.length);
+                    return this[offset2] | this[offset2 + 1] << 8;
                   };
-                  Buffer2.prototype.readUint16BE = Buffer2.prototype.readUInt16BE = function readUInt16BE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 2, this.length);
-                    return this[offset] << 8 | this[offset + 1];
+                  Buffer2.prototype.readUint16BE = Buffer2.prototype.readUInt16BE = function readUInt16BE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 2, this.length);
+                    return this[offset2] << 8 | this[offset2 + 1];
                   };
-                  Buffer2.prototype.readUint32LE = Buffer2.prototype.readUInt32LE = function readUInt32LE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 4, this.length);
-                    return (this[offset] | this[offset + 1] << 8 | this[offset + 2] << 16) + this[offset + 3] * 16777216;
+                  Buffer2.prototype.readUint32LE = Buffer2.prototype.readUInt32LE = function readUInt32LE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 4, this.length);
+                    return (this[offset2] | this[offset2 + 1] << 8 | this[offset2 + 2] << 16) + this[offset2 + 3] * 16777216;
                   };
-                  Buffer2.prototype.readUint32BE = Buffer2.prototype.readUInt32BE = function readUInt32BE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 4, this.length);
-                    return this[offset] * 16777216 + (this[offset + 1] << 16 | this[offset + 2] << 8 | this[offset + 3]);
+                  Buffer2.prototype.readUint32BE = Buffer2.prototype.readUInt32BE = function readUInt32BE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 4, this.length);
+                    return this[offset2] * 16777216 + (this[offset2 + 1] << 16 | this[offset2 + 2] << 8 | this[offset2 + 3]);
                   };
-                  Buffer2.prototype.readBigUInt64LE = defineBigIntMethod(function readBigUInt64LE(offset) {
-                    offset = offset >>> 0;
-                    validateNumber(offset, "offset");
-                    var first = this[offset];
-                    var last = this[offset + 7];
+                  Buffer2.prototype.readBigUInt64LE = defineBigIntMethod(function readBigUInt64LE(offset2) {
+                    offset2 = offset2 >>> 0;
+                    validateNumber(offset2, "offset");
+                    var first = this[offset2];
+                    var last = this[offset2 + 7];
                     if (first === void 0 || last === void 0) {
-                      boundsError(offset, this.length - 8);
+                      boundsError(offset2, this.length - 8);
                     }
-                    var lo = first + this[++offset] * Math.pow(2, 8) + this[++offset] * Math.pow(2, 16) + this[++offset] * Math.pow(2, 24);
-                    var hi = this[++offset] + this[++offset] * Math.pow(2, 8) + this[++offset] * Math.pow(2, 16) + last * Math.pow(2, 24);
+                    var lo = first + this[++offset2] * Math.pow(2, 8) + this[++offset2] * Math.pow(2, 16) + this[++offset2] * Math.pow(2, 24);
+                    var hi = this[++offset2] + this[++offset2] * Math.pow(2, 8) + this[++offset2] * Math.pow(2, 16) + last * Math.pow(2, 24);
                     return BigInt(lo) + (BigInt(hi) << BigInt(32));
                   });
-                  Buffer2.prototype.readBigUInt64BE = defineBigIntMethod(function readBigUInt64BE(offset) {
-                    offset = offset >>> 0;
-                    validateNumber(offset, "offset");
-                    var first = this[offset];
-                    var last = this[offset + 7];
+                  Buffer2.prototype.readBigUInt64BE = defineBigIntMethod(function readBigUInt64BE(offset2) {
+                    offset2 = offset2 >>> 0;
+                    validateNumber(offset2, "offset");
+                    var first = this[offset2];
+                    var last = this[offset2 + 7];
                     if (first === void 0 || last === void 0) {
-                      boundsError(offset, this.length - 8);
+                      boundsError(offset2, this.length - 8);
                     }
-                    var hi = first * Math.pow(2, 24) + this[++offset] * Math.pow(2, 16) + this[++offset] * Math.pow(2, 8) + this[++offset];
-                    var lo = this[++offset] * Math.pow(2, 24) + this[++offset] * Math.pow(2, 16) + this[++offset] * Math.pow(2, 8) + last;
+                    var hi = first * Math.pow(2, 24) + this[++offset2] * Math.pow(2, 16) + this[++offset2] * Math.pow(2, 8) + this[++offset2];
+                    var lo = this[++offset2] * Math.pow(2, 24) + this[++offset2] * Math.pow(2, 16) + this[++offset2] * Math.pow(2, 8) + last;
                     return (BigInt(hi) << BigInt(32)) + BigInt(lo);
                   });
-                  Buffer2.prototype.readIntLE = function readIntLE(offset, byteLength2, noAssert) {
-                    offset = offset >>> 0;
+                  Buffer2.prototype.readIntLE = function readIntLE(offset2, byteLength2, noAssert) {
+                    offset2 = offset2 >>> 0;
                     byteLength2 = byteLength2 >>> 0;
-                    if (!noAssert) checkOffset(offset, byteLength2, this.length);
-                    var val = this[offset];
+                    if (!noAssert) checkOffset(offset2, byteLength2, this.length);
+                    var val = this[offset2];
                     var mul = 1;
                     var i = 0;
                     while (++i < byteLength2 && (mul *= 256)) {
-                      val += this[offset + i] * mul;
+                      val += this[offset2 + i] * mul;
                     }
                     mul *= 128;
                     if (val >= mul) val -= Math.pow(2, 8 * byteLength2);
                     return val;
                   };
-                  Buffer2.prototype.readIntBE = function readIntBE(offset, byteLength2, noAssert) {
-                    offset = offset >>> 0;
+                  Buffer2.prototype.readIntBE = function readIntBE(offset2, byteLength2, noAssert) {
+                    offset2 = offset2 >>> 0;
                     byteLength2 = byteLength2 >>> 0;
-                    if (!noAssert) checkOffset(offset, byteLength2, this.length);
+                    if (!noAssert) checkOffset(offset2, byteLength2, this.length);
                     var i = byteLength2;
                     var mul = 1;
-                    var val = this[offset + --i];
+                    var val = this[offset2 + --i];
                     while (i > 0 && (mul *= 256)) {
-                      val += this[offset + --i] * mul;
+                      val += this[offset2 + --i] * mul;
                     }
                     mul *= 128;
                     if (val >= mul) val -= Math.pow(2, 8 * byteLength2);
                     return val;
                   };
-                  Buffer2.prototype.readInt8 = function readInt8(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 1, this.length);
-                    if (!(this[offset] & 128)) return this[offset];
-                    return (255 - this[offset] + 1) * -1;
+                  Buffer2.prototype.readInt8 = function readInt8(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 1, this.length);
+                    if (!(this[offset2] & 128)) return this[offset2];
+                    return (255 - this[offset2] + 1) * -1;
                   };
-                  Buffer2.prototype.readInt16LE = function readInt16LE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 2, this.length);
-                    var val = this[offset] | this[offset + 1] << 8;
+                  Buffer2.prototype.readInt16LE = function readInt16LE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 2, this.length);
+                    var val = this[offset2] | this[offset2 + 1] << 8;
                     return val & 32768 ? val | 4294901760 : val;
                   };
-                  Buffer2.prototype.readInt16BE = function readInt16BE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 2, this.length);
-                    var val = this[offset + 1] | this[offset] << 8;
+                  Buffer2.prototype.readInt16BE = function readInt16BE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 2, this.length);
+                    var val = this[offset2 + 1] | this[offset2] << 8;
                     return val & 32768 ? val | 4294901760 : val;
                   };
-                  Buffer2.prototype.readInt32LE = function readInt32LE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 4, this.length);
-                    return this[offset] | this[offset + 1] << 8 | this[offset + 2] << 16 | this[offset + 3] << 24;
+                  Buffer2.prototype.readInt32LE = function readInt32LE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 4, this.length);
+                    return this[offset2] | this[offset2 + 1] << 8 | this[offset2 + 2] << 16 | this[offset2 + 3] << 24;
                   };
-                  Buffer2.prototype.readInt32BE = function readInt32BE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 4, this.length);
-                    return this[offset] << 24 | this[offset + 1] << 16 | this[offset + 2] << 8 | this[offset + 3];
+                  Buffer2.prototype.readInt32BE = function readInt32BE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 4, this.length);
+                    return this[offset2] << 24 | this[offset2 + 1] << 16 | this[offset2 + 2] << 8 | this[offset2 + 3];
                   };
-                  Buffer2.prototype.readBigInt64LE = defineBigIntMethod(function readBigInt64LE(offset) {
-                    offset = offset >>> 0;
-                    validateNumber(offset, "offset");
-                    var first = this[offset];
-                    var last = this[offset + 7];
+                  Buffer2.prototype.readBigInt64LE = defineBigIntMethod(function readBigInt64LE(offset2) {
+                    offset2 = offset2 >>> 0;
+                    validateNumber(offset2, "offset");
+                    var first = this[offset2];
+                    var last = this[offset2 + 7];
                     if (first === void 0 || last === void 0) {
-                      boundsError(offset, this.length - 8);
+                      boundsError(offset2, this.length - 8);
                     }
-                    var val = this[offset + 4] + this[offset + 5] * Math.pow(2, 8) + this[offset + 6] * Math.pow(2, 16) + (last << 24);
-                    return (BigInt(val) << BigInt(32)) + BigInt(first + this[++offset] * Math.pow(2, 8) + this[++offset] * Math.pow(2, 16) + this[++offset] * Math.pow(2, 24));
+                    var val = this[offset2 + 4] + this[offset2 + 5] * Math.pow(2, 8) + this[offset2 + 6] * Math.pow(2, 16) + (last << 24);
+                    return (BigInt(val) << BigInt(32)) + BigInt(first + this[++offset2] * Math.pow(2, 8) + this[++offset2] * Math.pow(2, 16) + this[++offset2] * Math.pow(2, 24));
                   });
-                  Buffer2.prototype.readBigInt64BE = defineBigIntMethod(function readBigInt64BE(offset) {
-                    offset = offset >>> 0;
-                    validateNumber(offset, "offset");
-                    var first = this[offset];
-                    var last = this[offset + 7];
+                  Buffer2.prototype.readBigInt64BE = defineBigIntMethod(function readBigInt64BE(offset2) {
+                    offset2 = offset2 >>> 0;
+                    validateNumber(offset2, "offset");
+                    var first = this[offset2];
+                    var last = this[offset2 + 7];
                     if (first === void 0 || last === void 0) {
-                      boundsError(offset, this.length - 8);
+                      boundsError(offset2, this.length - 8);
                     }
                     var val = (first << 24) + // Overflow
-                    this[++offset] * Math.pow(2, 16) + this[++offset] * Math.pow(2, 8) + this[++offset];
-                    return (BigInt(val) << BigInt(32)) + BigInt(this[++offset] * Math.pow(2, 24) + this[++offset] * Math.pow(2, 16) + this[++offset] * Math.pow(2, 8) + last);
+                    this[++offset2] * Math.pow(2, 16) + this[++offset2] * Math.pow(2, 8) + this[++offset2];
+                    return (BigInt(val) << BigInt(32)) + BigInt(this[++offset2] * Math.pow(2, 24) + this[++offset2] * Math.pow(2, 16) + this[++offset2] * Math.pow(2, 8) + last);
                   });
-                  Buffer2.prototype.readFloatLE = function readFloatLE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 4, this.length);
-                    return ieee754.read(this, offset, true, 23, 4);
+                  Buffer2.prototype.readFloatLE = function readFloatLE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 4, this.length);
+                    return ieee754.read(this, offset2, true, 23, 4);
                   };
-                  Buffer2.prototype.readFloatBE = function readFloatBE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 4, this.length);
-                    return ieee754.read(this, offset, false, 23, 4);
+                  Buffer2.prototype.readFloatBE = function readFloatBE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 4, this.length);
+                    return ieee754.read(this, offset2, false, 23, 4);
                   };
-                  Buffer2.prototype.readDoubleLE = function readDoubleLE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 8, this.length);
-                    return ieee754.read(this, offset, true, 52, 8);
+                  Buffer2.prototype.readDoubleLE = function readDoubleLE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 8, this.length);
+                    return ieee754.read(this, offset2, true, 52, 8);
                   };
-                  Buffer2.prototype.readDoubleBE = function readDoubleBE(offset, noAssert) {
-                    offset = offset >>> 0;
-                    if (!noAssert) checkOffset(offset, 8, this.length);
-                    return ieee754.read(this, offset, false, 52, 8);
+                  Buffer2.prototype.readDoubleBE = function readDoubleBE(offset2, noAssert) {
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkOffset(offset2, 8, this.length);
+                    return ieee754.read(this, offset2, false, 52, 8);
                   };
-                  function checkInt(buf, value, offset, ext, max2, min) {
+                  function checkInt(buf, value, offset2, ext, max2, min) {
                     if (!Buffer2.isBuffer(buf)) throw new TypeError('"buffer" argument must be a Buffer instance');
                     if (value > max2 || value < min) throw new RangeError('"value" argument is out of bounds');
-                    if (offset + ext > buf.length) throw new RangeError("Index out of range");
+                    if (offset2 + ext > buf.length) throw new RangeError("Index out of range");
                   }
-                  Buffer2.prototype.writeUintLE = Buffer2.prototype.writeUIntLE = function writeUIntLE(value, offset, byteLength2, noAssert) {
+                  Buffer2.prototype.writeUintLE = Buffer2.prototype.writeUIntLE = function writeUIntLE(value, offset2, byteLength2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
+                    offset2 = offset2 >>> 0;
                     byteLength2 = byteLength2 >>> 0;
                     if (!noAssert) {
                       var maxBytes = Math.pow(2, 8 * byteLength2) - 1;
-                      checkInt(this, value, offset, byteLength2, maxBytes, 0);
+                      checkInt(this, value, offset2, byteLength2, maxBytes, 0);
                     }
                     var mul = 1;
                     var i = 0;
-                    this[offset] = value & 255;
+                    this[offset2] = value & 255;
                     while (++i < byteLength2 && (mul *= 256)) {
-                      this[offset + i] = value / mul & 255;
+                      this[offset2 + i] = value / mul & 255;
                     }
-                    return offset + byteLength2;
+                    return offset2 + byteLength2;
                   };
-                  Buffer2.prototype.writeUintBE = Buffer2.prototype.writeUIntBE = function writeUIntBE(value, offset, byteLength2, noAssert) {
+                  Buffer2.prototype.writeUintBE = Buffer2.prototype.writeUIntBE = function writeUIntBE(value, offset2, byteLength2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
+                    offset2 = offset2 >>> 0;
                     byteLength2 = byteLength2 >>> 0;
                     if (!noAssert) {
                       var maxBytes = Math.pow(2, 8 * byteLength2) - 1;
-                      checkInt(this, value, offset, byteLength2, maxBytes, 0);
+                      checkInt(this, value, offset2, byteLength2, maxBytes, 0);
                     }
                     var i = byteLength2 - 1;
                     var mul = 1;
-                    this[offset + i] = value & 255;
+                    this[offset2 + i] = value & 255;
                     while (--i >= 0 && (mul *= 256)) {
-                      this[offset + i] = value / mul & 255;
+                      this[offset2 + i] = value / mul & 255;
                     }
-                    return offset + byteLength2;
+                    return offset2 + byteLength2;
                   };
-                  Buffer2.prototype.writeUint8 = Buffer2.prototype.writeUInt8 = function writeUInt8(value, offset, noAssert) {
+                  Buffer2.prototype.writeUint8 = Buffer2.prototype.writeUInt8 = function writeUInt8(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 1, 255, 0);
-                    this[offset] = value & 255;
-                    return offset + 1;
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 1, 255, 0);
+                    this[offset2] = value & 255;
+                    return offset2 + 1;
                   };
-                  Buffer2.prototype.writeUint16LE = Buffer2.prototype.writeUInt16LE = function writeUInt16LE(value, offset, noAssert) {
+                  Buffer2.prototype.writeUint16LE = Buffer2.prototype.writeUInt16LE = function writeUInt16LE(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 2, 65535, 0);
-                    this[offset] = value & 255;
-                    this[offset + 1] = value >>> 8;
-                    return offset + 2;
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 2, 65535, 0);
+                    this[offset2] = value & 255;
+                    this[offset2 + 1] = value >>> 8;
+                    return offset2 + 2;
                   };
-                  Buffer2.prototype.writeUint16BE = Buffer2.prototype.writeUInt16BE = function writeUInt16BE(value, offset, noAssert) {
+                  Buffer2.prototype.writeUint16BE = Buffer2.prototype.writeUInt16BE = function writeUInt16BE(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 2, 65535, 0);
-                    this[offset] = value >>> 8;
-                    this[offset + 1] = value & 255;
-                    return offset + 2;
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 2, 65535, 0);
+                    this[offset2] = value >>> 8;
+                    this[offset2 + 1] = value & 255;
+                    return offset2 + 2;
                   };
-                  Buffer2.prototype.writeUint32LE = Buffer2.prototype.writeUInt32LE = function writeUInt32LE(value, offset, noAssert) {
+                  Buffer2.prototype.writeUint32LE = Buffer2.prototype.writeUInt32LE = function writeUInt32LE(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 4, 4294967295, 0);
-                    this[offset + 3] = value >>> 24;
-                    this[offset + 2] = value >>> 16;
-                    this[offset + 1] = value >>> 8;
-                    this[offset] = value & 255;
-                    return offset + 4;
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 4, 4294967295, 0);
+                    this[offset2 + 3] = value >>> 24;
+                    this[offset2 + 2] = value >>> 16;
+                    this[offset2 + 1] = value >>> 8;
+                    this[offset2] = value & 255;
+                    return offset2 + 4;
                   };
-                  Buffer2.prototype.writeUint32BE = Buffer2.prototype.writeUInt32BE = function writeUInt32BE(value, offset, noAssert) {
+                  Buffer2.prototype.writeUint32BE = Buffer2.prototype.writeUInt32BE = function writeUInt32BE(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 4, 4294967295, 0);
-                    this[offset] = value >>> 24;
-                    this[offset + 1] = value >>> 16;
-                    this[offset + 2] = value >>> 8;
-                    this[offset + 3] = value & 255;
-                    return offset + 4;
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 4, 4294967295, 0);
+                    this[offset2] = value >>> 24;
+                    this[offset2 + 1] = value >>> 16;
+                    this[offset2 + 2] = value >>> 8;
+                    this[offset2 + 3] = value & 255;
+                    return offset2 + 4;
                   };
-                  function wrtBigUInt64LE(buf, value, offset, min, max2) {
-                    checkIntBI(value, min, max2, buf, offset, 7);
+                  function wrtBigUInt64LE(buf, value, offset2, min, max2) {
+                    checkIntBI(value, min, max2, buf, offset2, 7);
                     var lo = Number(value & BigInt(4294967295));
-                    buf[offset++] = lo;
+                    buf[offset2++] = lo;
                     lo = lo >> 8;
-                    buf[offset++] = lo;
+                    buf[offset2++] = lo;
                     lo = lo >> 8;
-                    buf[offset++] = lo;
+                    buf[offset2++] = lo;
                     lo = lo >> 8;
-                    buf[offset++] = lo;
+                    buf[offset2++] = lo;
                     var hi = Number(value >> BigInt(32) & BigInt(4294967295));
-                    buf[offset++] = hi;
+                    buf[offset2++] = hi;
                     hi = hi >> 8;
-                    buf[offset++] = hi;
+                    buf[offset2++] = hi;
                     hi = hi >> 8;
-                    buf[offset++] = hi;
+                    buf[offset2++] = hi;
                     hi = hi >> 8;
-                    buf[offset++] = hi;
-                    return offset;
+                    buf[offset2++] = hi;
+                    return offset2;
                   }
-                  function wrtBigUInt64BE(buf, value, offset, min, max2) {
-                    checkIntBI(value, min, max2, buf, offset, 7);
+                  function wrtBigUInt64BE(buf, value, offset2, min, max2) {
+                    checkIntBI(value, min, max2, buf, offset2, 7);
                     var lo = Number(value & BigInt(4294967295));
-                    buf[offset + 7] = lo;
+                    buf[offset2 + 7] = lo;
                     lo = lo >> 8;
-                    buf[offset + 6] = lo;
+                    buf[offset2 + 6] = lo;
                     lo = lo >> 8;
-                    buf[offset + 5] = lo;
+                    buf[offset2 + 5] = lo;
                     lo = lo >> 8;
-                    buf[offset + 4] = lo;
+                    buf[offset2 + 4] = lo;
                     var hi = Number(value >> BigInt(32) & BigInt(4294967295));
-                    buf[offset + 3] = hi;
+                    buf[offset2 + 3] = hi;
                     hi = hi >> 8;
-                    buf[offset + 2] = hi;
+                    buf[offset2 + 2] = hi;
                     hi = hi >> 8;
-                    buf[offset + 1] = hi;
+                    buf[offset2 + 1] = hi;
                     hi = hi >> 8;
-                    buf[offset] = hi;
-                    return offset + 8;
+                    buf[offset2] = hi;
+                    return offset2 + 8;
                   }
-                  Buffer2.prototype.writeBigUInt64LE = defineBigIntMethod(function writeBigUInt64LE(value, offset) {
-                    if (offset === void 0) {
-                      offset = 0;
+                  Buffer2.prototype.writeBigUInt64LE = defineBigIntMethod(function writeBigUInt64LE(value, offset2) {
+                    if (offset2 === void 0) {
+                      offset2 = 0;
                     }
-                    return wrtBigUInt64LE(this, value, offset, BigInt(0), BigInt("0xffffffffffffffff"));
+                    return wrtBigUInt64LE(this, value, offset2, BigInt(0), BigInt("0xffffffffffffffff"));
                   });
-                  Buffer2.prototype.writeBigUInt64BE = defineBigIntMethod(function writeBigUInt64BE(value, offset) {
-                    if (offset === void 0) {
-                      offset = 0;
+                  Buffer2.prototype.writeBigUInt64BE = defineBigIntMethod(function writeBigUInt64BE(value, offset2) {
+                    if (offset2 === void 0) {
+                      offset2 = 0;
                     }
-                    return wrtBigUInt64BE(this, value, offset, BigInt(0), BigInt("0xffffffffffffffff"));
+                    return wrtBigUInt64BE(this, value, offset2, BigInt(0), BigInt("0xffffffffffffffff"));
                   });
-                  Buffer2.prototype.writeIntLE = function writeIntLE(value, offset, byteLength2, noAssert) {
+                  Buffer2.prototype.writeIntLE = function writeIntLE(value, offset2, byteLength2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
+                    offset2 = offset2 >>> 0;
                     if (!noAssert) {
                       var limit = Math.pow(2, 8 * byteLength2 - 1);
-                      checkInt(this, value, offset, byteLength2, limit - 1, -limit);
+                      checkInt(this, value, offset2, byteLength2, limit - 1, -limit);
                     }
                     var i = 0;
                     var mul = 1;
                     var sub = 0;
-                    this[offset] = value & 255;
+                    this[offset2] = value & 255;
                     while (++i < byteLength2 && (mul *= 256)) {
-                      if (value < 0 && sub === 0 && this[offset + i - 1] !== 0) {
+                      if (value < 0 && sub === 0 && this[offset2 + i - 1] !== 0) {
                         sub = 1;
                       }
-                      this[offset + i] = (value / mul >> 0) - sub & 255;
+                      this[offset2 + i] = (value / mul >> 0) - sub & 255;
                     }
-                    return offset + byteLength2;
+                    return offset2 + byteLength2;
                   };
-                  Buffer2.prototype.writeIntBE = function writeIntBE(value, offset, byteLength2, noAssert) {
+                  Buffer2.prototype.writeIntBE = function writeIntBE(value, offset2, byteLength2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
+                    offset2 = offset2 >>> 0;
                     if (!noAssert) {
                       var limit = Math.pow(2, 8 * byteLength2 - 1);
-                      checkInt(this, value, offset, byteLength2, limit - 1, -limit);
+                      checkInt(this, value, offset2, byteLength2, limit - 1, -limit);
                     }
                     var i = byteLength2 - 1;
                     var mul = 1;
                     var sub = 0;
-                    this[offset + i] = value & 255;
+                    this[offset2 + i] = value & 255;
                     while (--i >= 0 && (mul *= 256)) {
-                      if (value < 0 && sub === 0 && this[offset + i + 1] !== 0) {
+                      if (value < 0 && sub === 0 && this[offset2 + i + 1] !== 0) {
                         sub = 1;
                       }
-                      this[offset + i] = (value / mul >> 0) - sub & 255;
+                      this[offset2 + i] = (value / mul >> 0) - sub & 255;
                     }
-                    return offset + byteLength2;
+                    return offset2 + byteLength2;
                   };
-                  Buffer2.prototype.writeInt8 = function writeInt8(value, offset, noAssert) {
+                  Buffer2.prototype.writeInt8 = function writeInt8(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 1, 127, -128);
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 1, 127, -128);
                     if (value < 0) value = 255 + value + 1;
-                    this[offset] = value & 255;
-                    return offset + 1;
+                    this[offset2] = value & 255;
+                    return offset2 + 1;
                   };
-                  Buffer2.prototype.writeInt16LE = function writeInt16LE(value, offset, noAssert) {
+                  Buffer2.prototype.writeInt16LE = function writeInt16LE(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 2, 32767, -32768);
-                    this[offset] = value & 255;
-                    this[offset + 1] = value >>> 8;
-                    return offset + 2;
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 2, 32767, -32768);
+                    this[offset2] = value & 255;
+                    this[offset2 + 1] = value >>> 8;
+                    return offset2 + 2;
                   };
-                  Buffer2.prototype.writeInt16BE = function writeInt16BE(value, offset, noAssert) {
+                  Buffer2.prototype.writeInt16BE = function writeInt16BE(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 2, 32767, -32768);
-                    this[offset] = value >>> 8;
-                    this[offset + 1] = value & 255;
-                    return offset + 2;
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 2, 32767, -32768);
+                    this[offset2] = value >>> 8;
+                    this[offset2 + 1] = value & 255;
+                    return offset2 + 2;
                   };
-                  Buffer2.prototype.writeInt32LE = function writeInt32LE(value, offset, noAssert) {
+                  Buffer2.prototype.writeInt32LE = function writeInt32LE(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 4, 2147483647, -2147483648);
-                    this[offset] = value & 255;
-                    this[offset + 1] = value >>> 8;
-                    this[offset + 2] = value >>> 16;
-                    this[offset + 3] = value >>> 24;
-                    return offset + 4;
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 4, 2147483647, -2147483648);
+                    this[offset2] = value & 255;
+                    this[offset2 + 1] = value >>> 8;
+                    this[offset2 + 2] = value >>> 16;
+                    this[offset2 + 3] = value >>> 24;
+                    return offset2 + 4;
                   };
-                  Buffer2.prototype.writeInt32BE = function writeInt32BE(value, offset, noAssert) {
+                  Buffer2.prototype.writeInt32BE = function writeInt32BE(value, offset2, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
-                    if (!noAssert) checkInt(this, value, offset, 4, 2147483647, -2147483648);
+                    offset2 = offset2 >>> 0;
+                    if (!noAssert) checkInt(this, value, offset2, 4, 2147483647, -2147483648);
                     if (value < 0) value = 4294967295 + value + 1;
-                    this[offset] = value >>> 24;
-                    this[offset + 1] = value >>> 16;
-                    this[offset + 2] = value >>> 8;
-                    this[offset + 3] = value & 255;
-                    return offset + 4;
+                    this[offset2] = value >>> 24;
+                    this[offset2 + 1] = value >>> 16;
+                    this[offset2 + 2] = value >>> 8;
+                    this[offset2 + 3] = value & 255;
+                    return offset2 + 4;
                   };
-                  Buffer2.prototype.writeBigInt64LE = defineBigIntMethod(function writeBigInt64LE(value, offset) {
-                    if (offset === void 0) {
-                      offset = 0;
+                  Buffer2.prototype.writeBigInt64LE = defineBigIntMethod(function writeBigInt64LE(value, offset2) {
+                    if (offset2 === void 0) {
+                      offset2 = 0;
                     }
-                    return wrtBigUInt64LE(this, value, offset, -BigInt("0x8000000000000000"), BigInt("0x7fffffffffffffff"));
+                    return wrtBigUInt64LE(this, value, offset2, -BigInt("0x8000000000000000"), BigInt("0x7fffffffffffffff"));
                   });
-                  Buffer2.prototype.writeBigInt64BE = defineBigIntMethod(function writeBigInt64BE(value, offset) {
-                    if (offset === void 0) {
-                      offset = 0;
+                  Buffer2.prototype.writeBigInt64BE = defineBigIntMethod(function writeBigInt64BE(value, offset2) {
+                    if (offset2 === void 0) {
+                      offset2 = 0;
                     }
-                    return wrtBigUInt64BE(this, value, offset, -BigInt("0x8000000000000000"), BigInt("0x7fffffffffffffff"));
+                    return wrtBigUInt64BE(this, value, offset2, -BigInt("0x8000000000000000"), BigInt("0x7fffffffffffffff"));
                   });
-                  function checkIEEE754(buf, value, offset, ext, max2, min) {
-                    if (offset + ext > buf.length) throw new RangeError("Index out of range");
-                    if (offset < 0) throw new RangeError("Index out of range");
+                  function checkIEEE754(buf, value, offset2, ext, max2, min) {
+                    if (offset2 + ext > buf.length) throw new RangeError("Index out of range");
+                    if (offset2 < 0) throw new RangeError("Index out of range");
                   }
-                  function writeFloat(buf, value, offset, littleEndian, noAssert) {
+                  function writeFloat(buf, value, offset2, littleEndian, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
+                    offset2 = offset2 >>> 0;
                     if (!noAssert) {
-                      checkIEEE754(buf, value, offset, 4, 34028234663852886e22, -34028234663852886e22);
+                      checkIEEE754(buf, value, offset2, 4, 34028234663852886e22, -34028234663852886e22);
                     }
-                    ieee754.write(buf, value, offset, littleEndian, 23, 4);
-                    return offset + 4;
+                    ieee754.write(buf, value, offset2, littleEndian, 23, 4);
+                    return offset2 + 4;
                   }
-                  Buffer2.prototype.writeFloatLE = function writeFloatLE(value, offset, noAssert) {
-                    return writeFloat(this, value, offset, true, noAssert);
+                  Buffer2.prototype.writeFloatLE = function writeFloatLE(value, offset2, noAssert) {
+                    return writeFloat(this, value, offset2, true, noAssert);
                   };
-                  Buffer2.prototype.writeFloatBE = function writeFloatBE(value, offset, noAssert) {
-                    return writeFloat(this, value, offset, false, noAssert);
+                  Buffer2.prototype.writeFloatBE = function writeFloatBE(value, offset2, noAssert) {
+                    return writeFloat(this, value, offset2, false, noAssert);
                   };
-                  function writeDouble(buf, value, offset, littleEndian, noAssert) {
+                  function writeDouble(buf, value, offset2, littleEndian, noAssert) {
                     value = +value;
-                    offset = offset >>> 0;
+                    offset2 = offset2 >>> 0;
                     if (!noAssert) {
-                      checkIEEE754(buf, value, offset, 8, 17976931348623157e292, -17976931348623157e292);
+                      checkIEEE754(buf, value, offset2, 8, 17976931348623157e292, -17976931348623157e292);
                     }
-                    ieee754.write(buf, value, offset, littleEndian, 52, 8);
-                    return offset + 8;
+                    ieee754.write(buf, value, offset2, littleEndian, 52, 8);
+                    return offset2 + 8;
                   }
-                  Buffer2.prototype.writeDoubleLE = function writeDoubleLE(value, offset, noAssert) {
-                    return writeDouble(this, value, offset, true, noAssert);
+                  Buffer2.prototype.writeDoubleLE = function writeDoubleLE(value, offset2, noAssert) {
+                    return writeDouble(this, value, offset2, true, noAssert);
                   };
-                  Buffer2.prototype.writeDoubleBE = function writeDoubleBE(value, offset, noAssert) {
-                    return writeDouble(this, value, offset, false, noAssert);
+                  Buffer2.prototype.writeDoubleBE = function writeDoubleBE(value, offset2, noAssert) {
+                    return writeDouble(this, value, offset2, false, noAssert);
                   };
                   Buffer2.prototype.copy = function copy(target, targetStart, start, end) {
                     if (!Buffer2.isBuffer(target)) throw new TypeError("argument should be a Buffer");
@@ -21541,13 +21541,13 @@
                     }
                     return "" + val.slice(0, i) + res;
                   }
-                  function checkBounds(buf, offset, byteLength2) {
-                    validateNumber(offset, "offset");
-                    if (buf[offset] === void 0 || buf[offset + byteLength2] === void 0) {
-                      boundsError(offset, buf.length - (byteLength2 + 1));
+                  function checkBounds(buf, offset2, byteLength2) {
+                    validateNumber(offset2, "offset");
+                    if (buf[offset2] === void 0 || buf[offset2 + byteLength2] === void 0) {
+                      boundsError(offset2, buf.length - (byteLength2 + 1));
                     }
                   }
-                  function checkIntBI(value, min, max2, buf, offset, byteLength2) {
+                  function checkIntBI(value, min, max2, buf, offset2, byteLength2) {
                     if (value > max2 || value < min) {
                       var n = typeof min === "bigint" ? "n" : "";
                       var range;
@@ -21562,7 +21562,7 @@
                       }
                       throw new errors.ERR_OUT_OF_RANGE("value", range, value);
                     }
-                    checkBounds(buf, offset, byteLength2);
+                    checkBounds(buf, offset2, byteLength2);
                   }
                   function validateNumber(value, name) {
                     if (typeof value !== "number") {
@@ -21660,11 +21660,11 @@
                   function base64ToBytes(str) {
                     return base64.toByteArray(base64clean(str));
                   }
-                  function blitBuffer(src, dst, offset, length) {
+                  function blitBuffer(src, dst, offset2, length) {
                     var i;
                     for (i = 0; i < length; ++i) {
-                      if (i + offset >= dst.length || i >= src.length) break;
-                      dst[i + offset] = src[i];
+                      if (i + offset2 >= dst.length || i >= src.length) break;
+                      dst[i + offset2] = src[i];
                     }
                     return i;
                   }
@@ -22213,12 +22213,12 @@
                           }
                           this.blockSize = (1600 - 2 * this.cfg.outputLength) / 32;
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
                           var state = this._state;
                           var nBlockSizeLanes = this.blockSize / 2;
                           for (var i = 0; i < nBlockSizeLanes; i++) {
-                            var M2i = M[offset + 2 * i];
-                            var M2i1 = M[offset + 2 * i + 1];
+                            var M2i = M[offset2 + 2 * i];
+                            var M2i1 = M[offset2 + 2 * i + 1];
                             M2i = (M2i << 8 | M2i >>> 24) & 16711935 | (M2i << 24 | M2i >>> 8) & 4278255360;
                             M2i1 = (M2i1 << 8 | M2i1 >>> 24) & 16711935 | (M2i1 << 24 | M2i1 >>> 8) & 4278255360;
                             var lane = state[i];
@@ -24292,13 +24292,13 @@
                           if (distance_code >= num_direct_distance_codes) {
                             var nbits;
                             var postfix;
-                            var offset;
+                            var offset2;
                             distance_code -= num_direct_distance_codes;
                             postfix = distance_code & distance_postfix_mask;
                             distance_code >>= distance_postfix_bits;
                             nbits = (distance_code >> 1) + 1;
-                            offset = (2 + (distance_code & 1) << nbits) - 4;
-                            distance_code = num_direct_distance_codes + (offset + br.readBits(nbits) << distance_postfix_bits) + postfix;
+                            offset2 = (2 + (distance_code & 1) << nbits) - 4;
+                            distance_code = num_direct_distance_codes + (offset2 + br.readBits(nbits) << distance_postfix_bits) + postfix;
                           }
                         }
                         distance = TranslateShortCodes(distance_code, dist_rb, dist_rb_idx);
@@ -24313,15 +24313,15 @@
                         copy_dst = pos & ringbuffer_mask;
                         if (distance > max_distance) {
                           if (copy_length >= BrotliDictionary.minDictionaryWordLength && copy_length <= BrotliDictionary.maxDictionaryWordLength) {
-                            var offset = BrotliDictionary.offsetsByLength[copy_length];
+                            var offset2 = BrotliDictionary.offsetsByLength[copy_length];
                             var word_id = distance - max_distance - 1;
                             var shift = BrotliDictionary.sizeBitsByLength[copy_length];
                             var mask = (1 << shift) - 1;
                             var word_idx = word_id & mask;
                             var transform_idx = word_id >> shift;
-                            offset += word_idx * copy_length;
+                            offset2 += word_idx * copy_length;
                             if (transform_idx < Transform.kNumTransforms) {
-                              var len = Transform.transformDictionaryWord(ringbuffer, copy_dst, offset, copy_length, transform_idx);
+                              var len = Transform.transformDictionaryWord(ringbuffer, copy_dst, offset2, copy_length, transform_idx);
                               copy_dst += len;
                               pos += len;
                               meta_block_remaining_len -= len;
@@ -26253,24 +26253,24 @@
                             }
                           }
                         },
-                        encryptBlock: function encryptBlock(M, offset) {
-                          this._doCryptBlock(M, offset, this._keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
+                        encryptBlock: function encryptBlock(M, offset2) {
+                          this._doCryptBlock(M, offset2, this._keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
                         },
-                        decryptBlock: function decryptBlock(M, offset) {
-                          var t = M[offset + 1];
-                          M[offset + 1] = M[offset + 3];
-                          M[offset + 3] = t;
-                          this._doCryptBlock(M, offset, this._invKeySchedule, INV_SUB_MIX_0, INV_SUB_MIX_1, INV_SUB_MIX_2, INV_SUB_MIX_3, INV_SBOX);
-                          var t = M[offset + 1];
-                          M[offset + 1] = M[offset + 3];
-                          M[offset + 3] = t;
+                        decryptBlock: function decryptBlock(M, offset2) {
+                          var t = M[offset2 + 1];
+                          M[offset2 + 1] = M[offset2 + 3];
+                          M[offset2 + 3] = t;
+                          this._doCryptBlock(M, offset2, this._invKeySchedule, INV_SUB_MIX_0, INV_SUB_MIX_1, INV_SUB_MIX_2, INV_SUB_MIX_3, INV_SBOX);
+                          var t = M[offset2 + 1];
+                          M[offset2 + 1] = M[offset2 + 3];
+                          M[offset2 + 3] = t;
                         },
-                        _doCryptBlock: function _doCryptBlock(M, offset, keySchedule, SUB_MIX_02, SUB_MIX_12, SUB_MIX_22, SUB_MIX_32, SBOX2) {
+                        _doCryptBlock: function _doCryptBlock(M, offset2, keySchedule, SUB_MIX_02, SUB_MIX_12, SUB_MIX_22, SUB_MIX_32, SBOX2) {
                           var nRounds = this._nRounds;
-                          var s0 = M[offset] ^ keySchedule[0];
-                          var s1 = M[offset + 1] ^ keySchedule[1];
-                          var s2 = M[offset + 2] ^ keySchedule[2];
-                          var s3 = M[offset + 3] ^ keySchedule[3];
+                          var s0 = M[offset2] ^ keySchedule[0];
+                          var s1 = M[offset2 + 1] ^ keySchedule[1];
+                          var s2 = M[offset2 + 2] ^ keySchedule[2];
+                          var s3 = M[offset2 + 3] ^ keySchedule[3];
                           var ksRow = 4;
                           for (var round = 1; round < nRounds; round++) {
                             var t0 = SUB_MIX_02[s0 >>> 24] ^ SUB_MIX_12[s1 >>> 16 & 255] ^ SUB_MIX_22[s2 >>> 8 & 255] ^ SUB_MIX_32[s3 & 255] ^ keySchedule[ksRow++];
@@ -26286,10 +26286,10 @@
                           var t1 = (SBOX2[s1 >>> 24] << 24 | SBOX2[s2 >>> 16 & 255] << 16 | SBOX2[s3 >>> 8 & 255] << 8 | SBOX2[s0 & 255]) ^ keySchedule[ksRow++];
                           var t2 = (SBOX2[s2 >>> 24] << 24 | SBOX2[s3 >>> 16 & 255] << 16 | SBOX2[s0 >>> 8 & 255] << 8 | SBOX2[s1 & 255]) ^ keySchedule[ksRow++];
                           var t3 = (SBOX2[s3 >>> 24] << 24 | SBOX2[s0 >>> 16 & 255] << 16 | SBOX2[s1 >>> 8 & 255] << 8 | SBOX2[s2 & 255]) ^ keySchedule[ksRow++];
-                          M[offset] = t0;
-                          M[offset + 1] = t1;
-                          M[offset + 2] = t2;
-                          M[offset + 3] = t3;
+                          M[offset2] = t0;
+                          M[offset2 + 1] = t1;
+                          M[offset2 + 2] = t2;
+                          M[offset2 + 3] = t3;
                         },
                         keySize: 256 / 32
                       });
@@ -26991,15 +26991,15 @@
                             invSubKeys[i] = subKeys[15 - i];
                           }
                         },
-                        encryptBlock: function encryptBlock(M, offset) {
-                          this._doCryptBlock(M, offset, this._subKeys);
+                        encryptBlock: function encryptBlock(M, offset2) {
+                          this._doCryptBlock(M, offset2, this._subKeys);
                         },
-                        decryptBlock: function decryptBlock(M, offset) {
-                          this._doCryptBlock(M, offset, this._invSubKeys);
+                        decryptBlock: function decryptBlock(M, offset2) {
+                          this._doCryptBlock(M, offset2, this._invSubKeys);
                         },
-                        _doCryptBlock: function _doCryptBlock(M, offset, subKeys) {
-                          this._lBlock = M[offset];
-                          this._rBlock = M[offset + 1];
+                        _doCryptBlock: function _doCryptBlock(M, offset2, subKeys) {
+                          this._lBlock = M[offset2];
+                          this._rBlock = M[offset2 + 1];
                           exchangeLR.call(this, 4, 252645135);
                           exchangeLR.call(this, 16, 65535);
                           exchangeRL.call(this, 2, 858993459);
@@ -27024,22 +27024,22 @@
                           exchangeRL.call(this, 2, 858993459);
                           exchangeLR.call(this, 16, 65535);
                           exchangeLR.call(this, 4, 252645135);
-                          M[offset] = this._lBlock;
-                          M[offset + 1] = this._rBlock;
+                          M[offset2] = this._lBlock;
+                          M[offset2 + 1] = this._rBlock;
                         },
                         keySize: 64 / 32,
                         ivSize: 64 / 32,
                         blockSize: 64 / 32
                       });
-                      function exchangeLR(offset, mask) {
-                        var t = (this._lBlock >>> offset ^ this._rBlock) & mask;
+                      function exchangeLR(offset2, mask) {
+                        var t = (this._lBlock >>> offset2 ^ this._rBlock) & mask;
                         this._rBlock ^= t;
-                        this._lBlock ^= t << offset;
+                        this._lBlock ^= t << offset2;
                       }
-                      function exchangeRL(offset, mask) {
-                        var t = (this._rBlock >>> offset ^ this._lBlock) & mask;
+                      function exchangeRL(offset2, mask) {
+                        var t = (this._rBlock >>> offset2 ^ this._lBlock) & mask;
                         this._lBlock ^= t;
-                        this._rBlock ^= t << offset;
+                        this._rBlock ^= t << offset2;
                       }
                       C.DES = BlockCipher._createHelper(DES);
                       var TripleDES = C_algo.TripleDES = BlockCipher.extend({
@@ -27056,15 +27056,15 @@
                           this._des2 = DES.createEncryptor(WordArray.create(key2));
                           this._des3 = DES.createEncryptor(WordArray.create(key3));
                         },
-                        encryptBlock: function encryptBlock(M, offset) {
-                          this._des1.encryptBlock(M, offset);
-                          this._des2.decryptBlock(M, offset);
-                          this._des3.encryptBlock(M, offset);
+                        encryptBlock: function encryptBlock(M, offset2) {
+                          this._des1.encryptBlock(M, offset2);
+                          this._des2.decryptBlock(M, offset2);
+                          this._des3.encryptBlock(M, offset2);
                         },
-                        decryptBlock: function decryptBlock(M, offset) {
-                          this._des3.decryptBlock(M, offset);
-                          this._des2.encryptBlock(M, offset);
-                          this._des1.decryptBlock(M, offset);
+                        decryptBlock: function decryptBlock(M, offset2) {
+                          this._des3.decryptBlock(M, offset2);
+                          this._des2.encryptBlock(M, offset2);
+                          this._des1.decryptBlock(M, offset2);
                         },
                         keySize: 192 / 32,
                         ivSize: 64 / 32,
@@ -27102,19 +27102,19 @@
                     var src = Buffer2.from(str, "ucs2");
                     var dst = Buffer2.alloc(src.length * 2);
                     var write32 = this.isLE ? dst.writeUInt32LE : dst.writeUInt32BE;
-                    var offset = 0;
+                    var offset2 = 0;
                     for (var i = 0; i < src.length; i += 2) {
                       var code = src.readUInt16LE(i);
                       var isHighSurrogate = 55296 <= code && code < 56320;
                       var isLowSurrogate = 56320 <= code && code < 57344;
                       if (this.highSurrogate) {
                         if (isHighSurrogate || !isLowSurrogate) {
-                          write32.call(dst, this.highSurrogate, offset);
-                          offset += 4;
+                          write32.call(dst, this.highSurrogate, offset2);
+                          offset2 += 4;
                         } else {
                           var codepoint = (this.highSurrogate - 55296 << 10 | code - 56320) + 65536;
-                          write32.call(dst, codepoint, offset);
-                          offset += 4;
+                          write32.call(dst, codepoint, offset2);
+                          offset2 += 4;
                           this.highSurrogate = 0;
                           continue;
                         }
@@ -27122,13 +27122,13 @@
                       if (isHighSurrogate)
                         this.highSurrogate = code;
                       else {
-                        write32.call(dst, code, offset);
-                        offset += 4;
+                        write32.call(dst, code, offset2);
+                        offset2 += 4;
                         this.highSurrogate = 0;
                       }
                     }
-                    if (offset < dst.length)
-                      dst = dst.slice(0, offset);
+                    if (offset2 < dst.length)
+                      dst = dst.slice(0, offset2);
                     return dst;
                   };
                   Utf32Encoder.prototype.end = function() {
@@ -27153,7 +27153,7 @@
                     var i = 0;
                     var codepoint = 0;
                     var dst = Buffer2.alloc(src.length + 4);
-                    var offset = 0;
+                    var offset2 = 0;
                     var isLE = this.isLE;
                     var overflow = this.overflow;
                     var badChar = this.badChar;
@@ -27167,7 +27167,7 @@
                           codepoint = overflow[i + 3] | overflow[i + 2] << 8 | overflow[i + 1] << 16 | overflow[i] << 24;
                         }
                         overflow.length = 0;
-                        offset = _writeCodepoint(dst, offset, codepoint, badChar);
+                        offset2 = _writeCodepoint(dst, offset2, codepoint, badChar);
                       }
                     }
                     for (; i < src.length - 3; i += 4) {
@@ -27176,27 +27176,27 @@
                       } else {
                         codepoint = src[i + 3] | src[i + 2] << 8 | src[i + 1] << 16 | src[i] << 24;
                       }
-                      offset = _writeCodepoint(dst, offset, codepoint, badChar);
+                      offset2 = _writeCodepoint(dst, offset2, codepoint, badChar);
                     }
                     for (; i < src.length; i++) {
                       overflow.push(src[i]);
                     }
-                    return dst.slice(0, offset).toString("ucs2");
+                    return dst.slice(0, offset2).toString("ucs2");
                   };
-                  function _writeCodepoint(dst, offset, codepoint, badChar) {
+                  function _writeCodepoint(dst, offset2, codepoint, badChar) {
                     if (codepoint < 0 || codepoint > 1114111) {
                       codepoint = badChar;
                     }
                     if (codepoint >= 65536) {
                       codepoint -= 65536;
                       var high = 55296 | codepoint >> 10;
-                      dst[offset++] = high & 255;
-                      dst[offset++] = high >> 8;
+                      dst[offset2++] = high & 255;
+                      dst[offset2++] = high >> 8;
                       var codepoint = 56320 | codepoint & 1023;
                     }
-                    dst[offset++] = codepoint & 255;
-                    dst[offset++] = codepoint >> 8;
-                    return offset;
+                    dst[offset2++] = codepoint & 255;
+                    dst[offset2++] = codepoint >> 8;
+                    return offset2;
                   }
                   ;
                   Utf32Decoder.prototype.end = function() {
@@ -27386,8 +27386,8 @@
                   var _require = __webpack_require__2(14598), Buffer2 = _require.Buffer;
                   var _require2 = __webpack_require__2(63779), inspect = _require2.inspect;
                   var custom = inspect && inspect.custom || "inspect";
-                  function copyBuffer(src, target, offset) {
-                    Buffer2.prototype.copy.call(src, target, offset);
+                  function copyBuffer(src, target, offset2) {
+                    Buffer2.prototype.copy.call(src, target, offset2);
                   }
                   module2.exports = /* @__PURE__ */ (function() {
                     function BufferList() {
@@ -29250,13 +29250,13 @@
                     CryptoJS.mode.ECB = (function() {
                       var ECB = CryptoJS.lib.BlockCipherMode.extend();
                       ECB.Encryptor = ECB.extend({
-                        processBlock: function processBlock(words, offset) {
-                          this._cipher.encryptBlock(words, offset);
+                        processBlock: function processBlock(words, offset2) {
+                          this._cipher.encryptBlock(words, offset2);
                         }
                       });
                       ECB.Decryptor = ECB.extend({
-                        processBlock: function processBlock(words, offset) {
-                          this._cipher.decryptBlock(words, offset);
+                        processBlock: function processBlock(words, offset2) {
+                          this._cipher.decryptBlock(words, offset2);
                         }
                       });
                       return ECB;
@@ -30747,7 +30747,7 @@
                         _doReset: function _doReset() {
                           this._hash = new WordArray.init([1732584193, 4023233417, 2562383102, 271733878, 3285377520]);
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
                           var H = this._hash.words;
                           var a = H[0];
                           var b = H[1];
@@ -30756,7 +30756,7 @@
                           var e = H[4];
                           for (var i = 0; i < 80; i++) {
                             if (i < 16) {
-                              W[i] = M[offset + i] | 0;
+                              W[i] = M[offset2 + i] | 0;
                             } else {
                               var n = W[i - 3] ^ W[i - 8] ^ W[i - 14] ^ W[i - 16];
                               W[i] = n << 1 | n >>> 31;
@@ -31107,7 +31107,7 @@
                       throw new Error("Invalid APP Tag.");
                     }
                   };
-                  var IFDHandler = function IFDHandler2(buffer, tagCollection, order, offset) {
+                  var IFDHandler = function IFDHandler2(buffer, tagCollection, order, offset2) {
                     var entriesNumber = order ? buffer.readUInt16BE(0) : buffer.readUInt16LE(0);
                     if (entriesNumber === 0) {
                       return {};
@@ -31141,7 +31141,7 @@
                       var dataLength = componentsNumber * componentsByte;
                       var dataValue = entry.slice(dataValueBegin, dataValueBegin + dataValueLength);
                       if (dataLength > 4) {
-                        var dataOffset = (order ? dataValue.readUInt32BE(0) : dataValue.readUInt32LE(0)) - offset;
+                        var dataOffset = (order ? dataValue.readUInt32BE(0) : dataValue.readUInt32LE(0)) - offset2;
                         dataValue = buffer.slice(dataOffset, dataOffset + dataLength);
                       }
                       var tagValue = void 0;
@@ -31594,8 +31594,8 @@
               42210: (
                 /***/
                 (function(__unused_webpack_module, exports2) {
-                  function PrefixCodeRange(offset, nbits) {
-                    this.offset = offset;
+                  function PrefixCodeRange(offset2, nbits) {
+                    this.offset = offset2;
                     this.nbits = nbits;
                   }
                   exports2.kBlockLengthPrefixCode = [
@@ -34042,7 +34042,7 @@
                     CryptoJS.mode.CTR = (function() {
                       var CTR = CryptoJS.lib.BlockCipherMode.extend();
                       var Encryptor = CTR.Encryptor = CTR.extend({
-                        processBlock: function processBlock(words, offset) {
+                        processBlock: function processBlock(words, offset2) {
                           var cipher = this._cipher;
                           var blockSize = cipher.blockSize;
                           var iv = this._iv;
@@ -34055,7 +34055,7 @@
                           cipher.encryptBlock(keystream, 0);
                           counter[blockSize - 1] = counter[blockSize - 1] + 1 | 0;
                           for (var i = 0; i < blockSize; i++) {
-                            words[offset + i] ^= keystream[i];
+                            words[offset2 + i] ^= keystream[i];
                           }
                         }
                       });
@@ -34570,8 +34570,8 @@
                           var nWordsReady = nBlocksReady * blockSize;
                           var nBytesReady = Math2.min(nWordsReady * 4, dataSigBytes);
                           if (nWordsReady) {
-                            for (var offset = 0; offset < nWordsReady; offset += blockSize) {
-                              this._doProcessBlock(dataWords, offset);
+                            for (var offset2 = 0; offset2 < nWordsReady; offset2 += blockSize) {
+                              this._doProcessBlock(dataWords, offset2);
                             }
                             processedWords = dataWords.splice(0, nWordsReady);
                             data.sigBytes -= nBytesReady;
@@ -35359,12 +35359,12 @@
                            *
                            *     mode.processBlock(data.words, offset);
                            */
-                          processBlock: function processBlock(words, offset) {
+                          processBlock: function processBlock(words, offset2) {
                             var cipher = this._cipher;
                             var blockSize = cipher.blockSize;
-                            xorBlock.call(this, words, offset, blockSize);
-                            cipher.encryptBlock(words, offset);
-                            this._prevBlock = words.slice(offset, offset + blockSize);
+                            xorBlock.call(this, words, offset2, blockSize);
+                            cipher.encryptBlock(words, offset2);
+                            this._prevBlock = words.slice(offset2, offset2 + blockSize);
                           }
                         });
                         CBC2.Decryptor = CBC2.extend({
@@ -35378,16 +35378,16 @@
                            *
                            *     mode.processBlock(data.words, offset);
                            */
-                          processBlock: function processBlock(words, offset) {
+                          processBlock: function processBlock(words, offset2) {
                             var cipher = this._cipher;
                             var blockSize = cipher.blockSize;
-                            var thisBlock = words.slice(offset, offset + blockSize);
-                            cipher.decryptBlock(words, offset);
-                            xorBlock.call(this, words, offset, blockSize);
+                            var thisBlock = words.slice(offset2, offset2 + blockSize);
+                            cipher.decryptBlock(words, offset2);
+                            xorBlock.call(this, words, offset2, blockSize);
                             this._prevBlock = thisBlock;
                           }
                         });
-                        function xorBlock(words, offset, blockSize) {
+                        function xorBlock(words, offset2, blockSize) {
                           var block;
                           var iv = this._iv;
                           if (iv) {
@@ -35397,7 +35397,7 @@
                             block = this._prevBlock;
                           }
                           for (var i = 0; i < blockSize; i++) {
-                            words[offset + i] ^= block[i];
+                            words[offset2 + i] ^= block[i];
                           }
                         }
                         return CBC2;
@@ -35473,8 +35473,8 @@
                             this._mode.__creator = modeCreator;
                           }
                         },
-                        _doProcessBlock: function _doProcessBlock(words, offset) {
-                          this._mode.processBlock(words, offset);
+                        _doProcessBlock: function _doProcessBlock(words, offset2) {
+                          this._mode.processBlock(words, offset2);
                         },
                         _doFinalize: function _doFinalize() {
                           var finalProcessedBlocks;
@@ -35898,7 +35898,7 @@
                         _doReset: function _doReset() {
                           this._hash = new X64WordArray.init([new X64Word.init(1779033703, 4089235720), new X64Word.init(3144134277, 2227873595), new X64Word.init(1013904242, 4271175723), new X64Word.init(2773480762, 1595750129), new X64Word.init(1359893119, 2917565137), new X64Word.init(2600822924, 725511199), new X64Word.init(528734635, 4215389547), new X64Word.init(1541459225, 327033209)]);
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
                           var H = this._hash.words;
                           var H0 = H[0];
                           var H1 = H[1];
@@ -35945,8 +35945,8 @@
                             var Wih;
                             var Wi = W[i];
                             if (i < 16) {
-                              Wih = Wi.high = M[offset + i * 2] | 0;
-                              Wil = Wi.low = M[offset + i * 2 + 1] | 0;
+                              Wih = Wi.high = M[offset2 + i * 2] | 0;
+                              Wil = Wi.low = M[offset2 + i * 2 + 1] | 0;
                             } else {
                               var gamma0x = W[i - 15];
                               var gamma0xh = gamma0x.high;
@@ -36429,23 +36429,23 @@
                     var width = this.context.availableWidth;
                     var lineWidth = line.getWidth();
                     var alignment = line.inlines && line.inlines.length > 0 && line.inlines[0].alignment;
-                    var offset = 0;
+                    var offset2 = 0;
                     switch (alignment) {
                       case "right":
-                        offset = width - lineWidth;
+                        offset2 = width - lineWidth;
                         break;
                       case "center":
-                        offset = (width - lineWidth) / 2;
+                        offset2 = (width - lineWidth) / 2;
                         break;
                     }
-                    if (offset) {
-                      line.x = (line.x || 0) + offset;
+                    if (offset2) {
+                      line.x = (line.x || 0) + offset2;
                     }
                     if (alignment === "justify" && !line.newLineForced && !line.lastLineInParagraph && line.inlines.length > 1) {
                       var additionalSpacing = (width - lineWidth) / (line.inlines.length - 1);
                       for (var i = 1, l = line.inlines.length; i < l; i++) {
-                        offset = i * additionalSpacing;
-                        line.inlines[i].x += offset;
+                        offset2 = i * additionalSpacing;
+                        line.inlines[i].x += offset2;
                         line.inlines[i].justifyShift = additionalSpacing;
                       }
                     }
@@ -36496,34 +36496,34 @@
                   ElementWriter.prototype.alignImage = function(image) {
                     var width = this.context.availableWidth;
                     var imageWidth = image._minWidth;
-                    var offset = 0;
+                    var offset2 = 0;
                     switch (image._alignment) {
                       case "right":
-                        offset = width - imageWidth;
+                        offset2 = width - imageWidth;
                         break;
                       case "center":
-                        offset = (width - imageWidth) / 2;
+                        offset2 = (width - imageWidth) / 2;
                         break;
                     }
-                    if (offset) {
-                      image.x = (image.x || 0) + offset;
+                    if (offset2) {
+                      image.x = (image.x || 0) + offset2;
                     }
                   };
                   ElementWriter.prototype.alignCanvas = function(node) {
                     var width = this.context.availableWidth;
                     var canvasWidth = node._minWidth;
-                    var offset = 0;
+                    var offset2 = 0;
                     switch (node._alignment) {
                       case "right":
-                        offset = width - canvasWidth;
+                        offset2 = width - canvasWidth;
                         break;
                       case "center":
-                        offset = (width - canvasWidth) / 2;
+                        offset2 = (width - canvasWidth) / 2;
                         break;
                     }
-                    if (offset) {
+                    if (offset2) {
                       node.canvas.forEach(function(vector) {
-                        offsetVector(vector, offset, 0);
+                        offsetVector(vector, offset2, 0);
                       });
                     }
                   };
@@ -39284,23 +39284,23 @@
                     CryptoJS.mode.CFB = (function() {
                       var CFB = CryptoJS.lib.BlockCipherMode.extend();
                       CFB.Encryptor = CFB.extend({
-                        processBlock: function processBlock(words, offset) {
+                        processBlock: function processBlock(words, offset2) {
                           var cipher = this._cipher;
                           var blockSize = cipher.blockSize;
-                          generateKeystreamAndEncrypt.call(this, words, offset, blockSize, cipher);
-                          this._prevBlock = words.slice(offset, offset + blockSize);
+                          generateKeystreamAndEncrypt.call(this, words, offset2, blockSize, cipher);
+                          this._prevBlock = words.slice(offset2, offset2 + blockSize);
                         }
                       });
                       CFB.Decryptor = CFB.extend({
-                        processBlock: function processBlock(words, offset) {
+                        processBlock: function processBlock(words, offset2) {
                           var cipher = this._cipher;
                           var blockSize = cipher.blockSize;
-                          var thisBlock = words.slice(offset, offset + blockSize);
-                          generateKeystreamAndEncrypt.call(this, words, offset, blockSize, cipher);
+                          var thisBlock = words.slice(offset2, offset2 + blockSize);
+                          generateKeystreamAndEncrypt.call(this, words, offset2, blockSize, cipher);
                           this._prevBlock = thisBlock;
                         }
                       });
-                      function generateKeystreamAndEncrypt(words, offset, blockSize, cipher) {
+                      function generateKeystreamAndEncrypt(words, offset2, blockSize, cipher) {
                         var keystream;
                         var iv = this._iv;
                         if (iv) {
@@ -39311,7 +39311,7 @@
                         }
                         cipher.encryptBlock(keystream, 0);
                         for (var i = 0; i < blockSize; i++) {
-                          words[offset + i] ^= keystream[i];
+                          words[offset2 + i] ^= keystream[i];
                         }
                       }
                       return CFB;
@@ -42213,22 +42213,22 @@
                             grad = doc.radialGradient(x1, y1, 0, x2, y2, r2 + nAfter * r2);
                           }
                           for (var n = 0; n < nTotal; n++) {
-                            var offset = 0, inOrder = spread !== "reflect" || (n - nBefore) % 2 === 0;
+                            var offset2 = 0, inOrder = spread !== "reflect" || (n - nBefore) % 2 === 0;
                             for (var i2 = 0; i2 < children.length; i2++) {
                               var _child = children[inOrder ? i2 : children.length - 1 - i2], _stopColor = _child.get("stop-color");
                               if (_stopColor === "none") {
                                 _stopColor = DefaultColors.transparent;
                               }
                               _stopColor = opacityToColor(_stopColor, _child.get("stop-opacity") * gOpacity, isMask);
-                              offset = Math.max(offset, inOrder ? _child.getPercent("offset", 0) : 1 - _child.getPercent("offset", 0));
+                              offset2 = Math.max(offset2, inOrder ? _child.getPercent("offset", 0) : 1 - _child.getPercent("offset", 0));
                               if (i2 === 0 && _stopColor[0].length === 4) {
                                 grad._colorSpace = "DeviceCMYK";
                               }
-                              if (i2 === 0 && offset > 0) {
+                              if (i2 === 0 && offset2 > 0) {
                                 grad.stop((n + 0) / nTotal, _stopColor[0], _stopColor[1]);
                               }
-                              grad.stop((n + offset) / (nAfter + nBefore + 1), _stopColor[0], _stopColor[1]);
-                              if (i2 === children.length - 1 && offset < 1) {
+                              grad.stop((n + offset2) / (nAfter + nBefore + 1), _stopColor[0], _stopColor[1]);
+                              if (i2 === children.length - 1 && offset2 < 1) {
                                 grad.stop((n + 1) / nTotal, _stopColor[0], _stopColor[1]);
                               }
                             }
@@ -44684,7 +44684,7 @@
                         return counter;
                       }
                       var Encryptor = CTRGladman.Encryptor = CTRGladman.extend({
-                        processBlock: function processBlock(words, offset) {
+                        processBlock: function processBlock(words, offset2) {
                           var cipher = this._cipher;
                           var blockSize = cipher.blockSize;
                           var iv = this._iv;
@@ -44697,7 +44697,7 @@
                           var keystream = counter.slice(0);
                           cipher.encryptBlock(keystream, 0);
                           for (var i = 0; i < blockSize; i++) {
-                            words[offset + i] ^= keystream[i];
+                            words[offset2 + i] ^= keystream[i];
                           }
                         }
                       });
@@ -44727,13 +44727,13 @@
                   });
                   exportTypedArrayMethod("set", function set(arrayLike) {
                     aTypedArray(this);
-                    var offset = toOffset(arguments.length > 1 ? arguments[1] : void 0, 1);
+                    var offset2 = toOffset(arguments.length > 1 ? arguments[1] : void 0, 1);
                     var length = this.length;
                     var src = toObject(arrayLike);
                     var len = lengthOfArrayLike(src);
                     var index = 0;
-                    if (len + offset > length) throw RangeError2("Wrong length");
-                    while (index < len) this[offset + index] = src[index++];
+                    if (len + offset2 > length) throw RangeError2("Wrong length");
+                    while (index < len) this[offset2 + index] = src[index++];
                   }, FORCED);
                 })
               ),
@@ -44789,7 +44789,7 @@
                         _doReset: function _doReset() {
                           this._hash = new WordArray.init(H.slice(0));
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
                           var H2 = this._hash.words;
                           var a = H2[0];
                           var b = H2[1];
@@ -44801,7 +44801,7 @@
                           var h = H2[7];
                           for (var i = 0; i < 64; i++) {
                             if (i < 16) {
-                              W[i] = M[offset + i] | 0;
+                              W[i] = M[offset2 + i] | 0;
                             } else {
                               var gamma0x = W[i - 15];
                               var gamma0 = (gamma0x << 25 | gamma0x >>> 7) ^ (gamma0x << 14 | gamma0x >>> 18) ^ gamma0x >>> 3;
@@ -45482,29 +45482,29 @@
                         _doReset: function _doReset() {
                           this._hash = new WordArray.init([1732584193, 4023233417, 2562383102, 271733878]);
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
                           for (var i = 0; i < 16; i++) {
-                            var offset_i = offset + i;
+                            var offset_i = offset2 + i;
                             var M_offset_i = M[offset_i];
                             M[offset_i] = (M_offset_i << 8 | M_offset_i >>> 24) & 16711935 | (M_offset_i << 24 | M_offset_i >>> 8) & 4278255360;
                           }
                           var H = this._hash.words;
-                          var M_offset_0 = M[offset + 0];
-                          var M_offset_1 = M[offset + 1];
-                          var M_offset_2 = M[offset + 2];
-                          var M_offset_3 = M[offset + 3];
-                          var M_offset_4 = M[offset + 4];
-                          var M_offset_5 = M[offset + 5];
-                          var M_offset_6 = M[offset + 6];
-                          var M_offset_7 = M[offset + 7];
-                          var M_offset_8 = M[offset + 8];
-                          var M_offset_9 = M[offset + 9];
-                          var M_offset_10 = M[offset + 10];
-                          var M_offset_11 = M[offset + 11];
-                          var M_offset_12 = M[offset + 12];
-                          var M_offset_13 = M[offset + 13];
-                          var M_offset_14 = M[offset + 14];
-                          var M_offset_15 = M[offset + 15];
+                          var M_offset_0 = M[offset2 + 0];
+                          var M_offset_1 = M[offset2 + 1];
+                          var M_offset_2 = M[offset2 + 2];
+                          var M_offset_3 = M[offset2 + 3];
+                          var M_offset_4 = M[offset2 + 4];
+                          var M_offset_5 = M[offset2 + 5];
+                          var M_offset_6 = M[offset2 + 6];
+                          var M_offset_7 = M[offset2 + 7];
+                          var M_offset_8 = M[offset2 + 8];
+                          var M_offset_9 = M[offset2 + 9];
+                          var M_offset_10 = M[offset2 + 10];
+                          var M_offset_11 = M[offset2 + 11];
+                          var M_offset_12 = M[offset2 + 12];
+                          var M_offset_13 = M[offset2 + 13];
+                          var M_offset_14 = M[offset2 + 14];
+                          var M_offset_15 = M[offset2 + 15];
                           var a = H[0];
                           var b = H[1];
                           var c = H[2];
@@ -47785,15 +47785,15 @@
                           var keySize = key.sigBytes / 4;
                           BlowFishInit(BLOWFISH_CTX, keyWords, keySize);
                         },
-                        encryptBlock: function encryptBlock(M, offset) {
-                          var res = BlowFish_Encrypt(BLOWFISH_CTX, M[offset], M[offset + 1]);
-                          M[offset] = res.left;
-                          M[offset + 1] = res.right;
+                        encryptBlock: function encryptBlock(M, offset2) {
+                          var res = BlowFish_Encrypt(BLOWFISH_CTX, M[offset2], M[offset2 + 1]);
+                          M[offset2] = res.left;
+                          M[offset2 + 1] = res.right;
                         },
-                        decryptBlock: function decryptBlock(M, offset) {
-                          var res = BlowFish_Decrypt(BLOWFISH_CTX, M[offset], M[offset + 1]);
-                          M[offset] = res.left;
-                          M[offset + 1] = res.right;
+                        decryptBlock: function decryptBlock(M, offset2) {
+                          var res = BlowFish_Decrypt(BLOWFISH_CTX, M[offset2], M[offset2 + 1]);
+                          M[offset2] = res.left;
+                          M[offset2 + 1] = res.right;
                         },
                         blockSize: 64 / 32,
                         keySize: 128 / 32,
@@ -48442,7 +48442,7 @@
                             }
                           }
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
                           var X = this._X;
                           nextState.call(this);
                           S[0] = X[0] ^ X[5] >>> 16 ^ X[3] << 16;
@@ -48451,7 +48451,7 @@
                           S[3] = X[6] ^ X[3] >>> 16 ^ X[1] << 16;
                           for (var i = 0; i < 4; i++) {
                             S[i] = (S[i] << 8 | S[i] >>> 24) & 16711935 | (S[i] << 24 | S[i] >>> 8) & 4278255360;
-                            M[offset + i] ^= S[i];
+                            M[offset2 + i] ^= S[i];
                           }
                         },
                         blockSize: 128 / 32,
@@ -48882,11 +48882,11 @@
                   DocumentContext.prototype.resetMarginXTopParent = function() {
                     this.marginXTopParent = null;
                   };
-                  DocumentContext.prototype.beginColumn = function(width, offset, endingCell) {
+                  DocumentContext.prototype.beginColumn = function(width, offset2, endingCell) {
                     var saved = this.snapshots[this.snapshots.length - 1];
                     this.calculateBottomMost(saved, endingCell);
                     this.page = saved.page;
-                    this.x = this.x + this.lastColumnWidth + (offset || 0);
+                    this.x = this.x + this.lastColumnWidth + (offset2 || 0);
                     this.y = saved.y;
                     this.availableWidth = width;
                     this.availableHeight = saved.availableHeight;
@@ -48945,9 +48945,9 @@
                     this.x += left;
                     this.availableWidth -= left + (right || 0);
                   };
-                  DocumentContext.prototype.moveDown = function(offset) {
-                    this.y += offset;
-                    this.availableHeight -= offset;
+                  DocumentContext.prototype.moveDown = function(offset2) {
+                    this.y += offset2;
+                    this.availableHeight -= offset2;
                     return this.availableHeight > 0;
                   };
                   DocumentContext.prototype.initializePage = function() {
@@ -49985,9 +49985,9 @@
                   var toPositiveInteger = __webpack_require__2(64913);
                   var RangeError2 = global.RangeError;
                   module2.exports = function(it, BYTES) {
-                    var offset = toPositiveInteger(it);
-                    if (offset % BYTES) throw RangeError2("Wrong offset");
-                    return offset;
+                    var offset2 = toPositiveInteger(it);
+                    if (offset2 % BYTES) throw RangeError2("Wrong offset");
+                    return offset2;
                   };
                 })
               ),
@@ -50592,24 +50592,24 @@
                     var total_size;
                     var sorted;
                     var count = new Int32Array(MAX_LENGTH + 1);
-                    var offset = new Int32Array(MAX_LENGTH + 1);
+                    var offset2 = new Int32Array(MAX_LENGTH + 1);
                     sorted = new Int32Array(code_lengths_size);
                     for (symbol = 0; symbol < code_lengths_size; symbol++) {
                       count[code_lengths[symbol]]++;
                     }
-                    offset[1] = 0;
+                    offset2[1] = 0;
                     for (len = 1; len < MAX_LENGTH; len++) {
-                      offset[len + 1] = offset[len] + count[len];
+                      offset2[len + 1] = offset2[len] + count[len];
                     }
                     for (symbol = 0; symbol < code_lengths_size; symbol++) {
                       if (code_lengths[symbol] !== 0) {
-                        sorted[offset[code_lengths[symbol]]++] = symbol;
+                        sorted[offset2[code_lengths[symbol]]++] = symbol;
                       }
                     }
                     table_bits = root_bits;
                     table_size = 1 << table_bits;
                     total_size = table_size;
-                    if (offset[MAX_LENGTH] === 1) {
+                    if (offset2[MAX_LENGTH] === 1) {
                       for (key = 0; key < total_size; ++key) {
                         root_table[table + key] = new HuffmanCode(0, sorted[0] & 65535);
                       }
@@ -51571,19 +51571,19 @@
                       anInstance(this, DataViewPrototype);
                       anInstance(buffer, ArrayBufferPrototype);
                       var bufferLength = getInternalState(buffer).byteLength;
-                      var offset = toIntegerOrInfinity(byteOffset);
-                      if (offset < 0 || offset > bufferLength) throw RangeError2("Wrong offset");
-                      byteLength = byteLength === void 0 ? bufferLength - offset : toLength(byteLength);
-                      if (offset + byteLength > bufferLength) throw RangeError2(WRONG_LENGTH);
+                      var offset2 = toIntegerOrInfinity(byteOffset);
+                      if (offset2 < 0 || offset2 > bufferLength) throw RangeError2("Wrong offset");
+                      byteLength = byteLength === void 0 ? bufferLength - offset2 : toLength(byteLength);
+                      if (offset2 + byteLength > bufferLength) throw RangeError2(WRONG_LENGTH);
                       setInternalState(this, {
                         buffer,
                         byteLength,
-                        byteOffset: offset
+                        byteOffset: offset2
                       });
                       if (!DESCRIPTORS) {
                         this.buffer = buffer;
                         this.byteLength = byteLength;
-                        this.byteOffset = offset;
+                        this.byteOffset = offset2;
                       }
                     };
                     DataViewPrototype = $DataView[PROTOTYPE];
@@ -53309,8 +53309,8 @@
                     if (a.byteLength !== b.byteLength) {
                       return false;
                     }
-                    for (var offset = 0; offset < a.byteLength; offset++) {
-                      if (a[offset] !== b[offset]) {
+                    for (var offset2 = 0; offset2 < a.byteLength; offset2++) {
+                      if (a[offset2] !== b[offset2]) {
                         return false;
                       }
                     }
@@ -54880,7 +54880,7 @@
               89029: (
                 /***/
                 (function(__unused_webpack_module, exports2) {
-                  exports2.read = function(buffer, offset, isLE, mLen, nBytes) {
+                  exports2.read = function(buffer, offset2, isLE, mLen, nBytes) {
                     var e, m;
                     var eLen = nBytes * 8 - mLen - 1;
                     var eMax = (1 << eLen) - 1;
@@ -54888,17 +54888,17 @@
                     var nBits = -7;
                     var i = isLE ? nBytes - 1 : 0;
                     var d = isLE ? -1 : 1;
-                    var s = buffer[offset + i];
+                    var s = buffer[offset2 + i];
                     i += d;
                     e = s & (1 << -nBits) - 1;
                     s >>= -nBits;
                     nBits += eLen;
-                    for (; nBits > 0; e = e * 256 + buffer[offset + i], i += d, nBits -= 8) {
+                    for (; nBits > 0; e = e * 256 + buffer[offset2 + i], i += d, nBits -= 8) {
                     }
                     m = e & (1 << -nBits) - 1;
                     e >>= -nBits;
                     nBits += mLen;
-                    for (; nBits > 0; m = m * 256 + buffer[offset + i], i += d, nBits -= 8) {
+                    for (; nBits > 0; m = m * 256 + buffer[offset2 + i], i += d, nBits -= 8) {
                     }
                     if (e === 0) {
                       e = 1 - eBias;
@@ -54910,7 +54910,7 @@
                     }
                     return (s ? -1 : 1) * m * Math.pow(2, e - mLen);
                   };
-                  exports2.write = function(buffer, value, offset, isLE, mLen, nBytes) {
+                  exports2.write = function(buffer, value, offset2, isLE, mLen, nBytes) {
                     var e, m, c;
                     var eLen = nBytes * 8 - mLen - 1;
                     var eMax = (1 << eLen) - 1;
@@ -54949,13 +54949,13 @@
                         e = 0;
                       }
                     }
-                    for (; mLen >= 8; buffer[offset + i] = m & 255, i += d, m /= 256, mLen -= 8) {
+                    for (; mLen >= 8; buffer[offset2 + i] = m & 255, i += d, m /= 256, mLen -= 8) {
                     }
                     e = e << mLen | m;
                     eLen += mLen;
-                    for (; eLen > 0; buffer[offset + i] = e & 255, i += d, e /= 256, eLen -= 8) {
+                    for (; eLen > 0; buffer[offset2 + i] = e & 255, i += d, e /= 256, eLen -= 8) {
                     }
-                    buffer[offset + i - d] |= s * 128;
+                    buffer[offset2 + i - d] |= s * 128;
                   };
                 })
               ),
@@ -55257,9 +55257,9 @@
                   TableProcessor.prototype.onRowBreak = function(rowIndex, writer) {
                     var self2 = this;
                     return function() {
-                      var offset = self2.rowPaddingTop + (!self2.headerRows ? self2.topLineWidth : 0);
+                      var offset2 = self2.rowPaddingTop + (!self2.headerRows ? self2.topLineWidth : 0);
                       writer.context().availableHeight -= self2.reservedAtBottom;
-                      writer.context().moveDown(offset);
+                      writer.context().moveDown(offset2);
                     };
                   };
                   TableProcessor.prototype.beginRow = function(rowIndex, writer) {
@@ -55289,7 +55289,7 @@
                       if (style && style.dash) {
                         dash = style.dash;
                       }
-                      var offset = lineWidth / 2;
+                      var offset2 = lineWidth / 2;
                       var currentLine = null;
                       var body = this.tableNode.table.body;
                       var cellAbove;
@@ -55351,7 +55351,7 @@
                             currentLine.width += this.rowSpanData[i].width || 0;
                           }
                         }
-                        var y = (overrideY || 0) + offset;
+                        var y = (overrideY || 0) + offset2;
                         if (shouldDrawLine) {
                           if (currentLine && currentLine.width) {
                             writer.addVector({
@@ -61453,9 +61453,9 @@
                       this._write("0 " + (this._offsets.length + 1));
                       this._write("0000000000 65535 f ");
                       for (var _iterator11 = _createForOfIteratorHelperLoose(this._offsets), _step11; !(_step11 = _iterator11()).done; ) {
-                        var offset = _step11.value;
-                        offset = ("0000000000" + offset).slice(-10);
-                        this._write(offset + " 00000 n ");
+                        var offset2 = _step11.value;
+                        offset2 = ("0000000000" + offset2).slice(-10);
+                        this._write(offset2 + " 00000 n ");
                       }
                       var trailer = {
                         Size: this._offsets.length + 1,
@@ -62552,8 +62552,8 @@
                           }
                           this._i = this._j = 0;
                         },
-                        _doProcessBlock: function _doProcessBlock(M, offset) {
-                          M[offset] ^= generateKeystreamWord.call(this);
+                        _doProcessBlock: function _doProcessBlock(M, offset2) {
+                          M[offset2] ^= generateKeystreamWord.call(this);
                         },
                         keySize: 256 / 32,
                         ivSize: 0
@@ -63519,7 +63519,7 @@
                         });
                       };
                       if (!NATIVE_ARRAY_BUFFER_VIEWS) {
-                        TypedArrayConstructor = wrapper(function(that, data, offset, $length) {
+                        TypedArrayConstructor = wrapper(function(that, data, offset2, $length) {
                           anInstance(that, TypedArrayConstructorPrototype);
                           var index = 0;
                           var byteOffset = 0;
@@ -63530,7 +63530,7 @@
                             buffer = new ArrayBuffer2(byteLength);
                           } else if (isArrayBuffer(data)) {
                             buffer = data;
-                            byteOffset = toOffset(offset, BYTES);
+                            byteOffset = toOffset(offset2, BYTES);
                             var $len = data.byteLength;
                             if ($length === void 0) {
                               if ($len % BYTES) throw RangeError2(WRONG_LENGTH);
@@ -71307,12 +71307,12 @@
           this.refUpdate = false;
           this.clearTag();
         };
-        AbstractTags2.prototype.reset = function(offset) {
-          if (offset === void 0) {
-            offset = 0;
+        AbstractTags2.prototype.reset = function(offset2) {
+          if (offset2 === void 0) {
+            offset2 = 0;
           }
           this.resetTag();
-          this.counter = this.allCounter = offset;
+          this.counter = this.allCounter = offset2;
           this.allLabels = {};
           this.allIds = {};
         };
@@ -84074,12 +84074,12 @@
           class_1.prototype.getRootDimens = function(sbox, H) {
             var surd = this.childNodes[this.surd];
             var bbox = this.childNodes[this.root].getOuterBBox();
-            var offset = (surd.size < 0 ? 0.5 : 0.6) * sbox.w;
+            var offset2 = (surd.size < 0 ? 0.5 : 0.6) * sbox.w;
             var w = bbox.w, rscale = bbox.rscale;
-            var W = Math.max(w, offset / rscale);
+            var W = Math.max(w, offset2 / rscale);
             var dx = Math.max(0, W - w);
             var h = this.rootHeight(bbox, sbox, surd.size, H);
-            var x = W * rscale - offset;
+            var x = W * rscale - offset2;
             return [x, h, dx];
           };
           class_1.prototype.rootHeight = function(rbox, sbox, size, H) {
@@ -87023,14 +87023,14 @@
               y += space[j] + (equal ? HD : H[j] + D[j]) + space[j + 1] + this.rLines[j];
             }
             var _b2 = __read(equal ? [(HD + H[i] - D[i]) / 2, (HD - H[i] + D[i]) / 2] : [H[i], D[i]], 2), h = _b2[0], d = _b2[1];
-            var offset = {
+            var offset2 = {
               top: 0,
               center: space[i] + (h + d) / 2,
               bottom: space[i] + h + d + space[i + 1],
               baseline: space[i] + h,
               axis: space[i] + h - 0.25
             };
-            y += offset[align] || 0;
+            y += offset2[align] || 0;
             return y;
           };
           class_1.prototype.getEmHalfSpacing = function(fspace, space, scale) {
@@ -88936,9 +88936,9 @@
           return [name + "arrow", {
             renderer: function(node, _child) {
               var _a4 = node.getBBox(), w = _a4.w, h = _a4.h, d = _a4.d;
-              var _b2 = __read(isVertical ? [h + d, "X"] : [w, "Y"], 2), W = _b2[0], offset = _b2[1];
-              var dd = node.getOffset(offset);
-              var arrow = node.arrow(W, angle, double, offset, dd);
+              var _b2 = __read(isVertical ? [h + d, "X"] : [w, "Y"], 2), W = _b2[0], offset2 = _b2[1];
+              var dd = node.getOffset(offset2);
+              var arrow = node.arrow(W, angle, double, offset2, dd);
               render(node, arrow);
             },
             bbox: exports.arrowBBox[name],
@@ -89340,20 +89340,20 @@
           return [t, h - t, w - t, t - d];
         }
       };
-      var lineData = function(node, kind, offset) {
-        if (offset === void 0) {
-          offset = "";
+      var lineData = function(node, kind, offset2) {
+        if (offset2 === void 0) {
+          offset2 = "";
         }
         var _a3 = node.getBBox(), h = _a3.h, d = _a3.d, w = _a3.w;
         var t = node.thickness / 2;
-        return (0, exports.lineOffset)(exports.computeLineData[kind](h, d, w, t), node, offset);
+        return (0, exports.lineOffset)(exports.computeLineData[kind](h, d, w, t), node, offset2);
       };
       exports.lineData = lineData;
-      var lineOffset = function(data, node, offset) {
-        if (offset) {
-          var d = node.getOffset(offset);
+      var lineOffset = function(data, node, offset2) {
+        if (offset2) {
+          var d = node.getOffset(offset2);
           if (d) {
-            if (offset === "X") {
+            if (offset2 === "X") {
               data[0] -= d;
               data[2] -= d;
             } else {
@@ -89365,12 +89365,12 @@
         return data;
       };
       exports.lineOffset = lineOffset;
-      var RenderLine = function(line, offset) {
-        if (offset === void 0) {
-          offset = "";
+      var RenderLine = function(line, offset2) {
+        if (offset2 === void 0) {
+          offset2 = "";
         }
         return (function(node, _child) {
-          var L = node.line((0, exports.lineData)(node, line, offset));
+          var L = node.line((0, exports.lineData)(node, line, offset2));
           node.adaptor.append(node.element, L);
         });
       };
@@ -89607,9 +89607,9 @@
             }
           }
         };
-        SVGmenclose2.prototype.arrow = function(W, a, double, offset, dist) {
-          if (offset === void 0) {
-            offset = "";
+        SVGmenclose2.prototype.arrow = function(W, a, double, offset2, dist) {
+          if (offset2 === void 0) {
+            offset2 = "";
           }
           if (dist === void 0) {
             dist = 0;
@@ -89623,7 +89623,7 @@
           var arrow = double ? this.fill("M", w + dw, m, "l", -(x + dx), y, "l", dx, t2 - y, "L", x - dw, m + t2, "l", dx, y - t2, "l", -(x + dx), -y, "l", x + dx, -y, "l", -dx, y - t2, "L", w + dw - x, m - t2, "l", -dx, t2 - y, "Z") : this.fill("M", w + dw, m, "l", -(x + dx), y, "l", dx, t2 - y, "L", -dw, m + t2, "l", 0, -t, "L", w + dw - x, m - t2, "l", -dx, t2 - y, "Z");
           var transform = [];
           if (dist) {
-            transform.push(offset === "X" ? "translate(".concat(this.fixed(-dist), " 0)") : "translate(0 ".concat(this.fixed(dist), ")"));
+            transform.push(offset2 === "X" ? "translate(".concat(this.fixed(-dist), " 0)") : "translate(0 ".concat(this.fixed(dist), ")"));
           }
           if (a) {
             var A = this.jax.fixed(-a * 180 / Math.PI);
@@ -101151,15 +101151,56 @@
     };
   }
 
+  // src/modules/image-box.js
+  function offset(position, free) {
+    if (!position) return free / 2;
+    if (position === "center") return free / 2;
+    if (/^(left|top)$/.test(position)) return 0;
+    if (/^(right|bottom)$/.test(position)) return free;
+    const terms = position.replace(/\s+/g, "").match(/[+-]?(?:\d*\.)?\d+(?:%|px)/g);
+    return terms ? terms.reduce(
+      (n, term) => n + parseFloat(term) * (term.endsWith("%") ? free / 100 : 1),
+      0
+    ) : free / 2;
+  }
+  function imagePlacement(box, rasterWidth, rasterHeight) {
+    const { width, height } = box.crop || box, dx = box.crop?.x || 0, dy = box.crop?.y || 0;
+    const { fit } = box;
+    if (fit === "fill") return { x: -dx, y: -dy, width, height };
+    const w = box.naturalWidth || rasterWidth, h = box.naturalHeight || rasterHeight;
+    const ratio = fit === "cover" ? Math.max(width / w, height / h) : fit === "none" ? 1 : Math.min(width / w, height / h, fit === "scale-down" ? 1 : Infinity);
+    const drawnWidth = w * ratio, drawnHeight = h * ratio;
+    const [x, y] = (box.position || "").match(/calc\([^)]*\)|[^\s]+/g) || [];
+    return {
+      x: offset(x, width - drawnWidth) - dx,
+      y: offset(y, height - drawnHeight) - dy,
+      width: drawnWidth,
+      height: drawnHeight
+    };
+  }
+  function rasterViewport(x, y, box, placement, data) {
+    return `<svg x="${x}" y="${y}" width="${box.width}" height="${box.height}" overflow="hidden"><image x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" preserveAspectRatio="none" href="${data}"/></svg>`;
+  }
+
   // src/modules/html-layout.js
   var escaped = (t) => String(t).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   function printableLayoutSVG(block) {
     return block.svg.replace(/<!--asset-(\d+)-->/g, (_, n) => {
       const a = block.assets[n];
       if (!a) return "";
-      if (a.data)
+      const box = a.display || a;
+      if (a.data && !a.display)
         return `<image x="${a.x}" y="${a.y}" width="${a.width}" height="${a.height}" preserveAspectRatio="${a.fit}" href="${a.data}"/>`;
-      return `<text x="${a.x}" y="${a.y + Math.min(12, a.height)}" font-size="10">${escaped(a.alt)}</text>`;
+      if (a.data)
+        return rasterViewport(
+          a.x,
+          a.y,
+          box,
+          imagePlacement(box, a.rasterWidth, a.rasterHeight),
+          a.data
+        );
+      const size = Math.min(14, box.width, box.height);
+      return `<svg x="${a.x + (box.width - size) / 2}" y="${a.y + (box.height - size) / 2}" width="${size}" height="${size}" viewBox="0 0 16 16"><title>${escaped(a.alt)}</title><g fill="none" stroke="#888" stroke-width="1"><rect x="1" y="2" width="14" height="12" rx="1"/><path d="m2 12 4-5 3 3 2-2 3 4"/></g></svg>`;
     });
   }
 
@@ -101229,7 +101270,7 @@
     let unreadable = false;
     function walk(bs) {
       for (const b of bs) {
-        if (b.type === "image" && !b.image?.data || b.assets?.some((a) => !a.data))
+        if (b.type === "image" && !b.image?.display?.hidden && !b.image?.data || b.assets?.some((a) => !a.data))
           unreadable = true;
         if (b.type === "table" && b.rows.some((r) => r.some((c) => c.colSpan > 1 || c.rowSpan > 1)))
           spans = true;
@@ -101439,28 +101480,28 @@
      * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    write(input, offset) {
+    write(input, offset2) {
       switch (this.state) {
         case EntityDecoderState.EntityStart: {
-          if (input.charCodeAt(offset) === CharCodes.NUM) {
+          if (input.charCodeAt(offset2) === CharCodes.NUM) {
             this.state = EntityDecoderState.NumericStart;
             this.consumed += 1;
-            return this.stateNumericStart(input, offset + 1);
+            return this.stateNumericStart(input, offset2 + 1);
           }
           this.state = EntityDecoderState.NamedEntity;
-          return this.stateNamedEntity(input, offset);
+          return this.stateNamedEntity(input, offset2);
         }
         case EntityDecoderState.NumericStart: {
-          return this.stateNumericStart(input, offset);
+          return this.stateNumericStart(input, offset2);
         }
         case EntityDecoderState.NumericDecimal: {
-          return this.stateNumericDecimal(input, offset);
+          return this.stateNumericDecimal(input, offset2);
         }
         case EntityDecoderState.NumericHex: {
-          return this.stateNumericHex(input, offset);
+          return this.stateNumericHex(input, offset2);
         }
         case EntityDecoderState.NamedEntity: {
-          return this.stateNamedEntity(input, offset);
+          return this.stateNamedEntity(input, offset2);
         }
       }
     }
@@ -101473,17 +101514,17 @@
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    stateNumericStart(input, offset) {
-      if (offset >= input.length) {
+    stateNumericStart(input, offset2) {
+      if (offset2 >= input.length) {
         return -1;
       }
-      if ((input.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+      if ((input.charCodeAt(offset2) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
         this.state = EntityDecoderState.NumericHex;
         this.consumed += 1;
-        return this.stateNumericHex(input, offset + 1);
+        return this.stateNumericHex(input, offset2 + 1);
       }
       this.state = EntityDecoderState.NumericDecimal;
-      return this.stateNumericDecimal(input, offset);
+      return this.stateNumericDecimal(input, offset2);
     }
     addToNumericResult(input, start, end, base2) {
       if (start !== end) {
@@ -101501,18 +101542,18 @@
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    stateNumericHex(input, offset) {
-      const startIndex = offset;
-      while (offset < input.length) {
-        const char = input.charCodeAt(offset);
+    stateNumericHex(input, offset2) {
+      const startIndex = offset2;
+      while (offset2 < input.length) {
+        const char = input.charCodeAt(offset2);
         if (isNumber(char) || isHexadecimalCharacter(char)) {
-          offset += 1;
+          offset2 += 1;
         } else {
-          this.addToNumericResult(input, startIndex, offset, 16);
+          this.addToNumericResult(input, startIndex, offset2, 16);
           return this.emitNumericEntity(char, 3);
         }
       }
-      this.addToNumericResult(input, startIndex, offset, 16);
+      this.addToNumericResult(input, startIndex, offset2, 16);
       return -1;
     }
     /**
@@ -101524,18 +101565,18 @@
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    stateNumericDecimal(input, offset) {
-      const startIndex = offset;
-      while (offset < input.length) {
-        const char = input.charCodeAt(offset);
+    stateNumericDecimal(input, offset2) {
+      const startIndex = offset2;
+      while (offset2 < input.length) {
+        const char = input.charCodeAt(offset2);
         if (isNumber(char)) {
-          offset += 1;
+          offset2 += 1;
         } else {
-          this.addToNumericResult(input, startIndex, offset, 10);
+          this.addToNumericResult(input, startIndex, offset2, 10);
           return this.emitNumericEntity(char, 2);
         }
       }
-      this.addToNumericResult(input, startIndex, offset, 10);
+      this.addToNumericResult(input, startIndex, offset2, 10);
       return -1;
     }
     /**
@@ -101580,12 +101621,12 @@
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    stateNamedEntity(input, offset) {
+    stateNamedEntity(input, offset2) {
       const { decodeTree } = this;
       let current = decodeTree[this.treeIndex];
       let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-      for (; offset < input.length; offset++, this.excess++) {
-        const char = input.charCodeAt(offset);
+      for (; offset2 < input.length; offset2++, this.excess++) {
+        const char = input.charCodeAt(offset2);
         this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
         if (this.treeIndex < 0) {
           return this.result === 0 || // If we are parsing an attribute
@@ -101673,21 +101714,21 @@
     const decoder = new EntityDecoder(decodeTree, (data) => returnValue += fromCodePoint(data));
     return function decodeWithTrie(input, decodeMode) {
       let lastIndex = 0;
-      let offset = 0;
-      while ((offset = input.indexOf("&", offset)) >= 0) {
-        returnValue += input.slice(lastIndex, offset);
+      let offset2 = 0;
+      while ((offset2 = input.indexOf("&", offset2)) >= 0) {
+        returnValue += input.slice(lastIndex, offset2);
         decoder.startEntity(decodeMode);
         const length = decoder.write(
           input,
           // Skip the "&"
-          offset + 1
+          offset2 + 1
         );
         if (length < 0) {
-          lastIndex = offset + decoder.end();
+          lastIndex = offset2 + decoder.end();
           break;
         }
-        lastIndex = offset + length;
-        offset = length === 0 ? lastIndex + 1 : lastIndex;
+        lastIndex = offset2 + length;
+        offset2 = length === 0 ? lastIndex + 1 : lastIndex;
       }
       const result = returnValue + input.slice(lastIndex);
       returnValue = "";
@@ -103588,6 +103629,7 @@
       }
       if (b.type === "image") {
         const im = b.image;
+        if (im.display?.hidden) return [];
         if (!im.data)
           return {
             text: `[Image unavailable: ${im.alt}]`,
@@ -103597,11 +103639,25 @@
           };
         const maxWidth = s.equationWidth || (s.orientation === "landscape" ? 842 : 595) - 2 * s.margin;
         const maxHeight = (s.orientation === "landscape" ? 595 : 842) - 2 * s.margin - 25;
-        const scale = Math.min(0.75, maxWidth / im.width, maxHeight / im.height);
+        const box = im.display || {
+          width: im.width,
+          height: im.height,
+          fit: "fill"
+        };
+        const scale = Math.min(
+          0.75,
+          maxWidth / box.width,
+          maxHeight / box.height
+        );
+        const paint2 = imagePlacement(box, im.width, im.height);
+        const fillsBox = Math.abs(paint2.width - box.width) < 0.01 && Math.abs(paint2.height - box.height) < 0.01 && Math.abs(paint2.x) < 0.01 && Math.abs(paint2.y) < 0.01;
         return {
-          image: im.data,
-          width: im.width * scale,
-          height: im.height * scale,
+          ...fillsBox ? { image: im.data } : {
+            svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box.width} ${box.height}">${rasterViewport(0, 0, box, paint2, im.data)}</svg>`
+          },
+          width: box.width * scale,
+          height: box.height * scale,
+          link: im.link,
           margin: [0, 4, 0, 8]
         };
       }
@@ -105989,7 +106045,7 @@
     name: "wp:posOffset",
     children: [offsetValue.toString()]
   });
-  var createHorizontalPosition = ({ relative, align, offset }) => new BuilderElement({
+  var createHorizontalPosition = ({ relative, align, offset: offset2 }) => new BuilderElement({
     name: "wp:positionH",
     attributes: { relativeFrom: {
       key: "relativeFrom",
@@ -105997,11 +106053,11 @@
     } },
     children: [(() => {
       if (align) return createAlign(align);
-      else if (offset !== void 0) return createPositionOffset(offset);
+      else if (offset2 !== void 0) return createPositionOffset(offset2);
       else throw new Error("There is no configuration provided for floating position (Align or offset)");
     })()]
   });
-  var createVerticalPosition = ({ relative, align, offset }) => new BuilderElement({
+  var createVerticalPosition = ({ relative, align, offset: offset2 }) => new BuilderElement({
     name: "wp:positionV",
     attributes: { relativeFrom: {
       key: "relativeFrom",
@@ -106009,7 +106065,7 @@
     } },
     children: [(() => {
       if (align) return createAlign(align);
-      else if (offset !== void 0) return createPositionOffset(offset);
+      else if (offset2 !== void 0) return createPositionOffset(offset2);
       else throw new Error("There is no configuration provided for floating position (Align or offset)");
     })()]
   });
@@ -114730,8 +114786,8 @@
     * @param offset - Starting offset for relationship IDs
     * @returns XML string with placeholders replaced by relationship IDs
     */
-    replace(xmlData, images, offset) {
-      return replacePlaceholders(xmlData, new Map(images.map((image, i) => [image.key, (offset + i).toString()])));
+    replace(xmlData, images, offset2) {
+      return replacePlaceholders(xmlData, new Map(images.map((image, i) => [image.key, (offset2 + i).toString()])));
     }
     /**
     * Finds the images referenced in the XML content.
@@ -116315,13 +116371,13 @@
     stream.on("error", reject);
     stream.on("end", () => {
       const bytes = new Uint8Array(chunks.reduce((length, chunk) => length + (typeof chunk === "number" ? 1 : chunk.length), 0));
-      chunks.reduce((offset, chunk) => {
+      chunks.reduce((offset2, chunk) => {
         if (typeof chunk === "number") {
-          bytes[offset] = chunk;
-          return offset + 1;
+          bytes[offset2] = chunk;
+          return offset2 + 1;
         }
-        bytes.set(chunk, offset);
-        return offset + chunk.length;
+        bytes.set(chunk, offset2);
+        return offset2 + chunk.length;
       }, 0);
       resolve2(bytes);
     });
@@ -117950,7 +118006,7 @@
       clearTimeout(jobs.get(key)?.timer);
       jobs.delete(key);
     }
-    function append({ key, owner, offset, bytes, chunk }) {
+    function append({ key, owner, offset: offset2, bytes, chunk }) {
       if (typeof key !== "string" || key.length > 64 || typeof owner !== "string" || typeof chunk !== "string" || !chunk.length || chunk.length > CHUNK || !Number.isSafeInteger(bytes) || bytes <= 0 || bytes > BUDGET)
         throw new Error("Invalid document chunk.");
       let job = jobs.get(key);
@@ -117959,13 +118015,13 @@
           (sum, item) => sum + item.bytes,
           0
         );
-        if (offset !== 0 || reserved + bytes > BUDGET)
+        if (offset2 !== 0 || reserved + bytes > BUDGET)
           throw new Error(
             "Document transfer is out of order or memory is in use."
           );
         job = { owner, bytes, received: 0, offset: 0, parts: [] };
       }
-      if (owner !== job.owner || offset !== job.offset || bytes !== job.bytes)
+      if (owner !== job.owner || offset2 !== job.offset || bytes !== job.bytes)
         throw new Error("Unexpected document chunk.");
       const size = new TextEncoder().encode(chunk).length;
       if (job.received + size > bytes)

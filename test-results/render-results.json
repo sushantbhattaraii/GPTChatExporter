@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-04T18:48:48.902Z",
+  "date": "2026-11-04T19:10:24.365Z",
   "browser": "141.0.7390.37",
   "environment": "Standalone Chromium renderer with synthetic DOM and mocked chrome.runtime/storage; no real Chrome download API",
   "results": [
@@ -23,6 +23,7 @@
     "Pair and full-chat PDFs export Mermaid, rendered SVG, checklist states, quotes, nested lists, multilingual text and current widget state.",
     "Both PDF menus keep three illustrated cards together, honor table column widths, and export the reference-style transcript.",
     "Single and full PDF menus embed an external image after a per-site grant and preserve company names, links, the branching career diagram and the job card CTA.",
+    "Both PDF menus preserve three thumbnail-and-text rows, their visible labels and clickable links, plus distinct displayed sizes and crops for reused source images.",
     "The normal whole-chat PDF button sends an image-heavy document in acknowledged chunks and creates the complete PDF."
   ],
   "errors": [],
@@ -53,6 +54,8 @@
     "renderer-24.pdf",
     "renderer-25.pdf",
     "renderer-26.pdf",
-    "renderer-27.pdf"
+    "renderer-27.pdf",
+    "renderer-28.pdf",
+    "renderer-29.pdf"
   ]
 }

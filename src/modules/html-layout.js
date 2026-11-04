@@ -2,7 +2,9 @@
 // Ordinary prose and tables still use the flowing, paginated document renderer.
 import { diagramSVG } from "./diagram.js";
 import { rgba } from "./pdf-style.js";
-import { linkOn, publicLabel } from "./links.js";
+import { linkOn } from "./links.js";
+import { imagePlacement, rasterViewport } from "./image-box.js";
+import { visuallyClipped } from "./visibility.js";
 import { selectFonts } from "./unicode.js";
 import { imageRef, imageSource } from "./media.js";
 const NS = "http://www.w3.org/2000/svg";
@@ -50,6 +52,29 @@ function eligible(el, box, css) {
     (el.innerText || scope.textContent).trim().length > 45
   )
     return true;
+  // A search result may have no frame: a thumbnail sits beside a column of
+  // selectable text and links. Keep each row independent for pagination.
+  if (action && /grid|flex/.test(css.display)) {
+    const thumb = scope
+      .querySelector("img,canvas,[role=img]")
+      ?.getBoundingClientRect();
+    if (
+      thumb &&
+      thumb.width >= 32 &&
+      thumb.width < box.width / 2 &&
+      thumb.height >= 24 &&
+      [...scope.children].some((child) => {
+        const r = child.getBoundingClientRect();
+        return (
+          r.left >= thumb.right - 1 &&
+          r.width > thumb.width &&
+          r.top < thumb.bottom &&
+          (child.innerText || "").trim().length > 20
+        );
+      })
+    )
+      return true;
+  }
   const painted = [...scope.querySelectorAll("div,section")].filter((n) => {
     const style = win.getComputedStyle(n);
     return (
@@ -101,6 +126,8 @@ export function readHtmlLayout(root) {
   });
   const assets = [],
     words = [];
+  const defs = create("defs");
+  out.append(defs);
   const colorCache = new Map();
   function paint(color) {
     if (!colorCache.has(color)) {
@@ -189,6 +216,8 @@ export function readHtmlLayout(root) {
     metrics = new Map();
   function textLine(g, text, rect, s) {
     if (!text || !rect.width || !rect.height) return;
+    const c = paint(s.color);
+    if (!c) return;
     const font = `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
     if (!metrics.has(font)) {
       ctx.font = font;
@@ -199,12 +228,13 @@ export function readHtmlLayout(root) {
           parseFloat(s.fontSize) * 0.6,
       );
     }
-    const c = paint(s.color);
     const t = create("text", {
       x: num(rect.left - box.left),
       y: num(rect.top - box.top + (rect.height + metrics.get(font)) / 2),
-      fill: c?.color || "#111111",
-      "fill-opacity": c?.alpha,
+      textLength: num(rect.width),
+      lengthAdjust: "spacingAndGlyphs",
+      fill: c.color,
+      "fill-opacity": c.alpha,
       "font-family": "sans",
       "font-size": s.fontSize,
       "font-weight": s.fontWeight,
@@ -233,17 +263,34 @@ export function readHtmlLayout(root) {
         textLine(g, n.data.slice(first, last).replace(/\s+/gu, " "), rect, s);
       rect = null;
     }
+    function add(start, end, r) {
+      if (!r.width || !r.height) return;
+      if (rect && Math.abs(r.top - rect.top) > 1) flush();
+      if (!rect) {
+        first = start;
+        rect = { left: r.left, top: r.top, width: r.width, height: r.height };
+      } else {
+        const right = Math.max(rect.left + rect.width, r.right);
+        rect.left = Math.min(rect.left, r.left);
+        rect.width = right - rect.left;
+      }
+      last = end;
+    }
     for (const m of n.data.matchAll(/\S+/gu)) {
       range.setStart(n, m.index);
       range.setEnd(n, m.index + m[0].length);
-      const r = range.getBoundingClientRect();
-      if (!r.width) continue;
-      if (rect && Math.abs(r.top - rect.top) > 1) flush();
-      if (!rect) {
-        first = m.index;
-        rect = r;
+      const rects = range.getClientRects();
+      if (rects.length === 1) add(m.index, m.index + m[0].length, rects[0]);
+      else if (rects.length > 1) {
+        // Even an unspaced word can wrap across several lines in a narrow card.
+        let start = m.index;
+        for (const char of m[0]) {
+          range.setStart(n, start);
+          range.setEnd(n, start + char.length);
+          add(start, start + char.length, range.getBoundingClientRect());
+          start += char.length;
+        }
       }
-      last = m.index + m[0].length;
     }
     flush();
   }
@@ -254,14 +301,50 @@ export function readHtmlLayout(root) {
     if (
       s.display === "none" ||
       s.visibility === "hidden" ||
+      s.contentVisibility === "hidden" ||
+      visuallyClipped(s) ||
       Number(s.opacity) === 0
     )
       return;
     const url =
         el.matches("a,[href],[role=link],[data-href],[data-url]") && linkOn(el),
-      g = create(url ? "a" : "g", url ? { href: url } : {});
+      g = create("g");
     if (Number(s.opacity) < 1) g.setAttribute("opacity", s.opacity);
     parent.append(g);
+    // Use the actual hit boxes even for a transparent thumbnail link. An
+    // accessibility label is not painted content, and a cropped bitmap may
+    // extend beyond the link's hit area underneath its clipping viewport.
+    if (url)
+      for (const hit of el.getClientRects()) {
+        if (!hit.width || !hit.height) continue;
+        const link = create("a", { href: url });
+        link.append(
+          create("rect", {
+            x: num(hit.left - box.left),
+            y: num(hit.top - box.top),
+            width: num(hit.width),
+            height: num(hit.height),
+            fill: "none",
+          }),
+        );
+        g.append(link);
+      }
+    const clipX = /hidden|clip|auto|scroll/.test(s.overflowX),
+      clipY = /hidden|clip|auto|scroll/.test(s.overflowY);
+    if ((clipX || clipY) && r.width && r.height) {
+      const id = "box-" + defs.children.length;
+      const clip = create("clipPath", { id });
+      clip.append(
+        create("rect", {
+          x: clipX ? num(r.left - box.left) : 0,
+          y: clipY ? num(r.top - box.top) : 0,
+          width: num(clipX ? r.width : box.width),
+          height: num(clipY ? r.height : box.height),
+        }),
+      );
+      defs.append(clip);
+      g.setAttribute("clip-path", `url(#${id})`);
+    }
     if (el.matches("svg")) {
       const diagram = diagramSVG(el);
       if (diagram) {
@@ -297,21 +380,19 @@ export function readHtmlLayout(root) {
     shape(g, r, s);
     const bitmap = el.matches("img,canvas");
     if (bitmap || (s.backgroundImage.includes("url(") && imageSource(el))) {
-      const asset = imageRef(el);
-      const index =
-        assets.push({
-          ...asset.image,
-          x: num(r.left - box.left),
-          y: num(r.top - box.top),
-          width: num(r.width),
-          height: num(r.height),
-          fit:
-            s.objectFit === "cover" || s.backgroundSize === "cover"
-              ? "xMidYMid slice"
-              : "xMidYMid meet",
-        }) - 1;
-      g.append(doc.createComment("asset-" + index));
-      if (bitmap) return;
+      const asset = imageRef(el, s, r).image;
+      if (!asset.display || asset.display.hidden) {
+        if (bitmap) return;
+      } else {
+        const index =
+          assets.push({
+            ...asset,
+            x: num(r.left - box.left + asset.display.left),
+            y: num(r.top - box.top + asset.display.top),
+          }) - 1;
+        g.append(doc.createComment("asset-" + index));
+        if (bitmap) return;
+      }
     }
     const children =
       el.matches("slot") && el.assignedNodes().length
@@ -320,14 +401,6 @@ export function readHtmlLayout(root) {
     for (const n of children) {
       if (n.nodeType === 1) draw(n, g);
       else if (n.nodeType === 3 && n.textContent.trim()) lines(n, g, s);
-    }
-    if (
-      !el.textContent.trim() &&
-      (el.matches("button,[role=link],a") ||
-        el.matches("[class*=arrow i],[class*=connector i]"))
-    ) {
-      const label = publicLabel(el);
-      if (label) textLine(g, label, r, s);
     }
     for (const pseudo of ["::before", "::after"]) {
       const ps = win.getComputedStyle(el, pseudo);
@@ -364,8 +437,20 @@ export function printableLayoutSVG(block) {
   return block.svg.replace(/<!--asset-(\d+)-->/g, (_, n) => {
     const a = block.assets[n];
     if (!a) return "";
-    if (a.data)
+    const box = a.display || a;
+    if (a.data && !a.display)
       return `<image x="${a.x}" y="${a.y}" width="${a.width}" height="${a.height}" preserveAspectRatio="${a.fit}" href="${a.data}"/>`;
-    return `<text x="${a.x}" y="${a.y + Math.min(12, a.height)}" font-size="10">${escaped(a.alt)}</text>`;
+    if (a.data)
+      return rasterViewport(
+        a.x,
+        a.y,
+        box,
+        imagePlacement(box, a.rasterWidth, a.rasterHeight),
+        a.data,
+      );
+    // A long alternative or a tiny broken favicon must never paint over the
+    // next column. Draw the unavailable-image indicator inside its own bounds.
+    const size = Math.min(14, box.width, box.height);
+    return `<svg x="${a.x + (box.width - size) / 2}" y="${a.y + (box.height - size) / 2}" width="${size}" height="${size}" viewBox="0 0 16 16"><title>${escaped(a.alt)}</title><g fill="none" stroke="#888" stroke-width="1"><rect x="1" y="2" width="14" height="12" rx="1"/><path d="m2 12 4-5 3 3 2-2 3 4"/></g></svg>`;
   });
 }

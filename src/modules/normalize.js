@@ -5,6 +5,7 @@ import { imageRef, meaningfulImage } from "./media.js";
 import { contentButton, linkOn, publicLabel } from "./links.js";
 export { safeLink } from "./links.js";
 import { readHtmlLayout } from "./html-layout.js";
+import { visuallyClipped } from "./visibility.js";
 export function visible(el) {
   if (el.nodeType !== 1) return true;
   if (el.closest('[hidden],[aria-hidden="true"],template,[data-cge]'))
@@ -15,7 +16,8 @@ export function visible(el) {
     if (
       s.display === "none" ||
       s.visibility === "hidden" ||
-      s.contentVisibility === "hidden"
+      s.contentVisibility === "hidden" ||
+      visuallyClipped(s)
     )
       return false;
   }
@@ -226,7 +228,7 @@ export function inline(
       return run ? [run] : [];
     });
     if (media.length || !readable) return media;
-    const label = publicLabel(node) || node.textContent.trim();
+    const label = fallbackLinkLabel(node);
     return label
       ? [
           {
@@ -279,10 +281,20 @@ export function inline(
     node.matches("a,[role=link],[data-entity-name]") &&
     !children.some((r) => r.text.trim())
   ) {
-    const label = publicLabel(node) || node.textContent.trim();
+    const label = fallbackLinkLabel(node);
     if (label) return [{ text: label, ...read(node), ...next }];
   }
   return children;
+}
+function fallbackLinkLabel(node) {
+  const css = node.ownerDocument.defaultView.getComputedStyle(node);
+  if (
+    /^(absolute|fixed)$/.test(css.position) ||
+    node.querySelector("img,svg,canvas") ||
+    css.backgroundImage?.includes("url(")
+  )
+    return "";
+  return publicLabel(node);
 }
 function trimmed(runs) {
   const r = runs.filter((x) => x.text !== "");

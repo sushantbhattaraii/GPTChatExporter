@@ -1,3 +1,5 @@
+import { displayedImageBox } from "./image-box.js";
+import { linkOn } from "./links.js";
 // Only images actually displayed in an exported message enter this export-scoped cache.
 let session;
 export function beginImages() {
@@ -22,6 +24,8 @@ export function meaningfulImage(img) {
   );
 }
 const canvasIds = new WeakMap();
+const occurrences = new WeakMap();
+let nextOccurrence = 0;
 function imgURLs(el) {
   const lazy =
     el.getAttribute("data-src") ||
@@ -74,7 +78,11 @@ export function imageSource(el) {
     el.ownerDocument.defaultView.getComputedStyle(el).backgroundImage || "";
   return css.match(/url\((["']?)(.*?)\1\)/)?.[2] || "";
 }
-export function imageRef(el) {
+export function imageRef(
+  el,
+  style = el.ownerDocument.defaultView.getComputedStyle(el),
+  rect = el.getBoundingClientRect(),
+) {
   const source = imageSource(el),
     alt = el.alt || el.getAttribute("aria-label") || "Image";
   if (!source && !canvasIds.has(el))
@@ -103,7 +111,17 @@ export function imageRef(el) {
     }
     session.set(key, item);
   }
-  return { text: `[Image: ${alt}]`, image: { key, alt } };
+  if (!occurrences.has(el)) occurrences.set(el, ++nextOccurrence);
+  return {
+    text: `[Image: ${alt}]`,
+    image: {
+      key,
+      alt,
+      occurrence: occurrences.get(el),
+      display: displayedImageBox(el, style, rect),
+      link: linkOn(el),
+    },
+  };
 }
 function raster(el) {
   const width = el.naturalWidth || el.width,
@@ -214,9 +232,10 @@ export async function embedImages(
   }
   function visit(bs) {
     for (const b of bs) {
-      if (b.type === "image")
+      if (b.type === "image" && !(format === "pdf" && b.image.display?.hidden))
         add(b.image, (data) => {
-          b.image = { alt: b.image.alt, ...data };
+          const { alt, display, link } = b.image;
+          b.image = { alt, display, link, ...data };
         });
       if (b.type === "layout" && format === "docx") {
         delete b.assets;
@@ -224,9 +243,15 @@ export async function embedImages(
       }
       if (b.type === "layout" && format === "pdf") b.blocks = [];
       for (const asset of b.assets || [])
-        add(asset, (data) =>
-          Object.assign(asset, { key: undefined, data: data.data }),
-        );
+        add(asset, (data) => {
+          delete asset.key;
+          delete asset.occurrence;
+          Object.assign(asset, {
+            data: data.data,
+            rasterWidth: data.width,
+            rasterHeight: data.height,
+          });
+        });
       if (b.blocks) visit(b.blocks);
       for (const item of b.items || []) visit(item);
       for (const row of b.rows || []) for (const c of row) visit(c.blocks);

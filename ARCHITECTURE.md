@@ -52,7 +52,7 @@ Worker restart is tolerated for downloads whose session record exists; no succes
 
 ## PDF styling
 
-The content script serializes computed paragraph alignments and styled text runs for code. The PDF generator embeds those runs as text and paginates each message in a continuous transcript. Prompts use a narrower right-aligned measure. Replies use the full text width. Both scopes call the same PDF layout code. Figure rows carry their items and column count; tables can carry measured column proportions. Document warnings are kept in the PDF Subject field.
+The content script serializes computed paragraph alignments and styled text runs for code. The PDF generator embeds those runs as text and paginates each message in a continuous transcript. Prompts use a narrower right-aligned measure. Replies use the full text width. Both scopes call the same PDF layout code. Figure rows carry their items and column count; tables can carry measured column proportions. Document warnings are kept in the PDF Subject field. Each image occurrence carries its measured CSS box and crop independently of the cached source pixels. Search-result cards use the painted text ranges and the actual link hit boxes in separate PDF objects.
 
 The selected image's DOM source, responsive alternatives and loaded pixels are kept for the duration of the export. Approved ChatGPT endpoints and anonymous HTTPS image reads use the worker. A blocked external image can require an origin-specific optional grant, initiated by a popup click. The same export retries blocked assets after the grant.
 

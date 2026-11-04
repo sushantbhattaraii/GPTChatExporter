@@ -2,19 +2,19 @@
   {
     "file": "career-chat.pdf",
     "pages": 2,
-    "bytes": 33795,
+    "bytes": 41964,
     "valid": true
   },
   {
     "file": "career-pair.pdf",
     "pages": 2,
-    "bytes": 33630,
+    "bytes": 41799,
     "valid": true
   },
   {
     "file": "chunked-chat.pdf",
-    "pages": 3,
-    "bytes": 1392603,
+    "pages": 1,
+    "bytes": 1392651,
     "valid": true
   },
   {
@@ -146,19 +146,31 @@
   {
     "file": "renderer-25.pdf",
     "pages": 2,
-    "bytes": 33630,
+    "bytes": 41799,
     "valid": true
   },
   {
     "file": "renderer-26.pdf",
     "pages": 2,
-    "bytes": 33795,
+    "bytes": 41964,
     "valid": true
   },
   {
     "file": "renderer-27.pdf",
-    "pages": 3,
-    "bytes": 1392603,
+    "pages": 1,
+    "bytes": 140078,
+    "valid": true
+  },
+  {
+    "file": "renderer-28.pdf",
+    "pages": 1,
+    "bytes": 140189,
+    "valid": true
+  },
+  {
+    "file": "renderer-29.pdf",
+    "pages": 1,
+    "bytes": 1392651,
     "valid": true
   },
   {
@@ -198,8 +210,20 @@
     "valid": true
   },
   {
+    "file": "thumbnails-chat.pdf",
+    "pages": 1,
+    "bytes": 140189,
+    "valid": true
+  },
+  {
+    "file": "thumbnails-pair.pdf",
+    "pages": 1,
+    "bytes": 140078,
+    "valid": true
+  },
+  {
     "file": "conversation.docx",
-    "bytes": 11993,
+    "bytes": 11996,
     "valid": true
   },
   {
@@ -209,7 +233,7 @@
   },
   {
     "file": "long.docx",
-    "bytes": 13266,
+    "bytes": 13267,
     "valid": true
   },
   {
@@ -219,7 +243,7 @@
   },
   {
     "file": "renderer-11.docx",
-    "bytes": 10688,
+    "bytes": 10689,
     "valid": true
   },
   {
@@ -229,17 +253,17 @@
   },
   {
     "file": "renderer-15.docx",
-    "bytes": 12126,
+    "bytes": 12127,
     "valid": true
   },
   {
     "file": "renderer-2.docx",
-    "bytes": 11900,
+    "bytes": 11899,
     "valid": true
   },
   {
     "file": "renderer-4.docx",
-    "bytes": 11995,
+    "bytes": 11997,
     "valid": true
   },
   {
@@ -264,7 +288,7 @@
   },
   {
     "file": "settings.docx",
-    "bytes": 11780,
+    "bytes": 11777,
     "valid": true
   },
   {

@@ -9,6 +9,101 @@
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
+  // src/modules/image-box.js
+  function displayedImageBox(el, style, rect) {
+    const px = (name) => parseFloat(style[name]) || 0;
+    const left = px("borderLeftWidth") + px("paddingLeft");
+    const top = px("borderTopWidth") + px("paddingTop");
+    const width = rect.width - left - px("borderRightWidth") - px("paddingRight");
+    const height = rect.height - top - px("borderBottomWidth") - px("paddingBottom");
+    if (!(width > 0 && height > 0)) return;
+    const bitmap = el.matches("img,canvas");
+    const fit = bitmap ? style.objectFit || "fill" : style.backgroundSize === "cover" ? "cover" : "contain";
+    const box = {
+      width,
+      height,
+      left,
+      top,
+      fit,
+      position: bitmap ? style.objectPosition : style.backgroundPosition,
+      naturalWidth: el.naturalWidth || (el.tagName === "CANVAS" ? el.width : void 0),
+      naturalHeight: el.naturalHeight || (el.tagName === "CANVAS" ? el.height : void 0)
+    };
+    const x = rect.left + left, y = rect.top + top;
+    let x0 = x, y0 = y, x1 = x + width, y1 = y + height;
+    for (let n = el.parentElement; n && !n.matches(
+      "main,article,body,.markdown,.prose,[data-message-author-role],[data-turn-key],[data-markdown-text-style]"
+    ); n = n.parentElement) {
+      const css = el.ownerDocument.defaultView.getComputedStyle(n);
+      const clipX = /^(hidden|clip)$/.test(css.overflowX), clipY = /^(hidden|clip)$/.test(css.overflowY);
+      if (!clipX && !clipY) continue;
+      const frame = n.getBoundingClientRect();
+      if (!frame.width || !frame.height) continue;
+      if (clipX) {
+        x0 = Math.max(x0, frame.left + parseFloat(css.borderLeftWidth));
+        x1 = Math.min(x1, frame.right - parseFloat(css.borderRightWidth));
+      }
+      if (clipY) {
+        y0 = Math.max(y0, frame.top + parseFloat(css.borderTopWidth));
+        y1 = Math.min(y1, frame.bottom - parseFloat(css.borderBottomWidth));
+      }
+    }
+    if (x1 <= x0 || y1 <= y0) return { ...box, hidden: true };
+    if (x0 > x || y0 > y || x1 < x + width || y1 < y + height) {
+      box.crop = { x: x0 - x, y: y0 - y, width, height };
+      box.left += box.crop.x;
+      box.top += box.crop.y;
+      box.width = x1 - x0;
+      box.height = y1 - y0;
+    }
+    return box;
+  }
+  var init_image_box = __esm({
+    "src/modules/image-box.js"() {
+    }
+  });
+
+  // src/modules/links.js
+  function safeLink(value, base2 = "https://chatgpt.com/") {
+    if (typeof value !== "string" || !value.trim() || value.trim() === "#")
+      return void 0;
+    try {
+      const u = new URL(value, base2);
+      return ["https:", "http:", "mailto:"].includes(u.protocol) ? u.href : void 0;
+    } catch {
+      return void 0;
+    }
+  }
+  function linkOn(el) {
+    const link = el.closest("a[href],[href][role=link],[data-href],[data-url]");
+    if (!link) return void 0;
+    return [link.getAttribute("href"), link.dataset.href, link.dataset.url].map((value) => safeLink(value, el.ownerDocument.baseURI)).find(Boolean);
+  }
+  function publicLabel(el) {
+    const labelled = (el.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean).map((id) => el.getRootNode().getElementById?.(id)?.textContent?.trim()).filter(Boolean).join(" ");
+    return (el.getAttribute("data-entity-name") || el.getAttribute("aria-label") || labelled || el.getAttribute("title") || "").trim();
+  }
+  function contentButton(el) {
+    if (el.closest(
+      "nav,aside,form,pre,code,[data-cge],.turn-action-controls,[role=toolbar],[data-code-block-controls]"
+    ))
+      return false;
+    const label = el.textContent.trim() || publicLabel(el);
+    if (!label || /^(?:copy(?: code| response| answer)?|delete|share|retry|regenerate|read aloud|good response|bad response|more actions|open in new tab)$/i.test(
+      label
+    ))
+      return false;
+    return Boolean(
+      linkOn(el) || el.querySelector("a[href]") || el.closest(
+        "td,th,h1,h2,h3,h4,h5,h6,b,strong,p,li,figcaption,[role=cell],[role=heading],[role=link],[data-entity-name],[data-testid*=entity i],[aria-haspopup]"
+      ) || el.parentElement?.childElementCount === 1 && el.parentElement.textContent.trim() === label
+    );
+  }
+  var init_links = __esm({
+    "src/modules/links.js"() {
+    }
+  });
+
   // src/modules/media.js
   function beginImages() {
     session = /* @__PURE__ */ new Map();
@@ -55,7 +150,7 @@
     const css = el.ownerDocument.defaultView.getComputedStyle(el).backgroundImage || "";
     return css.match(/url\((["']?)(.*?)\1\)/)?.[2] || "";
   }
-  function imageRef(el) {
+  function imageRef(el, style = el.ownerDocument.defaultView.getComputedStyle(el), rect = el.getBoundingClientRect()) {
     const source = imageSource(el), alt = el.alt || el.getAttribute("aria-label") || "Image";
     if (!source && !canvasIds.has(el))
       canvasIds.set(el, "surface-" + crypto.randomUUID());
@@ -78,7 +173,17 @@
       }
       session.set(key, item);
     }
-    return { text: `[Image: ${alt}]`, image: { key, alt } };
+    if (!occurrences.has(el)) occurrences.set(el, ++nextOccurrence);
+    return {
+      text: `[Image: ${alt}]`,
+      image: {
+        key,
+        alt,
+        occurrence: occurrences.get(el),
+        display: displayedImageBox(el, style, rect),
+        link: linkOn(el)
+      }
+    };
   }
   function raster(el) {
     const width = el.naturalWidth || el.width, height = el.naturalHeight || el.height;
@@ -173,9 +278,10 @@
     }
     function visit(bs) {
       for (const b of bs) {
-        if (b.type === "image")
+        if (b.type === "image" && !(format === "pdf" && b.image.display?.hidden))
           add(b.image, (data) => {
-            b.image = { alt: b.image.alt, ...data };
+            const { alt, display, link } = b.image;
+            b.image = { alt, display, link, ...data };
           });
         if (b.type === "layout" && format === "docx") {
           delete b.assets;
@@ -183,10 +289,15 @@
         }
         if (b.type === "layout" && format === "pdf") b.blocks = [];
         for (const asset of b.assets || [])
-          add(
-            asset,
-            (data) => Object.assign(asset, { key: void 0, data: data.data })
-          );
+          add(asset, (data) => {
+            delete asset.key;
+            delete asset.occurrence;
+            Object.assign(asset, {
+              data: data.data,
+              rasterWidth: data.width,
+              rasterHeight: data.height
+            });
+          });
         if (b.blocks) visit(b.blocks);
         for (const item of b.items || []) visit(item);
         for (const row of b.rows || []) for (const c of row) visit(c.blocks);
@@ -245,10 +356,35 @@
       return [b];
     });
   }
-  var session, canvasIds;
+  var session, canvasIds, occurrences, nextOccurrence;
   var init_media = __esm({
     "src/modules/media.js"() {
+      init_image_box();
+      init_links();
       canvasIds = /* @__PURE__ */ new WeakMap();
+      occurrences = /* @__PURE__ */ new WeakMap();
+      nextOccurrence = 0;
+    }
+  });
+
+  // src/modules/visibility.js
+  function visuallyClipped(s) {
+    const legacy = s.clip?.match(/^rect\(([^)]+)\)$/i);
+    if (legacy && /^(absolute|fixed)$/.test(s.position)) {
+      const [top, right, bottom, left] = legacy[1].split(/[,\s]+/).map(parseFloat);
+      if (right <= left || bottom <= top) return true;
+    }
+    const inset = s.clipPath?.match(/^inset\(([^)]*)\)$/);
+    if (inset) {
+      const [top, right = top, bottom = top, left = right] = inset[1].split(/\s+/);
+      const pct = (v) => v.endsWith("%") ? parseFloat(v) : 0;
+      if (pct(top) + pct(bottom) >= 100 || pct(left) + pct(right) >= 100)
+        return true;
+    }
+    return /hidden|clip/.test(s.overflow + s.overflowX + s.overflowY) && parseFloat(s.width) <= 1 && parseFloat(s.height) <= 1;
+  }
+  var init_visibility = __esm({
+    "src/modules/visibility.js"() {
     }
   });
 
@@ -536,47 +672,6 @@
     }
   });
 
-  // src/modules/links.js
-  function safeLink(value, base2 = "https://chatgpt.com/") {
-    if (typeof value !== "string" || !value.trim() || value.trim() === "#")
-      return void 0;
-    try {
-      const u = new URL(value, base2);
-      return ["https:", "http:", "mailto:"].includes(u.protocol) ? u.href : void 0;
-    } catch {
-      return void 0;
-    }
-  }
-  function linkOn(el) {
-    const link = el.closest("a[href],[href][role=link],[data-href],[data-url]");
-    if (!link) return void 0;
-    return [link.getAttribute("href"), link.dataset.href, link.dataset.url].map((value) => safeLink(value, el.ownerDocument.baseURI)).find(Boolean);
-  }
-  function publicLabel(el) {
-    const labelled = (el.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean).map((id) => el.getRootNode().getElementById?.(id)?.textContent?.trim()).filter(Boolean).join(" ");
-    return (el.getAttribute("data-entity-name") || el.getAttribute("aria-label") || labelled || el.getAttribute("title") || "").trim();
-  }
-  function contentButton(el) {
-    if (el.closest(
-      "nav,aside,form,pre,code,[data-cge],.turn-action-controls,[role=toolbar],[data-code-block-controls]"
-    ))
-      return false;
-    const label = el.textContent.trim() || publicLabel(el);
-    if (!label || /^(?:copy(?: code| response| answer)?|delete|share|retry|regenerate|read aloud|good response|bad response|more actions|open in new tab)$/i.test(
-      label
-    ))
-      return false;
-    return Boolean(
-      linkOn(el) || el.querySelector("a[href]") || el.closest(
-        "td,th,h1,h2,h3,h4,h5,h6,b,strong,p,li,figcaption,[role=cell],[role=heading],[role=link],[data-entity-name],[data-testid*=entity i],[aria-haspopup]"
-      ) || el.parentElement?.childElementCount === 1 && el.parentElement.textContent.trim() === label
-    );
-  }
-  var init_links = __esm({
-    "src/modules/links.js"() {
-    }
-  });
-
   // src/font-coverage.json
   var font_coverage_default;
   var init_font_coverage = __esm({
@@ -656,6 +751,14 @@
     if (!framed && !/grid|flex/.test(css.display)) return false;
     if (framed && action && scope.children.length > 0 && (el.innerText || scope.textContent).trim().length > 45)
       return true;
+    if (action && /grid|flex/.test(css.display)) {
+      const thumb = scope.querySelector("img,canvas,[role=img]")?.getBoundingClientRect();
+      if (thumb && thumb.width >= 32 && thumb.width < box.width / 2 && thumb.height >= 24 && [...scope.children].some((child) => {
+        const r = child.getBoundingClientRect();
+        return r.left >= thumb.right - 1 && r.width > thumb.width && r.top < thumb.bottom && (child.innerText || "").trim().length > 20;
+      }))
+        return true;
+    }
     const painted = [...scope.querySelectorAll("div,section")].filter((n) => {
       const style = win.getComputedStyle(n);
       return n.children.length < 5 && n.textContent.trim() && parseFloat(style.borderRadius) > 1 && (parseFloat(style.borderTopWidth) > 0 || (rgba(style.backgroundColor, el.ownerDocument)?.[3] || 0) > 0);
@@ -684,6 +787,8 @@
       height: num(box.height)
     });
     const assets = [], words = [];
+    const defs = create("defs");
+    out.append(defs);
     const colorCache = /* @__PURE__ */ new Map();
     function paint2(color) {
       if (!colorCache.has(color)) {
@@ -760,6 +865,8 @@
     const ctx = doc.createElement("canvas").getContext("2d"), metrics = /* @__PURE__ */ new Map();
     function textLine(g, text, rect, s) {
       if (!text || !rect.width || !rect.height) return;
+      const c = paint2(s.color);
+      if (!c) return;
       const font = `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
       if (!metrics.has(font)) {
         ctx.font = font;
@@ -769,12 +876,13 @@
           m.fontBoundingBoxAscent - m.fontBoundingBoxDescent || parseFloat(s.fontSize) * 0.6
         );
       }
-      const c = paint2(s.color);
       const t = create("text", {
         x: num(rect.left - box.left),
         y: num(rect.top - box.top + (rect.height + metrics.get(font)) / 2),
-        fill: c?.color || "#111111",
-        "fill-opacity": c?.alpha,
+        textLength: num(rect.width),
+        lengthAdjust: "spacingAndGlyphs",
+        fill: c.color,
+        "fill-opacity": c.alpha,
         "font-family": "sans",
         "font-size": s.fontSize,
         "font-weight": s.fontWeight,
@@ -802,28 +910,74 @@
           textLine(g, n.data.slice(first, last).replace(/\s+/gu, " "), rect, s);
         rect = null;
       }
+      function add(start, end, r) {
+        if (!r.width || !r.height) return;
+        if (rect && Math.abs(r.top - rect.top) > 1) flush();
+        if (!rect) {
+          first = start;
+          rect = { left: r.left, top: r.top, width: r.width, height: r.height };
+        } else {
+          const right = Math.max(rect.left + rect.width, r.right);
+          rect.left = Math.min(rect.left, r.left);
+          rect.width = right - rect.left;
+        }
+        last = end;
+      }
       for (const m of n.data.matchAll(/\S+/gu)) {
         range.setStart(n, m.index);
         range.setEnd(n, m.index + m[0].length);
-        const r = range.getBoundingClientRect();
-        if (!r.width) continue;
-        if (rect && Math.abs(r.top - rect.top) > 1) flush();
-        if (!rect) {
-          first = m.index;
-          rect = r;
+        const rects = range.getClientRects();
+        if (rects.length === 1) add(m.index, m.index + m[0].length, rects[0]);
+        else if (rects.length > 1) {
+          let start = m.index;
+          for (const char of m[0]) {
+            range.setStart(n, start);
+            range.setEnd(n, start + char.length);
+            add(start, start + char.length, range.getBoundingClientRect());
+            start += char.length;
+          }
         }
-        last = m.index + m[0].length;
       }
       flush();
     }
     function draw(el, parent) {
       if (el.matches(skip)) return;
       const r = el.getBoundingClientRect(), s = win.getComputedStyle(el);
-      if (s.display === "none" || s.visibility === "hidden" || Number(s.opacity) === 0)
+      if (s.display === "none" || s.visibility === "hidden" || s.contentVisibility === "hidden" || visuallyClipped(s) || Number(s.opacity) === 0)
         return;
-      const url = el.matches("a,[href],[role=link],[data-href],[data-url]") && linkOn(el), g = create(url ? "a" : "g", url ? { href: url } : {});
+      const url = el.matches("a,[href],[role=link],[data-href],[data-url]") && linkOn(el), g = create("g");
       if (Number(s.opacity) < 1) g.setAttribute("opacity", s.opacity);
       parent.append(g);
+      if (url)
+        for (const hit of el.getClientRects()) {
+          if (!hit.width || !hit.height) continue;
+          const link = create("a", { href: url });
+          link.append(
+            create("rect", {
+              x: num(hit.left - box.left),
+              y: num(hit.top - box.top),
+              width: num(hit.width),
+              height: num(hit.height),
+              fill: "none"
+            })
+          );
+          g.append(link);
+        }
+      const clipX = /hidden|clip|auto|scroll/.test(s.overflowX), clipY = /hidden|clip|auto|scroll/.test(s.overflowY);
+      if ((clipX || clipY) && r.width && r.height) {
+        const id = "box-" + defs.children.length;
+        const clip = create("clipPath", { id });
+        clip.append(
+          create("rect", {
+            x: clipX ? num(r.left - box.left) : 0,
+            y: clipY ? num(r.top - box.top) : 0,
+            width: num(clipX ? r.width : box.width),
+            height: num(clipY ? r.height : box.height)
+          })
+        );
+        defs.append(clip);
+        g.setAttribute("clip-path", `url(#${id})`);
+      }
       if (el.matches("svg")) {
         const diagram = diagramSVG(el);
         if (diagram) {
@@ -855,26 +1009,23 @@
       shape(g, r, s);
       const bitmap = el.matches("img,canvas");
       if (bitmap || s.backgroundImage.includes("url(") && imageSource(el)) {
-        const asset = imageRef(el);
-        const index = assets.push({
-          ...asset.image,
-          x: num(r.left - box.left),
-          y: num(r.top - box.top),
-          width: num(r.width),
-          height: num(r.height),
-          fit: s.objectFit === "cover" || s.backgroundSize === "cover" ? "xMidYMid slice" : "xMidYMid meet"
-        }) - 1;
-        g.append(doc.createComment("asset-" + index));
-        if (bitmap) return;
+        const asset = imageRef(el, s, r).image;
+        if (!asset.display || asset.display.hidden) {
+          if (bitmap) return;
+        } else {
+          const index = assets.push({
+            ...asset,
+            x: num(r.left - box.left + asset.display.left),
+            y: num(r.top - box.top + asset.display.top)
+          }) - 1;
+          g.append(doc.createComment("asset-" + index));
+          if (bitmap) return;
+        }
       }
       const children = el.matches("slot") && el.assignedNodes().length ? el.assignedNodes({ flatten: true }) : (el.shadowRoot || el).childNodes;
       for (const n of children) {
         if (n.nodeType === 1) draw(n, g);
         else if (n.nodeType === 3 && n.textContent.trim()) lines(n, g, s);
-      }
-      if (!el.textContent.trim() && (el.matches("button,[role=link],a") || el.matches("[class*=arrow i],[class*=connector i]"))) {
-        const label = publicLabel(el);
-        if (label) textLine(g, label, r, s);
       }
       for (const pseudo of ["::before", "::after"]) {
         const ps = win.getComputedStyle(el, pseudo);
@@ -912,6 +1063,8 @@
       init_diagram();
       init_pdf_style();
       init_links();
+      init_image_box();
+      init_visibility();
       init_unicode();
       init_media();
       NS = "http://www.w3.org/2000/svg";
@@ -936,7 +1089,7 @@
     for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
       if (!("style" in n)) continue;
       const s = n.ownerDocument.defaultView.getComputedStyle(n);
-      if (s.display === "none" || s.visibility === "hidden" || s.contentVisibility === "hidden")
+      if (s.display === "none" || s.visibility === "hidden" || s.contentVisibility === "hidden" || visuallyClipped(s))
         return false;
     }
     return true;
@@ -1070,7 +1223,7 @@
         return run2 ? [run2] : [];
       });
       if (media.length || !readable) return media;
-      const label = publicLabel(node) || node.textContent.trim();
+      const label = fallbackLinkLabel(node);
       return label ? [
         {
           text: label,
@@ -1118,10 +1271,16 @@
     if (link) next.link = link;
     const children = [...node.childNodes].flatMap((n) => inline(n, next, read));
     if (node.matches("a,[role=link],[data-entity-name]") && !children.some((r) => r.text.trim())) {
-      const label = publicLabel(node) || node.textContent.trim();
+      const label = fallbackLinkLabel(node);
       if (label) return [{ text: label, ...read(node), ...next }];
     }
     return children;
+  }
+  function fallbackLinkLabel(node) {
+    const css = node.ownerDocument.defaultView.getComputedStyle(node);
+    if (/^(absolute|fixed)$/.test(css.position) || node.querySelector("img,svg,canvas") || css.backgroundImage?.includes("url("))
+      return "";
+    return publicLabel(node);
   }
   function trimmed(runs) {
     const r = runs.filter((x) => x.text !== "");
@@ -1335,6 +1494,7 @@
       init_links();
       init_links();
       init_html_layout();
+      init_visibility();
       OMIT = 'button,nav,[data-conversation-role]:is(h1,h2,h3,h4,h5,h6),.turn-action-controls,script,style,textarea,input,select,svg,[role="button"],[data-cge],[data-testid="thought-process"],[data-testid="reasoning"],.katex-html';
       BLOCK = "P,H1,H2,H3,H4,H5,H6,PRE,UL,OL,TABLE,BLOCKQUOTE,HR,DIV,SECTION,ARTICLE,FIGURE,FIGCAPTION,DETAILS,SUMMARY,FORM,FIELDSET";
       equationSelector = ".katex,math,[data-math],[data-latex],mjx-container";
@@ -1389,6 +1549,7 @@
 
   // src/modules/extractor.js
   init_media();
+  init_visibility();
   init_normalize();
   var ROLE_SELECTOR = '[data-message-author-role="user"],[data-message-author-role="assistant"]';
   var unitAttrs = [
@@ -1422,7 +1583,7 @@
     if (scope && !visible(scope)) return false;
     for (let n = img; n; n = n.parentElement) {
       const css = getComputedStyleFor(n);
-      if (css.display === "none" || css.visibility === "hidden" || css.contentVisibility === "hidden" || Number.parseFloat(css.opacity) === 0)
+      if (css.display === "none" || css.visibility === "hidden" || css.contentVisibility === "hidden" || Number.parseFloat(css.opacity) === 0 || visuallyClipped(css))
         return false;
       if (n !== img && n.getAttribute("aria-hidden") === "true" && !n.closest(generatedCard) && (!turn || !turn.contains(n) || n === turn || n.querySelector(ROLE_SELECTOR + "," + unitSelector)))
         return false;
@@ -1722,8 +1883,8 @@
     const present = /* @__PURE__ */ new Set();
     function known(bs) {
       for (const b of bs) {
-        if (b.image) present.add(b.image.key);
-        for (const a of b.assets || []) present.add(a.key);
+        if (b.image) present.add(b.image.occurrence);
+        for (const a of b.assets || []) present.add(a.occurrence);
         if (b.blocks) known(b.blocks);
         if (b.items) b.items.forEach(known);
         if (b.rows) b.rows.forEach((row) => row.forEach((c) => known(c.blocks)));
@@ -1732,9 +1893,9 @@
     known(content);
     for (const img of role === "assistant" ? mediaIn(el) : []) {
       const ref = imageRef(img);
-      if (!present.has(ref.image.key)) {
+      if (!present.has(ref.image.occurrence)) {
         content.push({ type: "image", ...ref });
-        present.add(ref.image.key);
+        present.add(ref.image.occurrence);
       }
     }
     const rich = roots.some(

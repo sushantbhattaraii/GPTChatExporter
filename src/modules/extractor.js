@@ -1,4 +1,5 @@
 import { liftImages, meaningfulImage, imageRef, imageSource } from "./media.js";
+import { visuallyClipped } from "./visibility.js";
 import { blocks, visible, plainText } from "./normalize.js";
 export const ROLE_SELECTOR =
   '[data-message-author-role="user"],[data-message-author-role="assistant"]';
@@ -48,7 +49,8 @@ function imageVisible(img) {
       css.display === "none" ||
       css.visibility === "hidden" ||
       css.contentVisibility === "hidden" ||
-      Number.parseFloat(css.opacity) === 0
+      Number.parseFloat(css.opacity) === 0 ||
+      visuallyClipped(css)
     )
       return false;
     if (
@@ -500,8 +502,8 @@ export function extractMessage(
   const present = new Set();
   function known(bs) {
     for (const b of bs) {
-      if (b.image) present.add(b.image.key);
-      for (const a of b.assets || []) present.add(a.key);
+      if (b.image) present.add(b.image.occurrence);
+      for (const a of b.assets || []) present.add(a.occurrence);
       if (b.blocks) known(b.blocks);
       if (b.items) b.items.forEach(known);
       if (b.rows) b.rows.forEach((row) => row.forEach((c) => known(c.blocks)));
@@ -510,9 +512,9 @@ export function extractMessage(
   known(content);
   for (const img of role === "assistant" ? mediaIn(el) : []) {
     const ref = imageRef(img);
-    if (!present.has(ref.image.key)) {
+    if (!present.has(ref.image.occurrence)) {
       content.push({ type: "image", ...ref });
-      present.add(ref.image.key);
+      present.add(ref.image.occurrence);
     }
   }
   const rich = roots.some(

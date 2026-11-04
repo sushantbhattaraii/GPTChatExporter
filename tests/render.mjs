@@ -10,6 +10,7 @@ import {
   jobURL,
 } from "./career-fixture.mjs";
 import { standard, fixture, turn } from "./fixtures.mjs";
+import { universityFixture } from "./thumbnail-fixture.mjs";
 const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox"],
@@ -921,6 +922,45 @@ B -->|No| D[Retry]</code></pre>
   assert(layouts[1].svg.includes(jobURL));
   results.push(
     "Single and full PDF menus embed an external image after a per-site grant and preserve company names, links, the branching career diagram and the job card CTA.",
+  );
+  await page.evaluate(universityFixture);
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll("main img:not(.source img)")].every(
+      (img) => img.naturalWidth === 1200,
+    ),
+  );
+  for (const scope of ["pair", "chat"]) {
+    if (scope === "pair") await imagePair("PDF");
+    else await collect("pdf", 2);
+    const bs = requests.at(-1).document.messages[1].blocks;
+    const rows = bs.filter((b) => b.type === "layout");
+    assert.equal(rows.length, 3);
+    for (const row of rows) {
+      assert.doesNotMatch(row.text, /Open |Image helper|\bImage\b/);
+      const photo = row.assets.find((a) => a.data);
+      assert.deepEqual([photo.display.width, photo.display.height], [108, 82]);
+      assert.equal(photo.rasterWidth, 1200);
+    }
+    const image = bs.find((b) => b.type === "image").image;
+    const cards = bs.find((b) => b.type === "gallery").items;
+    const galleryImage = cards[0].find((b) => b.type === "image").image;
+    const square = cards[1].find((b) => b.type === "image").image.display;
+    assert.deepEqual(
+      [square.width, square.height, square.crop.x, square.crop.width],
+      [88, 88, 88, 176],
+    );
+    assert.equal(image.data, galleryImage.data);
+    assert.deepEqual(
+      [image.width, image.display.width, galleryImage.display.width],
+      [1200, 96, 144],
+    );
+    await copyFile(
+      "test-results/" + exported.at(-1),
+      "test-results/thumbnails-" + scope + ".pdf",
+    );
+  }
+  results.push(
+    "Both PDF menus preserve three thumbnail-and-text rows, their visible labels and clickable links, plus distinct displayed sizes and crops for reused source images.",
   );
   await page.evaluate(() => {
     const canvas = document.createElement("canvas");

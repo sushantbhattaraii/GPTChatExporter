@@ -2,6 +2,7 @@ import pdfMake from "pdfmake/build/pdfmake.js";
 import fonts from "../font-data.json" with { type: "json" };
 import { fontFor, selectFonts } from "./unicode.js";
 import { printableLayoutSVG } from "./html-layout.js";
+import { imagePlacement, rasterViewport } from "./image-box.js";
 import { prepareDiagrams } from "./render-diagrams.js";
 import { prepareDocument, tableGrid } from "./document.js";
 import { renderEquation } from "./equations.js";
@@ -292,6 +293,7 @@ function convert(bs, s) {
     }
     if (b.type === "image") {
       const im = b.image;
+      if (im.display?.hidden) return [];
       if (!im.data)
         return {
           text: `[Image unavailable: ${im.alt}]`,
@@ -304,11 +306,31 @@ function convert(bs, s) {
         (s.orientation === "landscape" ? 842 : 595) - 2 * s.margin;
       const maxHeight =
         (s.orientation === "landscape" ? 595 : 842) - 2 * s.margin - 25;
-      const scale = Math.min(0.75, maxWidth / im.width, maxHeight / im.height);
+      const box = im.display || {
+        width: im.width,
+        height: im.height,
+        fit: "fill",
+      };
+      const scale = Math.min(
+        0.75,
+        maxWidth / box.width,
+        maxHeight / box.height,
+      );
+      const paint = imagePlacement(box, im.width, im.height);
+      const fillsBox =
+        Math.abs(paint.width - box.width) < 0.01 &&
+        Math.abs(paint.height - box.height) < 0.01 &&
+        Math.abs(paint.x) < 0.01 &&
+        Math.abs(paint.y) < 0.01;
       return {
-        image: im.data,
-        width: im.width * scale,
-        height: im.height * scale,
+        ...(fillsBox
+          ? { image: im.data }
+          : {
+              svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box.width} ${box.height}">${rasterViewport(0, 0, box, paint, im.data)}</svg>`,
+            }),
+        width: box.width * scale,
+        height: box.height * scale,
+        link: im.link,
         margin: [0, 4, 0, 8],
       };
     }
