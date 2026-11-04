@@ -41,7 +41,7 @@ export function mount(parent, className) {
   const style = document.createElement("style");
   style.textContent = CSS;
   shadow.append(style);
-  parent.append(host);
+  parent?.append(host);
   return { host, shadow };
 }
 export function button(text, fn, primary = false) {
@@ -72,7 +72,10 @@ export function menu(shadow, label, onExport) {
   };
   const pdf = button("PDF", () => run("pdf")),
     word = button("Word (.docx)", () => run("docx"));
-  options.append(pdf, word);
+  const visual = button("PDF as shown", () => run("appearance"));
+  visual.title =
+    "Capture the displayed messages as static PDF pages. Click the Chrome extension icon first to allow tab capture.";
+  options.append(pdf, visual, word);
   wrap.append(trigger, options);
   shadow.append(wrap);
   wrap.addEventListener("keydown", (e) => {
@@ -103,7 +106,7 @@ export async function review(shadow, data, format, settings) {
   const note = document.createElement("p");
   note.className = "small";
   note.textContent =
-    "ChatGPT does not expose a DOM-only guarantee of complete history. Hidden branches are excluded. Equations are typeset where supported. Images use descriptions. " +
+    "ChatGPT does not expose a DOM-only guarantee of complete history. Hidden branches are excluded. Equations are typeset where supported. Formatted exports embed readable images. PDF as shown captures the displayed pixels. " +
     (!settings.includeUsers ? "Your settings exclude user messages. " : "") +
     (!settings.includeCode ? "Your settings exclude code blocks. " : "");
   const label = document.createElement("label");
@@ -129,7 +132,7 @@ export async function review(shadow, data, format, settings) {
     };
     const cancel = button("Cancel", () => finish(false));
     const go = button(
-      `Download ${format === "pdf" ? "PDF" : "Word"}`,
+      `Download ${format === "docx" ? "Word" : format === "appearance" ? "PDF as shown" : "PDF"}`,
       () => finish(true),
       true,
     );

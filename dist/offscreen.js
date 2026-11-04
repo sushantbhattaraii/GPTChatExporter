@@ -9699,7 +9699,7 @@
                     value1: new ValueRecord("valueFormat1"),
                     value2: new ValueRecord("valueFormat2")
                   });
-                  var Anchor = new r.VersionedStruct(r.uint16, {
+                  var Anchor2 = new r.VersionedStruct(r.uint16, {
                     1: {
                       // Design units only
                       xCoordinate: r.int16,
@@ -9720,25 +9720,25 @@
                     }
                   });
                   var EntryExitRecord = new r.Struct({
-                    entryAnchor: new r.Pointer(r.uint16, Anchor, {
+                    entryAnchor: new r.Pointer(r.uint16, Anchor2, {
                       type: "parent"
                     }),
-                    exitAnchor: new r.Pointer(r.uint16, Anchor, {
+                    exitAnchor: new r.Pointer(r.uint16, Anchor2, {
                       type: "parent"
                     })
                   });
                   var MarkRecord = new r.Struct({
                     class: r.uint16,
-                    markAnchor: new r.Pointer(r.uint16, Anchor, {
+                    markAnchor: new r.Pointer(r.uint16, Anchor2, {
                       type: "parent"
                     })
                   });
                   var MarkArray = new r.Array(MarkRecord, r.uint16);
-                  var BaseRecord = new r.Array(new r.Pointer(r.uint16, Anchor), function(t2) {
+                  var BaseRecord = new r.Array(new r.Pointer(r.uint16, Anchor2), function(t2) {
                     return t2.parent.classCount;
                   });
                   var BaseArray = new r.Array(BaseRecord, r.uint16);
-                  var ComponentRecord = new r.Array(new r.Pointer(r.uint16, Anchor), function(t2) {
+                  var ComponentRecord = new r.Array(new r.Pointer(r.uint16, Anchor2), function(t2) {
                     return t2.parent.parent.classCount;
                   });
                   var LigatureAttach = new r.Array(ComponentRecord, r.uint16);
@@ -10552,13 +10552,13 @@
                     instance: new r.Array(Instance, "instanceCount")
                   });
                   var shortFrac$1 = new r.Fixed(16, "BE", 14);
-                  var Offset = /* @__PURE__ */ (function() {
-                    function Offset2() {
+                  var Offset2 = /* @__PURE__ */ (function() {
+                    function Offset3() {
                     }
-                    Offset2.decode = function decode2(stream, parent) {
+                    Offset3.decode = function decode2(stream, parent) {
                       return parent.flags ? stream.readUInt32BE() : stream.readUInt16BE() * 2;
                     };
-                    return Offset2;
+                    return Offset3;
                   })();
                   var gvar = new r.Struct({
                     version: r.uint16,
@@ -10569,7 +10569,7 @@
                     glyphCount: r.uint16,
                     flags: r.uint16,
                     offsetToData: r.uint32,
-                    offsets: new r.Array(new r.Pointer(Offset, "void", {
+                    offsets: new r.Array(new r.Pointer(Offset2, "void", {
                       relativeTo: function relativeTo(ctx) {
                         return ctx.offsetToData;
                       },
@@ -101021,12 +101021,10 @@
       warnings.push(
         "Exported from the active branch rendered by ChatGPT. Older content unavailable to the page cannot be verified."
       );
-    if (doc.messages.some((m) => m.hasMedia))
-      warnings.push(
-        "Images and interactive media are represented by available text descriptions; image pixels and attachments are not embedded."
-      );
+    let unreadable = false;
     function walk(bs) {
       for (const b of bs) {
+        if (b.type === "image" && !b.image?.data) unreadable = true;
         if (b.type === "table" && b.rows.some((r) => r.some((c) => c.colSpan > 1 || c.rowSpan > 1)))
           spans = true;
         if (b.blocks) walk(b.blocks);
@@ -101036,6 +101034,10 @@
     }
     let spans = false;
     doc.messages.forEach((m) => walk(m.blocks));
+    if (unreadable || doc.messages.some((m) => m.hasInteractive))
+      warnings.push(
+        "For unavailable images or the displayed state of interactive media, use PDF as shown in Chrome."
+      );
     if (spans)
       warnings.push("Merged table cells are flattened to a regular grid.");
     return warnings;
@@ -103196,6 +103198,25 @@
   }
   function convert(bs, s) {
     return bs.flatMap((b) => {
+      if (b.type === "image") {
+        const im = b.image;
+        if (!im.data)
+          return {
+            text: `[Image unavailable: ${im.alt}]`,
+            italics: true,
+            color: "#526174",
+            margin: [0, 3, 0, 6]
+          };
+        const maxWidth = s.equationWidth || (s.orientation === "landscape" ? 842 : 595) - 2 * s.margin;
+        const maxHeight = (s.orientation === "landscape" ? 595 : 842) - 2 * s.margin - 25;
+        const scale = Math.min(0.75, maxWidth / im.width, maxHeight / im.height);
+        return {
+          image: im.data,
+          width: im.width * scale,
+          height: im.height * scale,
+          margin: [0, 4, 0, 8]
+        };
+      }
       if (b.type === "heading" || b.type === "paragraph") return paragraph(b, s);
       if (b.type === "math")
         return formulaBlock(renderEquation(b.text, true, b.mathml), s);
@@ -103291,6 +103312,22 @@
     });
   }
   function pdfDefinition(input, s) {
+    if (input?.layout === "appearance") {
+      if (!input.pages?.length)
+        throw new Error("No visible pages were captured.");
+      const pw = s.orientation === "landscape" ? 842 : 595, ph = s.orientation === "landscape" ? 595 : 842;
+      return {
+        pageSize: "A4",
+        pageOrientation: s.orientation,
+        pageMargins: s.margin,
+        info: { title: s.includeTitle ? input.title : "ChatGPT export" },
+        content: input.pages.map((image, i) => ({
+          image,
+          fit: [pw - 2 * s.margin - 1, ph - 2 * s.margin - 1],
+          pageBreak: i ? "before" : void 0
+        }))
+      };
+    }
     const doc = prepareDocument(input, s), content = [];
     const chars = /* @__PURE__ */ new Set([...font_coverage_default[s.font]]);
     const unsupported2 = /* @__PURE__ */ new Set();
@@ -104799,8 +104836,56 @@
     for (let index = 0; index < bytes.length; index++) bytes[index] = words[index >> 2] >>> 24 - (index & 3) * 8;
     return bytes;
   };
+  var rotateLeft = (word, bits2) => word << bits2 | word >>> 32 - bits2;
   var rotateRight = (word, bits2) => word >>> bits2 | word << 32 - bits2;
+  var SHA1_INITIAL_HASH = [
+    1732584193,
+    4023233417,
+    2562383102,
+    271733878,
+    3285377520
+  ];
   var SHA1_ROUND_CONSTANTS = Int32Array.of(1518500249, 1859775393, 2400959708, 3395469782);
+  var sha1Schedule = /* @__PURE__ */ new Int32Array(80);
+  var sha1 = (data) => {
+    const words = paddedWords(data);
+    const schedule = sha1Schedule;
+    let [h0, h1, h2, h3, h4] = SHA1_INITIAL_HASH;
+    for (let block = 0; block < words.length; block += 16) {
+      schedule.set(words.subarray(block, block + 16));
+      for (let t = 16; t < 80; t++) schedule[t] = rotateLeft(schedule[t - 3] ^ schedule[t - 8] ^ schedule[t - 14] ^ schedule[t - 16], 1);
+      let [a, b, c, d, e] = [
+        h0,
+        h1,
+        h2,
+        h3,
+        h4
+      ];
+      for (let t = 0; t < 80; t++) {
+        const f = t < 20 ? b & c | ~b & d : t >= 40 && t < 60 ? b & c | b & d | c & d : b ^ c ^ d;
+        const next = rotateLeft(a, 5) + f + e + SHA1_ROUND_CONSTANTS[Math.floor(t / 20)] + schedule[t] | 0;
+        e = d;
+        d = c;
+        c = rotateLeft(b, 30);
+        b = a;
+        a = next;
+      }
+      [h0, h1, h2, h3, h4] = [
+        h0 + a | 0,
+        h1 + b | 0,
+        h2 + c | 0,
+        h3 + d | 0,
+        h4 + e | 0
+      ];
+    }
+    return bytesOfWords([
+      h0,
+      h1,
+      h2,
+      h3,
+      h4
+    ]);
+  };
   var SHA256_ROUND_CONSTANTS = Int32Array.of(1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298);
   var SHA256_INITIAL_HASH = [
     1779033703,
@@ -104882,6 +104967,7 @@
   var fitTextUniqueNumericIdGen = uniqueNumericIdCreator();
   var fitTextUniqueNumericId = () => -fitTextUniqueNumericIdGen();
   var uniqueId = () => nanoid().toLowerCase();
+  var hashedId = (data) => Array.from(sha1(typeof data === "string" ? encodeUtf8(data) : ArrayBuffer.isView(data) ? data : new Uint8Array(data)), (byte) => byte.toString(16).padStart(2, "0")).join("");
   var generateUuidPart = (count) => customAlphabet("1234567890abcdef", count)();
   var uniqueUuid = () => `${generateUuidPart(8)}-${generateUuidPart(4)}-${generateUuidPart(4)}-${generateUuidPart(4)}-${generateUuidPart(12)}`;
   var encodeUtf8 = (str) => new Uint8Array(new TextEncoder().encode(str));
@@ -105252,6 +105338,869 @@
       super(typeof options === "string" ? { text: options } : options);
     }
   };
+  var convertDataURIToBinary = (dataURI) => {
+    const base64Index = dataURI.indexOf(";base64,");
+    const base64IndexWithOffset = base64Index === -1 ? 0 : base64Index + 8;
+    return new Uint8Array(atob(dataURI.substring(base64IndexWithOffset)).split("").map((c) => c.charCodeAt(0)));
+  };
+  var standardizeData = (data) => typeof data === "string" ? convertDataURIToBinary(data) : data;
+  var SIGNATURES = [
+    ["png", [
+      137,
+      80,
+      78,
+      71,
+      13,
+      10,
+      26,
+      10
+    ]],
+    ["jpg", [
+      255,
+      216,
+      255
+    ]],
+    ["gif", [
+      71,
+      73,
+      70,
+      56,
+      55,
+      97
+    ]],
+    ["gif", [
+      71,
+      73,
+      70,
+      56,
+      57,
+      97
+    ]],
+    ["bmp", [66, 77]]
+  ];
+  var imageTypeOf = ({ type, data }, name) => {
+    if (type !== void 0) return type;
+    const standardized = standardizeData(data);
+    const bytes = ArrayBuffer.isView(standardized) ? new Uint8Array(standardized.buffer, standardized.byteOffset, standardized.byteLength) : new Uint8Array(standardized);
+    const signature = SIGNATURES.find(([, start]) => start.every((byte, index) => bytes[index] === byte));
+    if (signature === void 0) throw new Error(`${name}: type isn't given, and data isn't a PNG, JPEG, GIF or BMP file to read it from. Give its type`);
+    return signature[0];
+  };
+  var HorizontalPositionRelativeFrom = {
+    /**
+    * ## Character
+    *
+    * Specifies that the horizontal positioning shall be relative to the position of the anchor within its run content.
+    */
+    CHARACTER: "character",
+    /**
+    * ## Column
+    *
+    * Specifies that the horizontal positioning shall be relative to the extents of the column which contains its anchor.
+    */
+    COLUMN: "column",
+    /**
+    * ## Inside Margin
+    *
+    * Specifies that the horizontal positioning shall be relative to the inside margin of the current page (the left margin on odd pages, right on even pages).
+    */
+    INSIDE_MARGIN: "insideMargin",
+    /**
+    * ## Left Margin
+    *
+    * Specifies that the horizontal positioning shall be relative to the left margin of the page.
+    */
+    LEFT_MARGIN: "leftMargin",
+    /**
+    * ## Page Margin
+    *
+    * Specifies that the horizontal positioning shall be relative to the page margins.
+    */
+    MARGIN: "margin",
+    /**
+    * ## Outside Margin
+    *
+    * Specifies that the horizontal positioning shall be relative to the outside margin of the current page (the right margin on odd pages, left on even pages).
+    */
+    OUTSIDE_MARGIN: "outsideMargin",
+    /**
+    * ## Page Edge
+    *
+    * Specifies that the horizontal positioning shall be relative to the edge of the page.
+    */
+    PAGE: "page",
+    /**
+    * ## Right Margin
+    *
+    * Specifies that the horizontal positioning shall be relative to the right margin of the page.
+    */
+    RIGHT_MARGIN: "rightMargin"
+  };
+  var VerticalPositionRelativeFrom = {
+    /**
+    * ## Bottom Margin
+    *
+    * Specifies that the vertical positioning shall be relative to the bottom margin of the current page.
+    */
+    BOTTOM_MARGIN: "bottomMargin",
+    /**
+    * ## Inside Margin
+    *
+    * Specifies that the vertical positioning shall be relative to the inside margin of the current page.
+    */
+    INSIDE_MARGIN: "insideMargin",
+    /**
+    * ## Line
+    *
+    * Specifies that the vertical positioning shall be relative to the line containing the anchor character.
+    */
+    LINE: "line",
+    /**
+    * ## Page Margin
+    *
+    * Specifies that the vertical positioning shall be relative to the page margins.
+    */
+    MARGIN: "margin",
+    /**
+    * ## Outside Margin
+    *
+    * Specifies that the vertical positioning shall be relative to the outside margin of the current page.
+    */
+    OUTSIDE_MARGIN: "outsideMargin",
+    /**
+    * ## Page Edge
+    *
+    * Specifies that the vertical positioning shall be relative to the edge of the page.
+    */
+    PAGE: "page",
+    /**
+    * ## Paragraph
+    *
+    * Specifies that the vertical positioning shall be relative to the paragraph which contains the drawing anchor.
+    */
+    PARAGRAPH: "paragraph",
+    /**
+    * ## Top Margin
+    *
+    * Specifies that the vertical positioning shall be relative to the top margin of the current page.
+    */
+    TOP_MARGIN: "topMargin"
+  };
+  var createSimplePos = () => new BuilderElement({
+    name: "wp:simplePos",
+    attributes: {
+      x: {
+        key: "x",
+        value: 0
+      },
+      y: {
+        key: "y",
+        value: 0
+      }
+    }
+  });
+  var createAlign = (value) => new BuilderElement({
+    name: "wp:align",
+    children: [value]
+  });
+  var createPositionOffset = (offsetValue) => new BuilderElement({
+    name: "wp:posOffset",
+    children: [offsetValue.toString()]
+  });
+  var createHorizontalPosition = ({ relative, align, offset }) => new BuilderElement({
+    name: "wp:positionH",
+    attributes: { relativeFrom: {
+      key: "relativeFrom",
+      value: relative !== null && relative !== void 0 ? relative : HorizontalPositionRelativeFrom.PAGE
+    } },
+    children: [(() => {
+      if (align) return createAlign(align);
+      else if (offset !== void 0) return createPositionOffset(offset);
+      else throw new Error("There is no configuration provided for floating position (Align or offset)");
+    })()]
+  });
+  var createVerticalPosition = ({ relative, align, offset }) => new BuilderElement({
+    name: "wp:positionV",
+    attributes: { relativeFrom: {
+      key: "relativeFrom",
+      value: relative !== null && relative !== void 0 ? relative : VerticalPositionRelativeFrom.PAGE
+    } },
+    children: [(() => {
+      if (align) return createAlign(align);
+      else if (offset !== void 0) return createPositionOffset(offset);
+      else throw new Error("There is no configuration provided for floating position (Align or offset)");
+    })()]
+  });
+  var createBodyProperties = (options = {}) => {
+    var _options$margins, _options$margins2, _options$margins3, _options$margins4;
+    return new BuilderElement({
+      name: "wps:bodyPr",
+      attributes: {
+        lIns: {
+          key: "lIns",
+          value: (_options$margins = options.margins) === null || _options$margins === void 0 ? void 0 : _options$margins.left
+        },
+        rIns: {
+          key: "rIns",
+          value: (_options$margins2 = options.margins) === null || _options$margins2 === void 0 ? void 0 : _options$margins2.right
+        },
+        tIns: {
+          key: "tIns",
+          value: (_options$margins3 = options.margins) === null || _options$margins3 === void 0 ? void 0 : _options$margins3.top
+        },
+        bIns: {
+          key: "bIns",
+          value: (_options$margins4 = options.margins) === null || _options$margins4 === void 0 ? void 0 : _options$margins4.bottom
+        },
+        anchor: {
+          key: "anchor",
+          value: options.verticalAnchor
+        }
+      },
+      children: [...options.noAutoFit ? [new OnOffElement("a:noAutofit", options.noAutoFit)] : []]
+    });
+  };
+  var createNonVisualShapeProperties = (options = { txBox: "1" }) => new BuilderElement({
+    name: "wps:cNvSpPr",
+    attributes: { txBox: {
+      key: "txBox",
+      value: options.txBox
+    } }
+  });
+  var createTextBoxContent = (children) => new BuilderElement({
+    name: "w:txbxContent",
+    children: [...children]
+  });
+  var createWpsTextBox = (children) => new BuilderElement({
+    name: "wps:txbx",
+    children: [createTextBoxContent(children)]
+  });
+  var ExtentsAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", {
+        cx: "cx",
+        cy: "cy"
+      });
+    }
+  };
+  var Extents = class extends XmlComponent {
+    constructor(x, y) {
+      super("a:ext");
+      _defineProperty(this, "attributes", void 0);
+      this.attributes = new ExtentsAttributes({
+        cx: x,
+        cy: y
+      });
+      this.root.push(this.attributes);
+    }
+  };
+  var OffsetAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", {
+        x: "x",
+        y: "y"
+      });
+    }
+  };
+  var Offset = class extends XmlComponent {
+    constructor(x, y) {
+      super("a:off");
+      this.root.push(new OffsetAttributes({
+        x: x !== null && x !== void 0 ? x : 0,
+        y: y !== null && y !== void 0 ? y : 0
+      }));
+    }
+  };
+  var FormAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", {
+        flipVertical: "flipV",
+        flipHorizontal: "flipH",
+        rotation: "rot"
+      });
+    }
+  };
+  var Form = class extends XmlComponent {
+    constructor(options) {
+      var _options$flip, _options$flip2, _options$offset, _options$offset2;
+      super("a:xfrm");
+      _defineProperty(this, "extents", void 0);
+      _defineProperty(this, "offset", void 0);
+      this.root.push(new FormAttributes({
+        flipVertical: (_options$flip = options.flip) === null || _options$flip === void 0 ? void 0 : _options$flip.vertical,
+        flipHorizontal: (_options$flip2 = options.flip) === null || _options$flip2 === void 0 ? void 0 : _options$flip2.horizontal,
+        rotation: options.rotation
+      }));
+      this.offset = new Offset((_options$offset = options.offset) === null || _options$offset === void 0 || (_options$offset = _options$offset.emus) === null || _options$offset === void 0 ? void 0 : _options$offset.x, (_options$offset2 = options.offset) === null || _options$offset2 === void 0 || (_options$offset2 = _options$offset2.emus) === null || _options$offset2 === void 0 ? void 0 : _options$offset2.y);
+      this.extents = new Extents(options.emus.x, options.emus.y);
+      this.root.push(this.offset);
+      this.root.push(this.extents);
+    }
+  };
+  var createNoFill = () => new BuilderElement({ name: "a:noFill" });
+  var createSolidRgbColor = (options) => new BuilderElement({
+    name: "a:srgbClr",
+    attributes: { value: {
+      key: "val",
+      value: options.value
+    } }
+  });
+  var createSchemeColor = (options) => new BuilderElement({
+    name: "a:schemeClr",
+    attributes: { value: {
+      key: "val",
+      value: options.value
+    } }
+  });
+  var createSolidFill$1 = (options) => new BuilderElement({
+    name: "a:solidFill",
+    children: [options.type === "rgb" ? createSolidRgbColor(options) : createSchemeColor(options)]
+  });
+  var LineCap = {
+    /** Round cap style */
+    ROUND: "rnd",
+    /** Square cap style */
+    SQUARE: "sq",
+    /** Flat cap style */
+    FLAT: "flat"
+  };
+  var CompoundLine = {
+    /** Single line */
+    SINGLE: "sng",
+    /** Double line */
+    DOUBLE: "dbl",
+    /** Thick-thin double line */
+    THICK_THIN: "thickThin",
+    /** Thin-thick double line */
+    THIN_THICK: "thinThick",
+    /** Triple line */
+    TRI: "tri"
+  };
+  var PenAlignment = {
+    /** Center alignment */
+    CENTER: "ctr",
+    /** Inset alignment */
+    INSET: "in"
+  };
+  var createOutline = (options) => new BuilderElement({
+    name: "a:ln",
+    attributes: {
+      width: {
+        key: "w",
+        value: options.width
+      },
+      cap: {
+        key: "cap",
+        value: options.cap === void 0 ? void 0 : LineCap[options.cap]
+      },
+      compoundLine: {
+        key: "cmpd",
+        value: options.compoundLine === void 0 ? void 0 : CompoundLine[options.compoundLine]
+      },
+      align: {
+        key: "algn",
+        value: options.align === void 0 ? void 0 : PenAlignment[options.align]
+      }
+    },
+    children: [options.type === "noFill" ? createNoFill() : options.solidFillType === "rgb" ? createSolidFill$1({
+      type: "rgb",
+      value: options.value
+    }) : createSolidFill$1({
+      type: "scheme",
+      value: options.value
+    })]
+  });
+  var AdjustmentValues = class extends XmlComponent {
+    constructor() {
+      super("a:avLst");
+    }
+  };
+  var PresetGeometryAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", { prst: "prst" });
+    }
+  };
+  var PresetGeometry = class extends XmlComponent {
+    constructor() {
+      super("a:prstGeom");
+      this.root.push(new PresetGeometryAttributes({ prst: "rect" }));
+      this.root.push(new AdjustmentValues());
+    }
+  };
+  var ShapePropertiesAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", { bwMode: "bwMode" });
+    }
+  };
+  var ShapeProperties = class extends XmlComponent {
+    constructor({ element, outline, solidFill, transform }) {
+      super(`${element}:spPr`);
+      _defineProperty(this, "form", void 0);
+      this.root.push(new ShapePropertiesAttributes({ bwMode: "auto" }));
+      this.form = new Form(transform);
+      this.root.push(this.form);
+      this.root.push(new PresetGeometry());
+      if (solidFill) this.root.push(createSolidFill$1(solidFill));
+      else if (outline) this.root.push(createNoFill());
+      if (outline) this.root.push(createOutline(outline));
+    }
+  };
+  var createWpsShape = (options) => new BuilderElement({
+    name: "wps:wsp",
+    children: [
+      createNonVisualShapeProperties(options.nonVisualProperties),
+      new ShapeProperties({
+        element: "wps",
+        transform: options.transformation,
+        outline: options.outline,
+        solidFill: options.solidFill
+      }),
+      createWpsTextBox(options.children),
+      createBodyProperties(options.bodyProperties)
+    ]
+  });
+  var GraphicDataAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", { uri: "uri" });
+    }
+  };
+  var createSvgBlip = (mediaData) => new BuilderElement({
+    name: "asvg:svgBlip",
+    attributes: {
+      asvg: {
+        key: "xmlns:asvg",
+        value: "http://schemas.microsoft.com/office/drawing/2016/SVG/main"
+      },
+      embed: {
+        key: "r:embed",
+        value: `rId{${mediaData.fileName}}`
+      }
+    }
+  });
+  var createExtention = (mediaData) => new BuilderElement({
+    name: "a:ext",
+    attributes: { uri: {
+      key: "uri",
+      value: "{96DAC541-7B7A-43D3-8B79-37D633B846F1}"
+    } },
+    children: [createSvgBlip(mediaData)]
+  });
+  var createExtentionList = (mediaData) => new BuilderElement({
+    name: "a:extLst",
+    children: [createExtention(mediaData)]
+  });
+  var createBlip = (mediaData) => new BuilderElement({
+    name: "a:blip",
+    attributes: {
+      embed: {
+        key: "r:embed",
+        value: `rId{${mediaData.type === "svg" ? mediaData.fallback.fileName : mediaData.fileName}}`
+      },
+      cstate: {
+        key: "cstate",
+        value: "none"
+      }
+    },
+    children: mediaData.type === "svg" ? [createExtentionList(mediaData)] : []
+  });
+  var SourceRectangleAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", {
+        left: "l",
+        top: "t",
+        right: "r",
+        bottom: "b"
+      });
+    }
+  };
+  var cropValue = (value, edge) => {
+    if (value === void 0) return;
+    if (!(value >= 0 && value <= 100)) throw new Error(`Invalid crop ${edge} ${value}. Expected a number from 0 to 100`);
+    return Math.round(value * 1e3);
+  };
+  var SourceRectangle = class extends XmlComponent {
+    constructor(crop) {
+      super("a:srcRect");
+      if (crop) this.root.push(new SourceRectangleAttributes({
+        left: cropValue(crop.left, "left"),
+        top: cropValue(crop.top, "top"),
+        right: cropValue(crop.right, "right"),
+        bottom: cropValue(crop.bottom, "bottom")
+      }));
+    }
+  };
+  var FillRectangle = class extends XmlComponent {
+    constructor() {
+      super("a:fillRect");
+    }
+  };
+  var Stretch = class extends XmlComponent {
+    constructor() {
+      super("a:stretch");
+      this.root.push(new FillRectangle());
+    }
+  };
+  var BlipFill = class extends XmlComponent {
+    constructor(mediaData, crop) {
+      super("pic:blipFill");
+      this.root.push(createBlip(mediaData));
+      this.root.push(new SourceRectangle(crop));
+      this.root.push(new Stretch());
+    }
+  };
+  var PicLocksAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", {
+        noChangeAspect: "noChangeAspect",
+        noChangeArrowheads: "noChangeArrowheads"
+      });
+    }
+  };
+  var PicLocks = class extends XmlComponent {
+    constructor() {
+      super("a:picLocks");
+      this.root.push(new PicLocksAttributes({
+        noChangeAspect: 1,
+        noChangeArrowheads: 1
+      }));
+    }
+  };
+  var ChildNonVisualProperties = class extends XmlComponent {
+    constructor() {
+      super("pic:cNvPicPr");
+      this.root.push(new PicLocks());
+    }
+  };
+  var NonVisualPropertiesAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", {
+        id: "id",
+        name: "name",
+        descr: "descr"
+      });
+    }
+  };
+  var NonVisualProperties = class extends XmlComponent {
+    constructor() {
+      super("pic:cNvPr");
+      this.root.push(new NonVisualPropertiesAttributes({
+        id: 0,
+        name: "",
+        descr: ""
+      }));
+    }
+    prepForXml(context) {
+      for (let i = context.stack.length - 1; i >= 0; i--) {
+        const element = context.stack[i];
+        if (!(element instanceof ConcreteHyperlink)) continue;
+        this.root.push(element.createDrawingClick(context, false));
+        break;
+      }
+      const result = super.prepForXml(context);
+      this.root.splice(1);
+      return result;
+    }
+  };
+  var NonVisualPicProperties = class extends XmlComponent {
+    constructor() {
+      super("pic:nvPicPr");
+      this.root.push(new NonVisualProperties());
+      this.root.push(new ChildNonVisualProperties());
+    }
+  };
+  var PicAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", { xmlns: "xmlns:pic" });
+    }
+  };
+  var Pic = class extends XmlComponent {
+    constructor({ mediaData, transform, outline, solidFill, crop }) {
+      super("pic:pic");
+      this.root.push(new PicAttributes({ xmlns: "http://schemas.openxmlformats.org/drawingml/2006/picture" }));
+      this.root.push(new NonVisualPicProperties());
+      this.root.push(new BlipFill(mediaData, crop));
+      this.root.push(new ShapeProperties({
+        element: "pic",
+        transform,
+        outline,
+        solidFill
+      }));
+    }
+  };
+  var createGroupTransform = (transformation) => {
+    var _transformation$flip, _transformation$flip2, _transformation$offse, _transformation$offse2;
+    return new BuilderElement({
+      name: "a:xfrm",
+      attributes: {
+        flipVertical: {
+          key: "flipV",
+          value: (_transformation$flip = transformation.flip) === null || _transformation$flip === void 0 ? void 0 : _transformation$flip.vertical
+        },
+        flipHorizontal: {
+          key: "flipH",
+          value: (_transformation$flip2 = transformation.flip) === null || _transformation$flip2 === void 0 ? void 0 : _transformation$flip2.horizontal
+        },
+        rotation: {
+          key: "rot",
+          value: transformation.rotation
+        }
+      },
+      children: [
+        new Offset((_transformation$offse = transformation.offset) === null || _transformation$offse === void 0 || (_transformation$offse = _transformation$offse.emus) === null || _transformation$offse === void 0 ? void 0 : _transformation$offse.x, (_transformation$offse2 = transformation.offset) === null || _transformation$offse2 === void 0 || (_transformation$offse2 = _transformation$offse2.emus) === null || _transformation$offse2 === void 0 ? void 0 : _transformation$offse2.y),
+        new Extents(transformation.emus.x, transformation.emus.y),
+        new BuilderElement({
+          name: "a:chOff",
+          attributes: {
+            x: {
+              key: "x",
+              value: 0
+            },
+            y: {
+              key: "y",
+              value: 0
+            }
+          }
+        }),
+        new BuilderElement({
+          name: "a:chExt",
+          attributes: {
+            x: {
+              key: "cx",
+              value: transformation.emus.x
+            },
+            y: {
+              key: "cy",
+              value: transformation.emus.y
+            }
+          }
+        })
+      ]
+    });
+  };
+  var createNonVisualGroupProperties = () => new BuilderElement({ name: "wpg:cNvGrpSpPr" });
+  var createWpgGroup = (options) => new BuilderElement({
+    name: "wpg:wgp",
+    children: [
+      createNonVisualGroupProperties(),
+      new BuilderElement({
+        name: "wpg:grpSpPr",
+        children: [createGroupTransform(options.transformation)]
+      }),
+      ...options.children
+    ]
+  });
+  var GraphicData = class extends XmlComponent {
+    constructor({ mediaData, transform, outline, solidFill, crop }) {
+      super("a:graphicData");
+      if (mediaData.type === "graphic") {
+        this.root.push(new GraphicDataAttributes({ uri: mediaData.uri }));
+        this.root.push(mediaData.content);
+      } else if (mediaData.type === "wps") {
+        this.root.push(new GraphicDataAttributes({ uri: "http://schemas.microsoft.com/office/word/2010/wordprocessingShape" }));
+        const wps = createWpsShape(_objectSpread2(_objectSpread2({}, mediaData.data), {}, {
+          transformation: transform,
+          outline,
+          solidFill
+        }));
+        this.root.push(wps);
+      } else if (mediaData.type === "wpg") {
+        this.root.push(new GraphicDataAttributes({ uri: "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" }));
+        const wpg = createWpgGroup({
+          children: mediaData.children.map((child2) => {
+            if (child2.type === "wps") return createWpsShape(_objectSpread2(_objectSpread2({}, child2.data), {}, {
+              transformation: child2.transformation,
+              outline: child2.outline,
+              solidFill: child2.solidFill
+            }));
+            else return new Pic({
+              mediaData: child2,
+              transform: child2.transformation,
+              outline: child2.outline,
+              solidFill: child2.solidFill
+            });
+          }),
+          transformation: transform
+        });
+        this.root.push(wpg);
+      } else {
+        this.root.push(new GraphicDataAttributes({ uri: "http://schemas.openxmlformats.org/drawingml/2006/picture" }));
+        const pic = new Pic({
+          mediaData,
+          transform,
+          outline,
+          solidFill,
+          crop
+        });
+        this.root.push(pic);
+      }
+    }
+  };
+  var GraphicAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", { a: "xmlns:a" });
+    }
+  };
+  var Graphic = class extends XmlComponent {
+    constructor({ mediaData, transform, outline, solidFill, crop }) {
+      super("a:graphic");
+      _defineProperty(this, "data", void 0);
+      this.root.push(new GraphicAttributes({ a: "http://schemas.openxmlformats.org/drawingml/2006/main" }));
+      this.data = new GraphicData({
+        mediaData,
+        transform,
+        outline,
+        solidFill,
+        crop
+      });
+      this.root.push(this.data);
+    }
+  };
+  var TextWrappingType = {
+    /** Text doesn't wrap around the drawing. It is drawn in front of or behind the text */
+    NONE: 0,
+    /** Text wraps around the drawing's box */
+    SQUARE: 1,
+    /** Text wraps closely around the drawing's outline */
+    TIGHT: 2,
+    /** Text sits above and below the drawing, not beside it */
+    TOP_AND_BOTTOM: 3,
+    /** Text wraps closely around the drawing's outline, and fills any open space inside it */
+    THROUGH: 4
+  };
+  var TextWrappingSide = {
+    /** Text wraps on both sides of the drawing */
+    BOTH_SIDES: "bothSides",
+    /** Text wraps only on the left side */
+    LEFT: "left",
+    /** Text wraps only on the right side */
+    RIGHT: "right",
+    /** Text wraps on the side with more space */
+    LARGEST: "largest"
+  };
+  var createWrapNone = () => new BuilderElement({ name: "wp:wrapNone" });
+  var createWrapSquare = (textWrapping, margins = {
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0
+  }) => new BuilderElement({
+    name: "wp:wrapSquare",
+    attributes: {
+      wrapText: {
+        key: "wrapText",
+        value: textWrapping.side || TextWrappingSide.BOTH_SIDES
+      },
+      distT: {
+        key: "distT",
+        value: margins.top
+      },
+      distB: {
+        key: "distB",
+        value: margins.bottom
+      },
+      distL: {
+        key: "distL",
+        value: margins.left
+      },
+      distR: {
+        key: "distR",
+        value: margins.right
+      }
+    }
+  });
+  var WRAP_POLYGON_SIZE = 21600;
+  var createPoint = (name, { x, y }) => new BuilderElement({
+    name,
+    attributes: {
+      x: {
+        key: "x",
+        value: x
+      },
+      y: {
+        key: "y",
+        value: y
+      }
+    }
+  });
+  var createWrapPolygon = () => new BuilderElement({
+    name: "wp:wrapPolygon",
+    attributes: { edited: {
+      key: "edited",
+      value: false
+    } },
+    children: [
+      createPoint("wp:start", {
+        x: 0,
+        y: 0
+      }),
+      createPoint("wp:lineTo", {
+        x: 0,
+        y: WRAP_POLYGON_SIZE
+      }),
+      createPoint("wp:lineTo", {
+        x: WRAP_POLYGON_SIZE,
+        y: WRAP_POLYGON_SIZE
+      }),
+      createPoint("wp:lineTo", {
+        x: WRAP_POLYGON_SIZE,
+        y: 0
+      }),
+      createPoint("wp:lineTo", {
+        x: 0,
+        y: 0
+      })
+    ]
+  });
+  var createPolygonWrap = (name, margins = {}, textWrapping) => {
+    var _textWrapping$side;
+    return new BuilderElement({
+      name,
+      attributes: {
+        wrapText: {
+          key: "wrapText",
+          value: (_textWrapping$side = textWrapping === null || textWrapping === void 0 ? void 0 : textWrapping.side) !== null && _textWrapping$side !== void 0 ? _textWrapping$side : TextWrappingSide.BOTH_SIDES
+        },
+        distL: {
+          key: "distL",
+          value: margins.left
+        },
+        distR: {
+          key: "distR",
+          value: margins.right
+        }
+      },
+      children: [createWrapPolygon()]
+    });
+  };
+  var createWrapTight = (margins, textWrapping) => createPolygonWrap("wp:wrapTight", margins, textWrapping);
+  var createWrapThrough = (margins, textWrapping) => createPolygonWrap("wp:wrapThrough", margins, textWrapping);
+  var createWrapTopAndBottom = (margins = {
+    top: 0,
+    bottom: 0
+  }) => new BuilderElement({
+    name: "wp:wrapTopAndBottom",
+    attributes: {
+      distT: {
+        key: "distT",
+        value: margins.top
+      },
+      distB: {
+        key: "distB",
+        value: margins.bottom
+      }
+    }
+  });
   var TargetModeType = {
     /** Target is external to the package (e.g., hyperlink to a URL) */
     EXTERNAL: "External"
@@ -105287,6 +106236,34 @@
       value: `rId${linkId}`
     } })
   });
+  var DECORATIVE_EXTENSION_URI = "{C183D7F6-B498-43B3-948B-1728B52AA6E4}";
+  var createDecorativeExtensionList = (declareNamespace) => new BuilderElement({
+    name: "a:extLst",
+    attributes: { namespace: {
+      key: "xmlns:a",
+      value: declareNamespace ? "http://schemas.openxmlformats.org/drawingml/2006/main" : void 0
+    } },
+    children: [new BuilderElement({
+      name: "a:ext",
+      attributes: { uri: {
+        key: "uri",
+        value: DECORATIVE_EXTENSION_URI
+      } },
+      children: [new BuilderElement({
+        name: "adec:decorative",
+        attributes: {
+          namespace: {
+            key: "xmlns:adec",
+            value: "http://schemas.microsoft.com/office/drawing/2017/decorative"
+          },
+          value: {
+            key: "val",
+            value: 1
+          }
+        }
+      })]
+    })]
+  });
   var DrawingLink = class {
     constructor(link) {
       _defineProperty(this, "link", void 0);
@@ -105302,6 +106279,350 @@
       if (this.addedTo.has(relationships)) return;
       this.addedTo.add(relationships);
       relationships.addRelationship(this.linkId, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", this.link, TargetModeType.EXTERNAL);
+    }
+  };
+  var DocProperties = class extends XmlComponent {
+    constructor({ name = "", description, title, id } = {}, { link, decorative } = {}) {
+      super("wp:docPr");
+      _defineProperty(this, "link", void 0);
+      _defineProperty(this, "decorative", void 0);
+      const attributes = {
+        id: {
+          key: "id",
+          value: id !== null && id !== void 0 ? id : docPropertiesUniqueNumericId()
+        },
+        name: {
+          key: "name",
+          value: name
+        }
+      };
+      if (description) attributes.description = {
+        key: "descr",
+        value: description
+      };
+      if (title) attributes.title = {
+        key: "title",
+        value: title
+      };
+      this.root.push(new NextAttributeComponent(attributes));
+      this.link = link === void 0 ? void 0 : new DrawingLink(link);
+      this.decorative = decorative;
+    }
+    prepForXml(context) {
+      if (this.link) {
+        this.link.addRelationship(context);
+        this.root.push(this.link.createClick(true));
+      } else for (let i = context.stack.length - 1; i >= 0; i--) {
+        const element = context.stack[i];
+        if (!(element instanceof ConcreteHyperlink)) continue;
+        this.root.push(element.createDrawingClick(context, true));
+        break;
+      }
+      if (this.decorative) this.root.push(createDecorativeExtensionList(true));
+      const result = super.prepForXml(context);
+      this.root.splice(1);
+      return result;
+    }
+  };
+  var createEffectExtent = ({ top, right, bottom, left }) => new BuilderElement({
+    name: "wp:effectExtent",
+    attributes: {
+      top: {
+        key: "t",
+        value: top
+      },
+      right: {
+        key: "r",
+        value: right
+      },
+      bottom: {
+        key: "b",
+        value: bottom
+      },
+      left: {
+        key: "l",
+        value: left
+      }
+    }
+  });
+  var MAX_EXTENT = 2147483647;
+  var EMUS_PER_PIXEL$1 = 9525;
+  var checkExtent = (dimension, value) => {
+    if (value !== void 0 && value > MAX_EXTENT) throw new Error(`Invalid drawing ${dimension} ${value} EMUs (${Math.round(value / EMUS_PER_PIXEL$1)} pixels). Word won't open a drawing with a ${dimension} over ${MAX_EXTENT} EMUs (${Math.floor(MAX_EXTENT / EMUS_PER_PIXEL$1)} pixels). Sizes such as an ImageRun's transformation are in pixels, not EMUs`);
+    return value;
+  };
+  var createExtent = ({ x, y }) => new BuilderElement({
+    name: "wp:extent",
+    attributes: {
+      x: {
+        key: "cx",
+        value: checkExtent("width", x)
+      },
+      y: {
+        key: "cy",
+        value: checkExtent("height", y)
+      }
+    }
+  });
+  var GraphicFrameLockAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", {
+        xmlns: "xmlns:a",
+        noChangeAspect: "noChangeAspect"
+      });
+    }
+  };
+  var GraphicFrameLocks = class extends XmlComponent {
+    constructor() {
+      super("a:graphicFrameLocks");
+      this.root.push(new GraphicFrameLockAttributes({
+        xmlns: "http://schemas.openxmlformats.org/drawingml/2006/main",
+        noChangeAspect: 1
+      }));
+    }
+  };
+  var createGraphicFrameProperties = (lockAspectRatio = true) => new BuilderElement({
+    name: "wp:cNvGraphicFramePr",
+    children: lockAspectRatio ? [new GraphicFrameLocks()] : []
+  });
+  var AnchorAttributes = class extends XmlAttributeComponent {
+    constructor(..._args) {
+      super(..._args);
+      _defineProperty(this, "xmlKeys", {
+        distT: "distT",
+        distB: "distB",
+        distL: "distL",
+        distR: "distR",
+        allowOverlap: "allowOverlap",
+        behindDoc: "behindDoc",
+        layoutInCell: "layoutInCell",
+        locked: "locked",
+        relativeHeight: "relativeHeight",
+        simplePos: "simplePos"
+      });
+    }
+  };
+  var Anchor = class extends XmlComponent {
+    constructor({ mediaData, transform, drawingOptions }) {
+      var _drawingOptions$effec;
+      super("wp:anchor");
+      const floating = _objectSpread2({
+        allowOverlap: true,
+        behindDocument: false,
+        lockAnchor: false,
+        layoutInCell: true,
+        verticalPosition: {},
+        horizontalPosition: {}
+      }, drawingOptions.floating);
+      this.root.push(new AnchorAttributes({
+        distT: floating.margins ? floating.margins.top || 0 : 0,
+        distB: floating.margins ? floating.margins.bottom || 0 : 0,
+        distL: floating.margins ? floating.margins.left || 0 : 0,
+        distR: floating.margins ? floating.margins.right || 0 : 0,
+        simplePos: "0",
+        allowOverlap: floating.allowOverlap === true ? "1" : "0",
+        behindDoc: floating.behindDocument === true ? "1" : "0",
+        locked: floating.lockAnchor === true ? "1" : "0",
+        layoutInCell: floating.layoutInCell === true ? "1" : "0",
+        relativeHeight: floating.zIndex ? floating.zIndex : transform.emus.y
+      }));
+      this.root.push(createSimplePos());
+      this.root.push(createHorizontalPosition(floating.horizontalPosition));
+      this.root.push(createVerticalPosition(floating.verticalPosition));
+      this.root.push(createExtent({
+        x: transform.emus.x,
+        y: transform.emus.y
+      }));
+      this.root.push(createEffectExtent((_drawingOptions$effec = drawingOptions.effectExtent) !== null && _drawingOptions$effec !== void 0 ? _drawingOptions$effec : {
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0
+      }));
+      if (drawingOptions.floating !== void 0 && drawingOptions.floating.wrap !== void 0) switch (drawingOptions.floating.wrap.type) {
+        case TextWrappingType.SQUARE:
+          this.root.push(createWrapSquare(drawingOptions.floating.wrap, drawingOptions.floating.margins));
+          break;
+        case TextWrappingType.TIGHT:
+          this.root.push(createWrapTight(drawingOptions.floating.margins, drawingOptions.floating.wrap));
+          break;
+        case TextWrappingType.THROUGH:
+          this.root.push(createWrapThrough(drawingOptions.floating.margins, drawingOptions.floating.wrap));
+          break;
+        case TextWrappingType.TOP_AND_BOTTOM:
+          this.root.push(createWrapTopAndBottom(drawingOptions.floating.margins));
+          break;
+        case TextWrappingType.NONE:
+        default:
+          this.root.push(createWrapNone());
+      }
+      else this.root.push(createWrapNone());
+      this.root.push(new DocProperties(drawingOptions.docProperties, {
+        link: drawingOptions.link,
+        decorative: drawingOptions.decorative
+      }));
+      this.root.push(createGraphicFrameProperties(mediaData.type !== "graphic" || mediaData.lockAspectRatio !== false));
+      this.root.push(new Graphic({
+        mediaData,
+        transform,
+        outline: drawingOptions.outline,
+        solidFill: drawingOptions.solidFill,
+        crop: drawingOptions.crop
+      }));
+    }
+  };
+  var createInline = ({ mediaData, transform, docProperties, outline, solidFill, crop, effectExtent, link, decorative }) => {
+    var _outline$width, _outline$width2, _outline$width3, _outline$width4;
+    return new BuilderElement({
+      name: "wp:inline",
+      attributes: {
+        distanceTop: {
+          key: "distT",
+          value: 0
+        },
+        distanceBottom: {
+          key: "distB",
+          value: 0
+        },
+        distanceLeft: {
+          key: "distL",
+          value: 0
+        },
+        distanceRight: {
+          key: "distR",
+          value: 0
+        }
+      },
+      children: [
+        createExtent({
+          x: transform.emus.x,
+          y: transform.emus.y
+        }),
+        createEffectExtent(effectExtent !== null && effectExtent !== void 0 ? effectExtent : outline ? {
+          top: ((_outline$width = outline.width) !== null && _outline$width !== void 0 ? _outline$width : 9525) * 2,
+          right: ((_outline$width2 = outline.width) !== null && _outline$width2 !== void 0 ? _outline$width2 : 9525) * 2,
+          bottom: ((_outline$width3 = outline.width) !== null && _outline$width3 !== void 0 ? _outline$width3 : 9525) * 2,
+          left: ((_outline$width4 = outline.width) !== null && _outline$width4 !== void 0 ? _outline$width4 : 9525) * 2
+        } : {
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0
+        }),
+        new DocProperties(docProperties, {
+          link,
+          decorative
+        }),
+        createGraphicFrameProperties(mediaData.type !== "graphic" || mediaData.lockAspectRatio !== false),
+        new Graphic({
+          mediaData,
+          transform,
+          outline,
+          solidFill,
+          crop
+        })
+      ]
+    });
+  };
+  var Drawing = class extends XmlComponent {
+    constructor(imageData, drawingOptions = {}) {
+      super("w:drawing");
+      if (!drawingOptions.floating) this.root.push(createInline({
+        mediaData: imageData,
+        transform: imageData.transformation,
+        docProperties: drawingOptions.docProperties,
+        outline: drawingOptions.outline,
+        solidFill: drawingOptions.solidFill,
+        crop: drawingOptions.crop,
+        effectExtent: drawingOptions.effectExtent,
+        link: drawingOptions.link,
+        decorative: drawingOptions.decorative
+      }));
+      else this.root.push(new Anchor({
+        mediaData: imageData,
+        transform: imageData.transformation,
+        drawingOptions
+      }));
+    }
+  };
+  var createImageData = (options, key) => ({
+    data: standardizeData(options.data),
+    fileName: key,
+    transformation: {
+      pixels: {
+        x: Math.round(options.transformation.width),
+        y: Math.round(options.transformation.height)
+      },
+      emus: {
+        x: Math.round(options.transformation.width * 9525),
+        y: Math.round(options.transformation.height * 9525)
+      },
+      flip: options.transformation.flip,
+      rotation: options.transformation.rotation ? options.transformation.rotation * 6e4 : void 0
+    }
+  });
+  var createRegularImageData = (options, transformation, name) => {
+    const type = imageTypeOf(options, name);
+    return _objectSpread2({ type }, createImageData(_objectSpread2(_objectSpread2({}, options), {}, { transformation }), `${hashedId(options.data)}.${type}`));
+  };
+  var createDeletion = ({ id, author, date }, run) => new BuilderElement({
+    name: "w:del",
+    attributes: {
+      id: {
+        key: "w:id",
+        value: id
+      },
+      author: {
+        key: "w:author",
+        value: author
+      },
+      date: {
+        key: "w:date",
+        value: date
+      }
+    },
+    children: [run]
+  });
+  var ImageRun = class extends XmlComponent {
+    constructor(options) {
+      var _options$insertion;
+      const imageData = options.type === "svg" ? _objectSpread2(_objectSpread2({ type: options.type }, createImageData(options, `${hashedId(options.data)}.svg`)), {}, { fallback: createRegularImageData(options.fallback, options.transformation, "ImageRun fallback") }) : createRegularImageData(options, options.transformation, "ImageRun");
+      const drawing = new Drawing(imageData, {
+        floating: options.floating,
+        docProperties: options.altText,
+        outline: options.outline,
+        solidFill: options.solidFill,
+        crop: options.crop,
+        link: options.link,
+        decorative: options.decorative
+      });
+      const properties = new RunProperties(options.run);
+      const revision = (_options$insertion = options.insertion) !== null && _options$insertion !== void 0 ? _options$insertion : options.deletion;
+      const rootName = options.insertion ? "w:ins" : options.deletion ? "w:del" : "w:r";
+      super(rootName);
+      _defineProperty(this, "imageData", void 0);
+      if (revision) {
+        this.root.push(new ChangeAttributes({
+          id: revision.id,
+          author: revision.author,
+          date: revision.date
+        }));
+        const run = new BuilderElement({
+          name: "w:r",
+          children: [properties, drawing]
+        });
+        this.addChildElement(options.insertion && options.deletion ? createDeletion(options.deletion, run) : run);
+      } else {
+        this.root.push(properties);
+        this.root.push(drawing);
+      }
+      this.imageData = imageData;
+    }
+    prepForXml(context) {
+      context.file.Media.addImage(this.imageData.fileName, this.imageData);
+      if (this.imageData.type === "svg") context.file.Media.addImage(this.imageData.fallback.fileName, this.imageData.fallback);
+      return super.prepForXml(context);
     }
   };
   var LARGEST_ROMAN = 32767;
@@ -115889,6 +117210,36 @@
     const nonempty2 = (value) => value.length ? value : [p([])];
     function convert2(bs, depth = 0, quoted = false) {
       return bs.flatMap((b) => {
+        if (b.type === "image") {
+          const im = b.image;
+          if (!im.data)
+            return p([
+              new TextRun({
+                text: `[Image unavailable: ${im.alt}]`,
+                italics: true
+              })
+            ]);
+          const scale = Math.min(
+            1,
+            ((s.orientation === "landscape" ? 842 : 595) - 2 * s.margin) * 4 / 3 / im.width,
+            (((s.orientation === "landscape" ? 595 : 842) - 2 * s.margin) * 4 / 3 - 30) / im.height
+          );
+          const bytes = Uint8Array.from(
+            atob(im.data.split(",")[1]),
+            (c) => c.charCodeAt(0)
+          );
+          return p([
+            new ImageRun({
+              type: im.data.startsWith("data:image/png") ? "png" : "jpg",
+              data: bytes,
+              transformation: {
+                width: Math.round(im.width * scale),
+                height: Math.round(im.height * scale)
+              },
+              altText: { name: im.alt, title: im.alt, description: im.alt }
+            })
+          ]);
+        }
         if (b.type === "heading")
           return p(runs2(b.runs), {
             heading: HeadingLevel[`HEADING_${Math.min(b.level, 6)}`],

@@ -9,6 +9,151 @@
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
+  // src/modules/media.js
+  function beginImages() {
+    session = /* @__PURE__ */ new Map();
+  }
+  function endImages() {
+    session = null;
+  }
+  function meaningfulImage(img) {
+    if (img.closest(
+      'nav,form,[data-cge],[aria-hidden="true"],[data-testid*="avatar" i]'
+    ))
+      return false;
+    const rect = img.getBoundingClientRect();
+    return !(rect.width > 0 && rect.height > 0 && rect.width <= 24 && rect.height <= 24);
+  }
+  function imageRef(el) {
+    const source = el.currentSrc || el.getAttribute("src") || "";
+    const alt = el.alt || "Image";
+    const key = source || alt;
+    if (session && source) session.set(key, { el, source });
+    return { text: `[Image: ${alt}]`, image: { key, alt } };
+  }
+  function raster(el) {
+    const width = el.naturalWidth || el.width, height = el.naturalHeight || el.height;
+    if (!width || !height) throw new Error("Image has not loaded");
+    const scale = Math.min(1, 1600 / Math.max(width, height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
+    let data = canvas.toDataURL("image/png");
+    if (data.length > 4e5) {
+      const alpha = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let opaque = true;
+      for (let i = 3; i < alpha.length; i += 4)
+        if (alpha[i] !== 255) {
+          opaque = false;
+          break;
+        }
+      if (opaque) data = canvas.toDataURL("image/jpeg", 0.9);
+    }
+    return { data, width: canvas.width, height: canvas.height };
+  }
+  function decodeRaster(data) {
+    const match = /^data:(image\/(?:png|jpeg|gif|webp|avif));base64,(.+)$/i.exec(
+      data
+    );
+    if (!match) throw new Error("Invalid raster data");
+    return createImageBitmap(
+      new Blob([Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0))], {
+        type: match[1]
+      })
+    );
+  }
+  async function resolve(ref) {
+    const item = session?.get(ref.key);
+    if (!item) return null;
+    try {
+      if (item.el.complete && (item.el.currentSrc || item.el.getAttribute("src")) === item.source)
+        return raster(item.el);
+    } catch {
+    }
+    try {
+      let source = item.source;
+      if (!/^data:image\/(png|jpeg|webp|gif);base64,/i.test(source)) {
+        const url = new URL(source, location.href);
+        if (url.protocol === "blob:" && url.origin === location.origin) {
+          const response = await fetch(url.href);
+          const blob = await response.blob();
+          if (!response.ok || blob.size > 12e6) return null;
+          const bitmap2 = await createImageBitmap(blob);
+          try {
+            return raster(bitmap2);
+          } finally {
+            bitmap2.close();
+          }
+        }
+        const result = await chrome.runtime.sendMessage({
+          type: "CGE_IMAGE",
+          url: url.href
+        });
+        if (!result?.ok) return null;
+        source = result.data;
+      }
+      const bitmap = await decodeRaster(source);
+      try {
+        return raster(bitmap);
+      } finally {
+        bitmap.close();
+      }
+    } catch {
+      return null;
+    }
+  }
+  async function embedImages(messages) {
+    const cache = /* @__PURE__ */ new Map();
+    async function visit(bs) {
+      for (const b of bs) {
+        if (b.type === "image") {
+          const ref = b.image;
+          if (!cache.has(ref.key)) cache.set(ref.key, await resolve(ref));
+          b.image = { alt: ref.alt, ...cache.get(ref.key) };
+        }
+        if (b.blocks) await visit(b.blocks);
+        if (b.items) for (const item of b.items) await visit(item);
+        if (b.rows)
+          for (const row of b.rows)
+            for (const cell of row) await visit(cell.blocks);
+      }
+    }
+    for (const m of messages) await visit(m.blocks);
+  }
+  function liftImages(bs) {
+    return bs.flatMap((b) => {
+      if (b.runs?.some((r) => r.image)) {
+        const out = [];
+        let runs = [];
+        const flush = () => {
+          if (runs.length) out.push({ ...b, runs });
+          runs = [];
+        };
+        for (const run2 of b.runs) {
+          if (run2.image) {
+            flush();
+            out.push({ type: "image", image: run2.image, text: run2.text });
+          } else runs.push(run2);
+        }
+        flush();
+        return out;
+      }
+      if (b.items) b.items = b.items.map(liftImages);
+      if (b.blocks) b.blocks = liftImages(b.blocks);
+      if (b.rows)
+        for (const row of b.rows)
+          for (const c of row) c.blocks = liftImages(c.blocks);
+      return [b];
+    });
+  }
+  var session;
+  var init_media = __esm({
+    "src/modules/media.js"() {
+    }
+  });
+
   // src/modules/normalize.js
   var normalize_exports = {};
   __export(normalize_exports, {
@@ -97,7 +242,10 @@
         style
       );
     }
-    if (node.nodeType !== 1 || !visible(node) || node.matches(OMIT)) return [];
+    if (node.nodeType !== 1 || !visible(node)) return [];
+    if (node.matches('button,[role="button"]'))
+      return [...node.querySelectorAll("img")].filter((img) => visible(img) && meaningfulImage(img)).map(imageRef);
+    if (node.matches(OMIT)) return [];
     if (node.matches(".katex-display"))
       return [{ ...equation(node), ...style, math: true, display: true }];
     if (node.matches(equationSelector)) {
@@ -106,13 +254,7 @@
     }
     if (node.tagName === "BR") return [{ text: "\n", ...style }];
     if (node.tagName === "IMG")
-      return [
-        {
-          text: `[Image: ${node.alt || "no text description"}]`,
-          ...style,
-          italic: true
-        }
-      ];
+      return meaningfulImage(node) ? [imageRef(node)] : [];
     const next = { ...style };
     if (["STRONG", "B"].includes(node.tagName)) next.bold = true;
     if (["EM", "I"].includes(node.tagName)) next.italic = true;
@@ -148,7 +290,12 @@
         pending.push(...inline(el));
         continue;
       }
-      if (!visible(el) || el.matches(OMIT)) continue;
+      if (!visible(el)) continue;
+      if (el.matches('button,[role="button"]')) {
+        pending.push(...inline(el));
+        continue;
+      }
+      if (el.matches(OMIT)) continue;
       if (el.matches(
         ".katex-display,math[display=block],mjx-container[display=true]"
       ) || el.matches(equationSelector) && BLOCK.split(",").includes(el.tagName)) {
@@ -217,13 +364,21 @@
   var OMIT, BLOCK, equationSelector;
   var init_normalize = __esm({
     "src/modules/normalize.js"() {
+      init_media();
       OMIT = 'button,nav,[data-conversation-role]:is(h1,h2,h3,h4,h5,h6),.turn-action-controls,script,style,textarea,input,select,svg,[role="button"],[data-cge],[data-testid="thought-process"],[data-testid="reasoning"],.katex-html';
       BLOCK = "P,H1,H2,H3,H4,H5,H6,PRE,UL,OL,TABLE,BLOCKQUOTE,HR,DIV,SECTION,ARTICLE,FIGURE";
       equationSelector = ".katex,math,[data-math],[data-latex],mjx-container";
     }
   });
 
+  // src/content.js
+  init_media();
+
+  // src/modules/appearance.js
+  init_media();
+
   // src/modules/extractor.js
+  init_media();
   init_normalize();
   var ROLE_SELECTOR = '[data-message-author-role="user"],[data-message-author-role="assistant"]';
   var unitAttrs = [
@@ -239,7 +394,34 @@
   var roleContainer = '[data-conversation-role="assistant"],[data-conversation-role="user"]';
   var roleHeading = 'h1,h2,h3,h4,h5,h6,[role="heading"]';
   var unitKey = (el) => unitAttrs.map((attr) => el.getAttribute(attr)).find(Boolean);
+  var generatedCard = '[data-testid*="imagegen" i],[data-testid*="image-gen" i],[data-testid*="generated-image" i],[data-generated-image],[data-content-search-unit-key$=":tool"],[data-chatgpt-search-unit-key$=":tool"],[class*="group/imagegen-image"],[data-testid*="image_generation" i]';
+  var generatedImgs = 'img[alt^="generated image" i],img[alt^="image generated" i],' + generatedCard.split(",").map((k) => k + " img").join(",");
+  var adoptedTurns = /* @__PURE__ */ new WeakMap();
+  var extraImages = /* @__PURE__ */ new WeakMap();
+  var imageRoots = /* @__PURE__ */ new WeakSet();
+  function visualRoots(el) {
+    return [el, ...extraImages.get(el) || []].sort(
+      (a, b) => a.compareDocumentPosition(b) & 4 ? -1 : 1
+    );
+  }
+  function mountPairHost(el, host) {
+    const end = visualRoots(el).at(-1);
+    if (end !== el || imageRoots.has(el) || el.matches(generatedCard + ",img,button,[role=button]") || el.closest('button,[role="button"]')) {
+      const card = end.closest(generatedCard) || end;
+      (card.closest('button,[role="button"],picture') || card).after(host);
+    } else el.append(host);
+  }
+  function adjacentTurn(img) {
+    let card = img.closest(generatedCard);
+    while (card && !card.matches("main,body")) {
+      const previous = card.previousElementSibling;
+      if (previous) return previous.matches(turnSelector) ? previous : null;
+      card = card.parentElement;
+    }
+    return null;
+  }
   function messageRole(el) {
+    if (imageRoots.has(el)) return "assistant";
     if (el.hasAttribute("data-message-author-role"))
       return el.dataset.messageAuthorRole;
     const key = unitKey(el);
@@ -274,12 +456,37 @@
         candidates.add(el);
         for (let p = el.parentElement; p; p = p.parentElement) ancestors.add(p);
       }
+    for (const el of candidates) extraImages.delete(el);
+    for (const img of root.querySelectorAll(generatedImgs)) {
+      if (!visible(img) || !meaningfulImage(img) || img.closest(
+        userBubble + ',[data-turn="user"],[data-message-author-role="user"],[data-conversation-role="user"]'
+      ))
+        continue;
+      const turn = img.closest(turnSelector) || adjacentTurn(img);
+      if (!turn || [...candidates].some((el) => el.contains(img))) continue;
+      const peers = [...candidates].filter((el) => turnFor(el) === turn);
+      const before = peers.filter((el) => el.compareDocumentPosition(img) & 4).at(-1);
+      const next = peers.find((el) => img.compareDocumentPosition(el) & 4);
+      const owner = before && messageRole(before) === "assistant" ? before : next && messageRole(next) === "assistant" ? next : null;
+      if (owner) {
+        extraImages.set(owner, [...extraImages.get(owner) || [], img]);
+        continue;
+      }
+      const root2 = img.closest(
+        unitAttrs.map((attr) => "[" + attr + "]").join(",") + "," + generatedCard
+      ) || img.closest("button") || img;
+      if (root2.contains(turn) || peers.some((el) => root2.contains(el))) continue;
+      adoptedTurns.set(root2, turn);
+      extraImages.delete(root2);
+      imageRoots.add(root2);
+      candidates.add(root2);
+    }
     return [...candidates].sort(
       (a, b) => a.compareDocumentPosition(b) & 4 ? -1 : 1
     );
   }
   function turnFor(el) {
-    return el.closest(turnSelector) || el;
+    return el.closest(turnSelector) || adoptedTurns.get(el) || el;
   }
   function turnIndex(el) {
     const turn = turnFor(el);
@@ -326,20 +533,21 @@
       )
     ].some((action) => visible(action) && followsAnswer(action)))
       return true;
+    const images = visualRoots(el).flatMap(
+      (node) => node.matches("img") ? [node] : [...node.querySelectorAll("img")]
+    ).filter((img) => visible(img) && meaningfulImage(img));
+    if (images.length && images.every((img) => img.complete && img.naturalWidth > 0) && (imageRoots.has(el) || images.some((img) => img.matches(generatedImgs)) || !el.textContent.trim()) && !isStreaming(el.ownerDocument) && ![
+      ...turn.querySelectorAll(
+        '[aria-busy="true"],[data-is-streaming="true"],[role="progressbar"]'
+      )
+    ].some(visible))
+      return true;
     if (el.dataset.isStreaming === "false" || turn.dataset.isStreaming === "false")
       return true;
     return nodes.slice(idx + 1).some((n) => messageRole(n) === "user");
   }
-  function extractMessage(el, order) {
+  function messageIdentity(el) {
     const role = messageRole(el);
-    const body = role === "user" ? el.querySelector(userBubble) || el : el;
-    const content = blocks(body);
-    if (!content.length)
-      throw new Error(
-        `The ${role} message has no readable content. It may contain an unsupported rich element.`
-      );
-    const media = body.querySelector("img,video,audio,canvas,iframe");
-    const time = turnFor(el).querySelector("time[datetime]")?.getAttribute("datetime");
     const key = unitKey(el.closest(unitSelector) || el);
     const unit = key?.match(/^(.+):(\d+):(user|assistant)$/);
     const group = turnFor(el).dataset.turnKey || turnFor(el).dataset.chatgptSearchTurnKey || turnFor(el).dataset.contentSearchTurnKey || unit?.[1] || null;
@@ -351,12 +559,47 @@
       // An answer later in an explicitly grouped turn must use the prompt in that group.
       requiresSameGroup: role === "assistant" && Boolean(unit && Number(unit[2]) > 0),
       id: el.dataset.messageId || unitKey(el) || unitKey(el.closest(unitSelector) || el) || (turnFor(el).dataset.turnKey || turnFor(el).dataset.turnId ? `${turnFor(el).dataset.turnKey || turnFor(el).dataset.turnId}:${role}` : null),
-      turnIndex: turnIndex(el),
+      turnIndex: turnIndex(el)
+    };
+  }
+  function extractMessage(el, order) {
+    const role = messageRole(el);
+    const body = role === "user" ? el.querySelector(userBubble) || el : el;
+    const roots = role === "assistant" ? visualRoots(el) : [body];
+    const content = liftImages(
+      roots.flatMap((node) => {
+        if (node.matches("img"))
+          return [{ type: "paragraph", runs: [imageRef(node)] }];
+        return blocks(node);
+      })
+    );
+    const rich = roots.some(
+      (n) => n.matches("img,canvas,iframe,video,audio,svg") || n.querySelector("img,canvas,iframe,video,audio,svg")
+    );
+    if (!content.length && rich)
+      content.push({
+        type: "paragraph",
+        runs: [
+          {
+            text: "[Visual content \u2013 use PDF as shown for its displayed appearance.]"
+          }
+        ]
+      });
+    if (!content.length)
+      throw new Error(
+        `The ${role} message has no readable content. It may contain an unsupported rich element.`
+      );
+    const time = turnFor(el).querySelector("time[datetime]")?.getAttribute("datetime");
+    return {
+      ...messageIdentity(el),
       order,
       parentId: null,
       blocks: content,
       timestamp: time || null,
-      hasMedia: Boolean(media)
+      hasMedia: rich,
+      hasInteractive: roots.some(
+        (n) => n.querySelector("canvas,iframe,video,audio") || n.matches("canvas,iframe,video,audio")
+      )
     };
   }
   function associate(messages) {
@@ -441,6 +684,9 @@
     return (selected?.textContent || root.title || "ChatGPT Conversation").replace(/\s*[-|–]\s*ChatGPT\s*$/, "").trim() || "ChatGPT Conversation";
   }
 
+  // src/modules/appearance.js
+  init_normalize();
+
   // src/modules/history.js
   init_normalize();
   var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -458,6 +704,7 @@
     signal,
     onProgress = () => {
     },
+    onViewport,
     timeout = 45e3
   } = {}) {
     const route2 = location.href, scroller = scrollContainer(), original = scroller.scrollTop;
@@ -486,6 +733,7 @@
     function read() {
       guard();
       const current = snapshot();
+      onViewport?.(scroller);
       const indexed = current.every((m) => m.turnIndex !== null);
       if (!indexed) uncertain = true;
       const keys = /* @__PURE__ */ new Set();
@@ -584,6 +832,271 @@
     }
   }
 
+  // src/modules/appearance.js
+  var sleep2 = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
+  var layOut = () => new Promise(
+    (resolve2) => requestAnimationFrame(() => requestAnimationFrame(resolve2))
+  );
+  function limits(el) {
+    let top = 0, left = 0, bottom = innerHeight, right = innerWidth;
+    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      const style = getComputedStyle(p), r = p.getBoundingClientRect();
+      if (/auto|scroll|hidden|clip/.test(style.overflowY)) {
+        top = Math.max(top, r.top + p.clientTop);
+        bottom = Math.min(bottom, r.top + p.clientTop + p.clientHeight);
+      }
+      if (/auto|scroll|hidden|clip/.test(style.overflowX)) {
+        left = Math.max(left, r.left + p.clientLeft);
+        right = Math.min(right, r.left + p.clientLeft + p.clientWidth);
+      }
+    }
+    return { top, left, bottom, right };
+  }
+  function visibleSurfaces(el) {
+    const r = el.getBoundingClientRect();
+    if (r.width >= 1 && r.height >= 1) return [el];
+    if (getComputedStyle(el).display === "contents") {
+      if ([...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()))
+        throw new Error(
+          "This message has unbounded text. Use the formatted PDF."
+        );
+      return [...el.children].filter((n) => !n.hasAttribute("data-cge")).flatMap(visibleSurfaces);
+    }
+    return [];
+  }
+  function rememberPositions(positions, scroller) {
+    for (const el of messageNodes()) {
+      const key = historyKey(messageIdentity(el));
+      const r = el.getBoundingClientRect();
+      const offset = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top + scroller.clientTop;
+      if (key) positions.set(key, scroller.scrollTop + r.top - offset);
+    }
+  }
+  function pageComposer(settings) {
+    const pw = settings.orientation === "landscape" ? 842 : 595, ph = settings.orientation === "landscape" ? 595 : 842;
+    const w = Math.round((pw - settings.margin * 2) * 2), h = Math.round((ph - settings.margin * 2) * 2);
+    const page = document.createElement("canvas");
+    page.width = w;
+    page.height = h;
+    const ctx = page.getContext("2d");
+    const pages = [];
+    let y = 0, bytes = 0;
+    function reset() {
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, w, h);
+      y = 0;
+    }
+    function flush() {
+      if (!y) return;
+      const data = page.toDataURL("image/jpeg", 0.96);
+      bytes += data.length;
+      if (bytes > 18e6)
+        throw new Error(
+          "This visual PDF exceeds the local size limit. Export a smaller range using the Q&A buttons."
+        );
+      pages.push(data);
+      reset();
+    }
+    reset();
+    return {
+      label(text) {
+        if (y + 68 >= h) flush();
+        ctx.fillStyle = "#334155";
+        ctx.font = "bold 18px sans-serif";
+        ctx.fillText(text, 0, y + 21, w);
+        y += 32;
+      },
+      tile(screenshot, sx, sy, sw, sh, dx, dw, dh) {
+        let consumed = 0;
+        while (consumed < dh - 1e-3) {
+          if (h - y < 1) flush();
+          const n = Math.min(dh - consumed, h - y);
+          ctx.drawImage(
+            screenshot,
+            sx,
+            sy + sh * consumed / dh,
+            sw,
+            sh * n / dh,
+            dx,
+            y,
+            dw,
+            n
+          );
+          consumed += n;
+          y += n;
+        }
+      },
+      space() {
+        y = Math.min(h, y + 15);
+      },
+      finish() {
+        flush();
+        return pages;
+      },
+      width: w
+    };
+  }
+  async function captureAppearance(messages, { signal, settings, positions, title: title2, onProgress }) {
+    const route2 = location.href, scroller = scrollContainer(), original = scroller.scrollTop;
+    const oldBehavior = scroller.style.scrollBehavior;
+    const pages = pageComposer(settings);
+    const transcript = document.querySelector("main") || document.body;
+    const viewportWidth = innerWidth, viewportHeight = innerHeight;
+    const transcriptRect = transcript.getBoundingClientRect();
+    const left = Math.max(0, transcriptRect.left), right = Math.min(innerWidth, transcriptRect.right);
+    const scale = pages.width / Math.max(1, right - left);
+    const token = crypto.randomUUID(), attr = "data-cge-visual-target";
+    const shield = document.createElement("style");
+    const selected = `[${attr}="${token}"]`;
+    shield.textContent = `body *:not(${selected},${selected} *,:has(${selected})){visibility:hidden!important;opacity:0!important} [data-cge],.turn-action-controls{display:none!important}`;
+    if (!settings.includeCode)
+      shield.textContent += ` ${selected} pre{display:none!important}`;
+    const probe = document.createElement("span");
+    const marked = /* @__PURE__ */ new Set();
+    function guard() {
+      if (signal?.aborted) throw new Error("Visual export cancelled.");
+      if (location.href !== route2 || !scroller.isConnected || document.visibilityState === "hidden")
+        throw new Error(
+          "The active chat changed during visual export. Return to the chat and retry."
+        );
+      if (innerWidth !== viewportWidth || innerHeight !== viewportHeight)
+        throw new Error("The viewport changed size. Retry the visual export.");
+    }
+    function locate(m) {
+      const key = historyKey(m);
+      if (!key)
+        throw new Error(
+          "A stable message identity is required for visual export."
+        );
+      return messageNodes().find((n) => historyKey(messageIdentity(n)) === key);
+    }
+    function unmark() {
+      for (const n of marked) n.removeAttribute(attr);
+      marked.clear();
+    }
+    try {
+      scroller.style.scrollBehavior = "auto";
+      if (settings.includeTitle) pages.label(title2 || "ChatGPT");
+      if (settings.includeTimestamps)
+        pages.label("Exported " + (/* @__PURE__ */ new Date()).toLocaleString());
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        if (m.role === "user" && !settings.includeUsers) continue;
+        guard();
+        unmark();
+        shield.remove();
+        let el = locate(m);
+        if (!el) {
+          const pos = positions.get(historyKey(m));
+          if (pos == null)
+            throw new Error(
+              "A requested message is no longer loaded. Reveal it and retry."
+            );
+          scroller.scrollTop = pos;
+          for (let n = 0; n < 8 && !el; n++) {
+            await sleep2(125);
+            guard();
+            el = locate(m);
+          }
+        }
+        if (!el || plainText(extractMessage(el, 0).blocks) !== plainText(m.blocks))
+          throw new Error(
+            "A message changed while preparing its visual export. Retry."
+          );
+        onProgress(
+          `Capturing message ${i + 1} of ${messages.length}\u2026 Escape cancels.`
+        );
+        pages.label(
+          (m.role === "user" ? "USER" : "CHATGPT") + (settings.includeTimestamps && m.timestamp ? " \xB7 " + m.timestamp : "")
+        );
+        const roots = visualRoots(el).flatMap(visibleSurfaces);
+        if (!roots.length)
+          throw new Error(
+            "A message has no visible capture surface. Reveal it and retry."
+          );
+        for (const part of roots) {
+          unmark();
+          part.setAttribute(attr, token);
+          marked.add(part);
+          if (!shield.isConnected) document.head.append(shield);
+          if (!probe.isConnected) document.body.append(probe);
+          if (getComputedStyle(probe).opacity !== "0")
+            throw new Error(
+              "The page could not isolate the selected message for capture."
+            );
+          const start = part.getBoundingClientRect();
+          if (start.width < 1 || start.height < 1) continue;
+          let captured = 0;
+          while (captured < start.height - 0.75) {
+            guard();
+            if (!part.isConnected)
+              throw new Error(
+                "The page unloaded a message during visual capture. Try the formatted PDF."
+              );
+            const before = part.getBoundingClientRect(), clip = limits(part);
+            scroller.scrollTop += before.top + captured - clip.top;
+            await layOut();
+            guard();
+            const r = part.getBoundingClientRect(), v = limits(part);
+            if (Math.abs(r.height - start.height) > 2)
+              throw new Error(
+                "A message resized during visual capture. Let its images finish loading, then retry."
+              );
+            const x = Math.max(r.left, v.left, left), x2 = Math.min(r.right, v.right, right), y = r.top + captured;
+            const available = Math.min(v.bottom - y, start.height - captured);
+            if (y < v.top - 2 || available < 0.75 || x2 - x < 1)
+              throw new Error(
+                "The message cannot be fully exposed in this viewport. Expand it or use formatted PDF."
+              );
+            const shot = await chrome.runtime.sendMessage({ type: "CGE_SCREEN" });
+            if (!shot?.ok)
+              throw new Error(
+                shot?.error || "Chrome could not capture this tab."
+              );
+            guard();
+            const after = part.getBoundingClientRect();
+            if (!part.isConnected || Math.abs(after.top - r.top) > 1 || Math.abs(after.left - r.left) > 1 || Math.abs(after.height - r.height) > 1)
+              throw new Error(
+                "The page moved during visual capture. Retry without scrolling."
+              );
+            const img = await decodeRaster(shot.data), px = img.width / innerWidth, py = img.height / innerHeight;
+            try {
+              pages.tile(
+                img,
+                x * px,
+                Math.max(0, y) * py,
+                (x2 - x) * px,
+                available * py,
+                (x - left) * scale,
+                (x2 - x) * scale,
+                available * scale
+              );
+            } finally {
+              img.close();
+            }
+            captured += available;
+          }
+        }
+        unmark();
+        shield.remove();
+        guard();
+        const current = locate(m);
+        if (!current || plainText(extractMessage(current, 0).blocks) !== plainText(m.blocks))
+          throw new Error(
+            "The message changed during visual capture. Please retry."
+          );
+        pages.space();
+      }
+      return pages.finish();
+    } finally {
+      unmark();
+      probe.remove();
+      shield.remove();
+      if (location.href === route2) scroller.scrollTop = original;
+      scroller.style.scrollBehavior = oldBehavior;
+    }
+  }
+
   // src/modules/ui.js
   var CSS = `
 :host{all:initial;font:13px/1.45 system-ui,-apple-system,sans-serif;color:#172335;color-scheme:light;--ink:#172335;--accent:#146d62}
@@ -624,7 +1137,7 @@
     const style = document.createElement("style");
     style.textContent = CSS;
     shadow.append(style);
-    parent.append(host);
+    parent?.append(host);
     return { host, shadow };
   }
   function button(text, fn, primary = false) {
@@ -654,7 +1167,9 @@
       onExport(format);
     };
     const pdf = button("PDF", () => run2("pdf")), word = button("Word (.docx)", () => run2("docx"));
-    options.append(pdf, word);
+    const visual = button("PDF as shown", () => run2("appearance"));
+    visual.title = "Capture the displayed messages as static PDF pages. Click the Chrome extension icon first to allow tab capture.";
+    options.append(pdf, visual, word);
     wrap.append(trigger, options);
     shadow.append(wrap);
     wrap.addEventListener("keydown", (e) => {
@@ -687,7 +1202,7 @@
 LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     const note = document.createElement("p");
     note.className = "small";
-    note.textContent = "ChatGPT does not expose a DOM-only guarantee of complete history. Hidden branches are excluded. Equations are typeset where supported. Images use descriptions. " + (!settings.includeUsers ? "Your settings exclude user messages. " : "") + (!settings.includeCode ? "Your settings exclude code blocks. " : "");
+    note.textContent = "ChatGPT does not expose a DOM-only guarantee of complete history. Hidden branches are excluded. Equations are typeset where supported. Formatted exports embed readable images. PDF as shown captures the displayed pixels. " + (!settings.includeUsers ? "Your settings exclude user messages. " : "") + (!settings.includeCode ? "Your settings exclude code blocks. " : "");
     const label = document.createElement("label");
     label.className = "check";
     const check = document.createElement("input");
@@ -700,18 +1215,18 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     );
     const actions = document.createElement("div");
     actions.className = "actions";
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       let done = false;
       const finish = (value) => {
         if (done) return;
         done = true;
         dialog.close();
         dialog.remove();
-        resolve(value);
+        resolve2(value);
       };
       const cancel = button("Cancel", () => finish(false));
       const go = button(
-        `Download ${format === "pdf" ? "PDF" : "Word"}`,
+        `Download ${format === "docx" ? "Word" : format === "appearance" ? "PDF as shown" : "PDF"}`,
         () => finish(true),
         true
       );
@@ -772,6 +1287,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
   }
 
   // src/content.js
+  var visualCapturing = false;
   var busy = false;
   var route = location.href;
   var scheduled;
@@ -804,6 +1320,8 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       return;
     }
     busy = true;
+    beginImages();
+    const visual = format === "appearance", positions = /* @__PURE__ */ new Map();
     controller = new AbortController();
     const startRoute = location.href;
     const stop = (e) => {
@@ -819,7 +1337,8 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       else {
         const data = await collectHistory({
           signal: controller.signal,
-          onProgress: feedback
+          onProgress: feedback,
+          onViewport: visual ? (scroller) => rememberPositions(positions, scroller) : void 0
         });
         document.removeEventListener("keydown", stop);
         if (!await review(panel.shadow, data, format, await getSettings())) {
@@ -838,15 +1357,37 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       }
       if (location.href !== startRoute)
         throw new Error("The conversation changed. Please retry.");
+      const model = {
+        scope,
+        title: title(),
+        exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        messages
+      };
+      if (visual) {
+        document.addEventListener("keydown", stop);
+        visualCapturing = true;
+        model.pages = await captureAppearance(messages, {
+          signal: controller.signal,
+          settings: await getSettings(),
+          positions,
+          title: model.title,
+          onProgress: feedback
+        });
+        model.layout = "appearance";
+        model.messages = [];
+      } else {
+        await embedImages(messages);
+      }
+      if (controller.signal.aborted || location.href !== startRoute)
+        throw new Error("Export cancelled or conversation changed.");
+      if (JSON.stringify(model).length > 2e7)
+        throw new Error(
+          "This export exceeds the 20 MB local limit. Export smaller question\u2013answer pairs."
+        );
       const response = await chrome.runtime.sendMessage({
         type: "CGE_EXPORT",
-        format,
-        document: {
-          scope,
-          title: title(),
-          exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          messages
-        }
+        format: visual ? "pdf" : format,
+        document: model
       });
       if (!response?.ok)
         throw new Error(
@@ -855,12 +1396,16 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     } catch (e) {
       feedback(e.message || "Export failed.", "error");
     } finally {
+      endImages();
+      visualCapturing = false;
       busy = false;
+      scan();
       document.removeEventListener("keydown", stop);
       controller = null;
     }
   }
   function scan() {
+    if (visualCapturing) return;
     if (route !== location.href) {
       route = location.href;
       controller?.abort();
@@ -881,13 +1426,21 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     for (const el of nodes) {
       if (messageRole(el) !== "assistant" || pairs.has(el) || !completed(el, nodes))
         continue;
-      const ui = mount(el, "pair");
+      const ui = mount(null, "pair");
+      mountPairHost(el, ui.host);
       const cleanup = menu(
         ui.shadow,
         "\u2193 Export this Q&A",
         (format) => run("pair", format, el)
       );
-      pairs.set(el, { ...ui, cleanup });
+      pairs.set(el, { ...ui, cleanup, anchor: visualRoots(el).at(-1) });
+    }
+    for (const [el, entry] of pairs) {
+      const end = visualRoots(el).at(-1);
+      if (entry.anchor !== end) {
+        mountPairHost(el, entry.host);
+        entry.anchor = end;
+      }
     }
     updateToolbarPosition();
     if (!panel.host.isConnected) document.body.append(panel.host);
@@ -929,6 +1482,17 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       "aria-hidden"
     ]
   });
+  document.addEventListener(
+    "load",
+    (e) => {
+      if (e.target?.tagName === "IMG" && !scheduled)
+        scheduled = setTimeout(() => {
+          scheduled = null;
+          scan();
+        }, 150);
+    },
+    true
+  );
   scan();
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (msg?.type === "CGE_STATUS") {

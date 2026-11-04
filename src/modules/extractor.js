@@ -1,3 +1,4 @@
+import { liftImages, meaningfulImage, imageRef } from "./media.js";
 import { blocks, visible, plainText } from "./normalize.js";
 export const ROLE_SELECTOR =
   '[data-message-author-role="user"],[data-message-author-role="assistant"]';
@@ -19,7 +20,46 @@ const roleContainer =
 const roleHeading = 'h1,h2,h3,h4,h5,h6,[role="heading"]';
 const unitKey = (el) =>
   unitAttrs.map((attr) => el.getAttribute(attr)).find(Boolean);
+const generatedCard =
+  '[data-testid*="imagegen" i],[data-testid*="image-gen" i],[data-testid*="generated-image" i],[data-generated-image],[data-content-search-unit-key$=":tool"],[data-chatgpt-search-unit-key$=":tool"],[class*="group/imagegen-image"],[data-testid*="image_generation" i]';
+const generatedImgs =
+  'img[alt^="generated image" i],img[alt^="image generated" i],' +
+  generatedCard
+    .split(",")
+    .map((k) => k + " img")
+    .join(",");
+const adoptedTurns = new WeakMap();
+const extraImages = new WeakMap(),
+  imageRoots = new WeakSet();
+export function visualRoots(el) {
+  return [el, ...(extraImages.get(el) || [])].sort((a, b) =>
+    a.compareDocumentPosition(b) & 4 ? -1 : 1,
+  );
+}
+export function mountPairHost(el, host) {
+  const end = visualRoots(el).at(-1);
+  if (
+    end !== el ||
+    imageRoots.has(el) ||
+    el.matches(generatedCard + ",img,button,[role=button]") ||
+    el.closest('button,[role="button"]')
+  ) {
+    const card = end.closest(generatedCard) || end;
+    (card.closest('button,[role="button"],picture') || card).after(host);
+  } else el.append(host);
+}
+// Some layouts put a generated-image gallery directly after the owning turn.
+function adjacentTurn(img) {
+  let card = img.closest(generatedCard);
+  while (card && !card.matches("main,body")) {
+    const previous = card.previousElementSibling;
+    if (previous) return previous.matches(turnSelector) ? previous : null;
+    card = card.parentElement;
+  }
+  return null;
+}
 export function messageRole(el) {
+  if (imageRoots.has(el)) return "assistant";
   if (el.hasAttribute("data-message-author-role"))
     return el.dataset.messageAuthorRole;
   const key = unitKey(el);
@@ -65,12 +105,56 @@ export function messageNodes(root = document) {
       candidates.add(el);
       for (let p = el.parentElement; p; p = p.parentElement) ancestors.add(p);
     }
+  for (const el of candidates) extraImages.delete(el);
+  // Image generation may render a tool card beside an empty assistant text root.
+  // Associate it only within its own chat turn. Never adopt an image from a prompt.
+  for (const img of root.querySelectorAll(generatedImgs)) {
+    if (
+      !visible(img) ||
+      !meaningfulImage(img) ||
+      img.closest(
+        userBubble +
+          ',[data-turn="user"],[data-message-author-role="user"],[data-conversation-role="user"]',
+      )
+    )
+      continue;
+    const turn = img.closest(turnSelector) || adjacentTurn(img);
+    if (!turn || [...candidates].some((el) => el.contains(img))) continue;
+    const peers = [...candidates].filter((el) => turnFor(el) === turn);
+    const before = peers
+      .filter((el) => el.compareDocumentPosition(img) & 4)
+      .at(-1);
+    const next = peers.find((el) => img.compareDocumentPosition(el) & 4);
+    const owner =
+      before && messageRole(before) === "assistant"
+        ? before
+        : next && messageRole(next) === "assistant"
+          ? next
+          : null;
+    if (owner) {
+      extraImages.set(owner, [...(extraImages.get(owner) || []), img]);
+      continue;
+    }
+    const root =
+      img.closest(
+        unitAttrs.map((attr) => "[" + attr + "]").join(",") +
+          "," +
+          generatedCard,
+      ) ||
+      img.closest("button") ||
+      img;
+    if (root.contains(turn) || peers.some((el) => root.contains(el))) continue;
+    adoptedTurns.set(root, turn);
+    extraImages.delete(root);
+    imageRoots.add(root);
+    candidates.add(root);
+  }
   return [...candidates].sort((a, b) =>
     a.compareDocumentPosition(b) & 4 ? -1 : 1,
   );
 }
 export function turnFor(el) {
-  return el.closest(turnSelector) || el;
+  return el.closest(turnSelector) || adoptedTurns.get(el) || el;
 }
 export function turnIndex(el) {
   const turn = turnFor(el);
@@ -148,6 +232,25 @@ export function completed(el, nodes = messageNodes(el.ownerDocument)) {
     ].some((action) => visible(action) && followsAnswer(action))
   )
     return true;
+  const images = visualRoots(el)
+    .flatMap((node) =>
+      node.matches("img") ? [node] : [...node.querySelectorAll("img")],
+    )
+    .filter((img) => visible(img) && meaningfulImage(img));
+  if (
+    images.length &&
+    images.every((img) => img.complete && img.naturalWidth > 0) &&
+    (imageRoots.has(el) ||
+      images.some((img) => img.matches(generatedImgs)) ||
+      !el.textContent.trim()) &&
+    !isStreaming(el.ownerDocument) &&
+    ![
+      ...turn.querySelectorAll(
+        '[aria-busy="true"],[data-is-streaming="true"],[role="progressbar"]',
+      ),
+    ].some(visible)
+  )
+    return true;
   if (
     el.dataset.isStreaming === "false" ||
     turn.dataset.isStreaming === "false"
@@ -155,19 +258,8 @@ export function completed(el, nodes = messageNodes(el.ownerDocument)) {
     return true;
   return nodes.slice(idx + 1).some((n) => messageRole(n) === "user");
 }
-export function extractMessage(el, order) {
+export function messageIdentity(el) {
   const role = messageRole(el);
-  // Prefer the actual message body; user prompts often have no markdown wrapper.
-  const body = role === "user" ? el.querySelector(userBubble) || el : el;
-  const content = blocks(body);
-  if (!content.length)
-    throw new Error(
-      `The ${role} message has no readable content. It may contain an unsupported rich element.`,
-    );
-  const media = body.querySelector("img,video,audio,canvas,iframe");
-  const time = turnFor(el)
-    .querySelector("time[datetime]")
-    ?.getAttribute("datetime");
   const key = unitKey(el.closest(unitSelector) || el);
   const unit = key?.match(/^(.+):(\d+):(user|assistant)$/);
   const group =
@@ -192,11 +284,54 @@ export function extractMessage(el, order) {
         ? `${turnFor(el).dataset.turnKey || turnFor(el).dataset.turnId}:${role}`
         : null),
     turnIndex: turnIndex(el),
+  };
+}
+export function extractMessage(el, order) {
+  const role = messageRole(el);
+  // Prefer the actual message body; user prompts often have no markdown wrapper.
+  const body = role === "user" ? el.querySelector(userBubble) || el : el;
+  const roots = role === "assistant" ? visualRoots(el) : [body];
+  const content = liftImages(
+    roots.flatMap((node) => {
+      if (node.matches("img"))
+        return [{ type: "paragraph", runs: [imageRef(node)] }];
+      return blocks(node);
+    }),
+  );
+  const rich = roots.some(
+    (n) =>
+      n.matches("img,canvas,iframe,video,audio,svg") ||
+      n.querySelector("img,canvas,iframe,video,audio,svg"),
+  );
+  if (!content.length && rich)
+    content.push({
+      type: "paragraph",
+      runs: [
+        {
+          text: "[Visual content – use PDF as shown for its displayed appearance.]",
+        },
+      ],
+    });
+  if (!content.length)
+    throw new Error(
+      `The ${role} message has no readable content. It may contain an unsupported rich element.`,
+    );
+
+  const time = turnFor(el)
+    .querySelector("time[datetime]")
+    ?.getAttribute("datetime");
+  return {
+    ...messageIdentity(el),
     order,
     parentId: null,
     blocks: content,
     timestamp: time || null,
-    hasMedia: Boolean(media),
+    hasMedia: rich,
+    hasInteractive: roots.some(
+      (n) =>
+        n.querySelector("canvas,iframe,video,audio") ||
+        n.matches("canvas,iframe,video,audio"),
+    ),
   };
 }
 export function associate(messages) {

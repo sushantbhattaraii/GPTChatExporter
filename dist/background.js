@@ -1,4 +1,107 @@
 (() => {
+  // src/modules/media-fetch.js
+  function allowedAsset(value) {
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:" || url.port || url.username || url.password)
+        return false;
+      if (url.hostname === "chatgpt.com")
+        return /^\/backend-api\/(?:estuary\/content(?:\/|$)|files\/)/.test(
+          url.pathname
+        );
+      return url.hostname === "oaiusercontent.com" || url.hostname.endsWith(".oaiusercontent.com");
+    } catch {
+      return false;
+    }
+  }
+  async function readDisplayedAsset(value, sender) {
+    if (!sender.tab || !sender.url?.startsWith("https://chatgpt.com/") || !allowedAsset(value))
+      throw new Error("Image origin is unavailable");
+    const res = await fetch(value, {
+      credentials: new URL(value).hostname === "chatgpt.com" ? "include" : "omit",
+      referrerPolicy: "no-referrer",
+      signal: AbortSignal.timeout(12e3)
+    });
+    let type = res.headers.get("Content-Type")?.split(";")[0].toLowerCase();
+    if (!res.ok || !allowedAsset(res.url) || !(type === "application/octet-stream" || /^image\/(png|jpeg|webp|gif|avif)$/.test(type)))
+      throw new Error("Image could not be read");
+    const reader = res.body.getReader(), chunks = [];
+    let size = 0;
+    while (true) {
+      const { done, value: bytes } = await reader.read();
+      if (done) break;
+      size += bytes.length;
+      if (size > 12e6) {
+        await reader.cancel();
+        throw new Error("Image exceeds 12 MB");
+      }
+      chunks.push(bytes);
+    }
+    const joined = new Uint8Array(size);
+    let pos = 0;
+    for (const chunk of chunks) {
+      joined.set(chunk, pos);
+      pos += chunk.length;
+    }
+    if (type === "application/octet-stream") {
+      const head = String.fromCharCode(...joined.subarray(0, 16));
+      if (head.startsWith("\x89PNG\r\n\n")) type = "image/png";
+      else if (joined[0] === 255 && joined[1] === 216 && joined[2] === 255)
+        type = "image/jpeg";
+      else if (head.startsWith("GIF87a") || head.startsWith("GIF89a"))
+        type = "image/gif";
+      else if (head.startsWith("RIFF") && head.slice(8, 12) === "WEBP")
+        type = "image/webp";
+      else throw new Error("Asset is not a supported image.");
+    }
+    let binary = "";
+    for (let i = 0; i < size; i += 8192)
+      binary += String.fromCharCode(...joined.subarray(i, i + 8192));
+    return { ok: true, data: `data:${type};base64,${btoa(binary)}` };
+  }
+
+  // src/modules/screen.js
+  var shooting = false;
+  var lastShot = 0;
+  async function captureChatTab(sender) {
+    if (sender.frameId !== 0 || !sender.tab || !sender.url?.startsWith("https://chatgpt.com/"))
+      throw new Error("Page capture must start in the active ChatGPT tab.");
+    if (shooting)
+      throw new Error(
+        "Another visual export is running. Retry when it finishes."
+      );
+    shooting = true;
+    const { windowId, id } = sender.tab;
+    async function check() {
+      const [tab] = await chrome.tabs.query({ active: true, windowId });
+      if (tab?.id !== id || tab.url !== sender.url)
+        throw new Error("Return to the original ChatGPT tab and retry.");
+    }
+    try {
+      await new Promise(
+        (r) => setTimeout(r, Math.max(0, lastShot + 650 - Date.now()))
+      );
+      await check();
+      lastShot = Date.now();
+      let data;
+      try {
+        data = await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+      } catch (e) {
+        if (!/permission|activeTab|all_urls/i.test(e.message || ""))
+          throw new Error(
+            "Chrome could not capture the page: " + (e.message || "Capture unavailable")
+          );
+        throw new Error(
+          "Click the extension icon in this ChatGPT tab to grant visual capture access, close the popup, then retry PDF as shown."
+        );
+      }
+      await check();
+      return { ok: true, data };
+    } finally {
+      shooting = false;
+    }
+  }
+
   // src/modules/settings.js
   var DEFAULTS = Object.freeze({
     font: "sans",
@@ -144,6 +247,11 @@
   }
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (msg?.target === "offscreen") return;
+    if (msg?.type === "CGE_IMAGE" || msg?.type === "CGE_SCREEN") {
+      const task = msg.type === "CGE_IMAGE" ? readDisplayedAsset(msg.url, sender) : captureChatTab(sender);
+      task.then(reply).catch((e) => reply({ ok: false, error: e.message }));
+      return true;
+    }
     if (msg?.type === "CGE_PING") {
       reply({ ok: true });
       return;

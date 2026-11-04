@@ -4,12 +4,10 @@ export function documentWarnings(doc) {
     warnings.push(
       "Exported from the active branch rendered by ChatGPT. Older content unavailable to the page cannot be verified.",
     );
-  if (doc.messages.some((m) => m.hasMedia))
-    warnings.push(
-      "Images and interactive media are represented by available text descriptions; image pixels and attachments are not embedded.",
-    );
+  let unreadable = false;
   function walk(bs) {
     for (const b of bs) {
+      if (b.type === "image" && !b.image?.data) unreadable = true;
       if (
         b.type === "table" &&
         b.rows.some((r) => r.some((c) => c.colSpan > 1 || c.rowSpan > 1))
@@ -22,6 +20,10 @@ export function documentWarnings(doc) {
   }
   let spans = false;
   doc.messages.forEach((m) => walk(m.blocks));
+  if (unreadable || doc.messages.some((m) => m.hasInteractive))
+    warnings.push(
+      "For unavailable images or the displayed state of interactive media, use PDF as shown in Chrome.",
+    );
   if (spans)
     warnings.push("Merged table cells are flattened to a regular grid.");
   return warnings;

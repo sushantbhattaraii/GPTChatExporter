@@ -1,5 +1,6 @@
 const status = document.querySelector("#status"),
   pdf = document.querySelector("#pdf"),
+  appearance = document.querySelector("#appearance"),
   docx = document.querySelector("#docx");
 let tabId;
 let retryTimer;
@@ -21,11 +22,11 @@ async function init() {
       show(
         "Connected to ChatGPT. No readable messages detected yet. Open a conversation and wait for a reply.",
       );
-      pdf.disabled = docx.disabled = true;
+      pdf.disabled = appearance.disabled = docx.disabled = true;
       retryTimer = setTimeout(init, 1500);
       return;
     }
-    pdf.disabled = docx.disabled = false;
+    pdf.disabled = appearance.disabled = docx.disabled = false;
     show(`Ready · ${result.messages} messages currently rendered.`);
     const { lastStatus } = await chrome.storage.session.get("lastStatus");
     if (lastStatus?.tabId === tabId && Date.now() - lastStatus.at < 120000)
@@ -50,6 +51,7 @@ async function start(format) {
   }
 }
 pdf.addEventListener("click", () => start("pdf"));
+appearance.addEventListener("click", () => start("appearance"));
 docx.addEventListener("click", () => start("docx"));
 document
   .querySelector("#settings")

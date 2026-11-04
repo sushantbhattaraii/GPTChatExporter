@@ -90,6 +90,28 @@ function paragraph(b, s) {
 }
 function convert(bs, s) {
   return bs.flatMap((b) => {
+    if (b.type === "image") {
+      const im = b.image;
+      if (!im.data)
+        return {
+          text: `[Image unavailable: ${im.alt}]`,
+          italics: true,
+          color: "#526174",
+          margin: [0, 3, 0, 6],
+        };
+      const maxWidth =
+        s.equationWidth ||
+        (s.orientation === "landscape" ? 842 : 595) - 2 * s.margin;
+      const maxHeight =
+        (s.orientation === "landscape" ? 595 : 842) - 2 * s.margin - 25;
+      const scale = Math.min(0.75, maxWidth / im.width, maxHeight / im.height);
+      return {
+        image: im.data,
+        width: im.width * scale,
+        height: im.height * scale,
+        margin: [0, 4, 0, 8],
+      };
+    }
     if (b.type === "heading" || b.type === "paragraph") return paragraph(b, s);
     if (b.type === "math")
       return formulaBlock(renderEquation(b.text, true, b.mathml), s);
@@ -192,6 +214,23 @@ function convert(bs, s) {
   });
 }
 export function pdfDefinition(input, s) {
+  if (input?.layout === "appearance") {
+    if (!input.pages?.length)
+      throw new Error("No visible pages were captured.");
+    const pw = s.orientation === "landscape" ? 842 : 595,
+      ph = s.orientation === "landscape" ? 595 : 842;
+    return {
+      pageSize: "A4",
+      pageOrientation: s.orientation,
+      pageMargins: s.margin,
+      info: { title: s.includeTitle ? input.title : "ChatGPT export" },
+      content: input.pages.map((image, i) => ({
+        image,
+        fit: [pw - 2 * s.margin - 1, ph - 2 * s.margin - 1],
+        pageBreak: i ? "before" : undefined,
+      })),
+    };
+  }
   const doc = prepareDocument(input, s),
     content = [];
   const chars = new Set([...coverage[s.font]]);

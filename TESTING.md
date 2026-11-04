@@ -1,5 +1,14 @@
 # Validation report and release checklist
 
+## Version 1.1.0
+
+34 automated tests and 14 Chromium renderer scenarios passed. The two-page visual PDF retained the fixture’s image, canvas, SVG and frame colors. The unrelated green overlay contributed zero matching pixels. See `test-results/image-validation.json`, `test-results/render-results.json` and `test-results/ship-1.1.0.log`.
+
+The generated-image regression uses a synthetic two-color image. Tests exercise a generated-image card with no text role or feedback footer, an adjacent CDN image gallery, and the pair and conversation PDF/Word entry points. The visual-PDF fixtures capture styled code, a canvas chart, SVG, an iframe and a tall message over multiple page segments. Chrome extension transport and captureVisibleTab are test doubles in the renderer suite. Playwright supplies actual Chromium viewport pixels. The final files are inspected independently by `tests/validate_images.py` for the expected source-image colors and screened regions. Native installed-extension capture permission, actual generated-image hosts, the signed-in ChatGPT page and desktop Word still require local checks.
+
+On your machine, generate an image, wait for its pixels to load, inspect the Q&A button, and export that pair and the whole chat in regular PDF. Click the Chrome toolbar icon to grant visual capture and compare a PDF as shown with your displayed response. Try the same sequence with code, a chart and an expanded widget. Verify cancellation restores the page.
+
+
 ## Version 1.0.2
 
 The v1.0.1 collector reproduced the reported error when a successful pair extraction was followed by a full-history scan containing two assistant units in one turn. The patched renderer fixture exports a pair and then the whole conversation, preserves both units in order, and discards and retries the scan after a simulated content update. A separate viewport check verifies that the toolbar stays above an expanded composer. The equation tests cover rendered math, literal delimiters, formula fences, native MathML, ordinary code and unsupported syntax. Independent DOCX inspection found Office Math fractions and superscripts. The PDF and a LibreOffice rendering of the DOCX were inspected visually. Live signed-in ChatGPT and desktop Microsoft Word were not exercised here. 31 automated tests and 11 Chromium renderer scenarios passed. See `test-results/release-tests-1.0.2.log` and `test-results/render-results.json`.

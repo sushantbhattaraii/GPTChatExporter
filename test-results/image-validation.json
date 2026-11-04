@@ -1,0 +1,13 @@
+{
+  "embedded_source_pixels": "pass",
+  "word_inline_image": "pass",
+  "visual_pdf_pages": 2,
+  "visible_color_pixel_counts": {
+    "(187, 41, 165)": 9593,
+    "(19, 106, 201)": 5112,
+    "(237, 139, 36)": 5107,
+    "(221, 51, 68)": 1696,
+    "(0, 169, 143)": 1704
+  },
+  "unrelated_overlay_pixels": 0
+}

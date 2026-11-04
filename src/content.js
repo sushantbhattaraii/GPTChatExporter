@@ -1,6 +1,10 @@
+import { beginImages, endImages, embedImages } from "./modules/media.js";
+import { captureAppearance, rememberPositions } from "./modules/appearance.js";
 import {
   messageNodes,
   messageRole,
+  mountPairHost,
+  visualRoots,
   historyKey,
   completed,
   extractPair,
@@ -11,6 +15,7 @@ import { collectHistory } from "./modules/history.js";
 import { mount, menu, button, review, positionToolbar } from "./modules/ui.js";
 import { plainText } from "./modules/normalize.js";
 import { getSettings } from "./modules/settings.js";
+let visualCapturing = false;
 let busy = false,
   route = location.href,
   scheduled,
@@ -42,6 +47,9 @@ async function run(scope, format, target) {
     return;
   }
   busy = true;
+  beginImages();
+  const visual = format === "appearance",
+    positions = new Map();
   controller = new AbortController();
   const startRoute = location.href;
   const stop = (e) => {
@@ -60,6 +68,9 @@ async function run(scope, format, target) {
       const data = await collectHistory({
         signal: controller.signal,
         onProgress: feedback,
+        onViewport: visual
+          ? (scroller) => rememberPositions(positions, scroller)
+          : undefined,
       });
       document.removeEventListener("keydown", stop);
       if (!(await review(panel.shadow, data, format, await getSettings()))) {
@@ -82,15 +93,37 @@ async function run(scope, format, target) {
     }
     if (location.href !== startRoute)
       throw new Error("The conversation changed. Please retry.");
+    const model = {
+      scope,
+      title: title(),
+      exportedAt: new Date().toISOString(),
+      messages,
+    };
+    if (visual) {
+      document.addEventListener("keydown", stop);
+      visualCapturing = true;
+      model.pages = await captureAppearance(messages, {
+        signal: controller.signal,
+        settings: await getSettings(),
+        positions,
+        title: model.title,
+        onProgress: feedback,
+      });
+      model.layout = "appearance";
+      model.messages = [];
+    } else {
+      await embedImages(messages);
+    }
+    if (controller.signal.aborted || location.href !== startRoute)
+      throw new Error("Export cancelled or conversation changed.");
+    if (JSON.stringify(model).length > 20_000_000)
+      throw new Error(
+        "This export exceeds the 20 MB local limit. Export smaller question–answer pairs.",
+      );
     const response = await chrome.runtime.sendMessage({
       type: "CGE_EXPORT",
-      format,
-      document: {
-        scope,
-        title: title(),
-        exportedAt: new Date().toISOString(),
-        messages,
-      },
+      format: visual ? "pdf" : format,
+      document: model,
     });
     if (!response?.ok)
       throw new Error(
@@ -100,12 +133,16 @@ async function run(scope, format, target) {
   } catch (e) {
     feedback(e.message || "Export failed.", "error");
   } finally {
+    endImages();
+    visualCapturing = false;
     busy = false;
+    scan();
     document.removeEventListener("keydown", stop);
     controller = null;
   }
 }
 function scan() {
+  if (visualCapturing) return;
   if (route !== location.href) {
     route = location.href;
     controller?.abort();
@@ -135,11 +172,19 @@ function scan() {
       !completed(el, nodes)
     )
       continue;
-    const ui = mount(el, "pair");
+    const ui = mount(null, "pair");
+    mountPairHost(el, ui.host);
     const cleanup = menu(ui.shadow, "↓ Export this Q&A", (format) =>
       run("pair", format, el),
     );
-    pairs.set(el, { ...ui, cleanup });
+    pairs.set(el, { ...ui, cleanup, anchor: visualRoots(el).at(-1) });
+  }
+  for (const [el, entry] of pairs) {
+    const end = visualRoots(el).at(-1);
+    if (entry.anchor !== end) {
+      mountPairHost(el, entry.host);
+      entry.anchor = end;
+    }
   }
   updateToolbarPosition();
   if (!panel.host.isConnected) document.body.append(panel.host);
@@ -186,6 +231,17 @@ observer.observe(document.body, {
     "aria-hidden",
   ],
 });
+document.addEventListener(
+  "load",
+  (e) => {
+    if (e.target?.tagName === "IMG" && !scheduled)
+      scheduled = setTimeout(() => {
+        scheduled = null;
+        scan();
+      }, 150);
+  },
+  true,
+);
 scan();
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg?.type === "CGE_STATUS") {

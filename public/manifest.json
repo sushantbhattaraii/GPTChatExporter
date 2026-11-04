@@ -1,15 +1,20 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Conversation Exporter",
-  "version": "1.0.2",
-  "description": "Export the displayed ChatGPT question–answer pair or conversation to PDF and editable Word, locally.",
+  "version": "1.1.0",
+  "description": "Export the displayed ChatGPT question\u2013answer pair or conversation to PDF and editable Word, locally.",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "downloads", "offscreen", "storage"],
-  "background": { "service_worker": "background.js" },
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Export ChatGPT",
-    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
   },
   "icons": {
     "16": "icons/16.png",
@@ -24,8 +29,15 @@
       "run_at": "document_idle"
     }
   ],
-  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'"
-  }
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src https://chatgpt.com https://oaiusercontent.com https://*.oaiusercontent.com"
+  },
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://*.oaiusercontent.com/*"
+  ]
 }

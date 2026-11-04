@@ -1,7 +1,7 @@
 // Browser-renderer integration. Chrome runtime is a test double; not an installed-extension test.
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, copyFile } from "node:fs/promises";
 import { standard, fixture, turn } from "./fixtures.mjs";
 const browser = await chromium.launch({
   headless: true,
@@ -113,9 +113,25 @@ await generator.goto("https://exporter.test/offscreen.html");
 await generator.waitForFunction(() => window.__listeners.length > 0);
 const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
+let approvedFixtureImage,
+  assetRequests = 0;
 let exported = [],
   requests = [];
 await page.exposeFunction("__send", async (msg) => {
+  if (msg.type === "CGE_SCREEN")
+    return {
+      ok: true,
+      data:
+        "data:image/png;base64," +
+        (await page.screenshot({ type: "png" })).toString("base64"),
+    };
+  if (msg.type === "CGE_IMAGE") {
+    if (msg.url === "https://cdn.oaiusercontent.com/example-generated.png") {
+      assetRequests++;
+      return { ok: true, data: approvedFixtureImage };
+    }
+    return { ok: false, error: "Fixture asset unavailable" };
+  }
   if (msg.type !== "CGE_EXPORT") return { ok: true };
   requests.push(msg);
   console.log("Generating", msg.format, requests.length);
@@ -456,6 +472,134 @@ try {
   assert.equal(await wrong.locator("#pdf").isDisabled(), true);
   results.push(
     "Popup detects ChatGPT, dispatches export, and disables export on other sites (mock tabs API).",
+  );
+  await page.bringToFront();
+  await page.evaluate(() => {
+    const main = document.querySelector("main");
+    const art = document.createElement("canvas");
+    art.width = 240;
+    art.height = 120;
+    const ctx = art.getContext("2d");
+    ctx.fillStyle = "#136ac9";
+    ctx.fillRect(0, 0, 120, 120);
+    ctx.fillStyle = "#ed8b24";
+    ctx.fillRect(120, 0, 120, 120);
+    main.innerHTML = `<section data-turn-key="fallback-turn-0"><div data-chatgpt-search-unit-key="fallback-turn-0:0:user"><p>Draw a two-color image.</p></div><div class="group/imagegen-image"><button><img alt="Generated image: two colors" width="240" height="120" src="${art.toDataURL()}"></button></div></section>`;
+  });
+  await page
+    .getByRole("button", { name: "↓ Export this Q&A", exact: true })
+    .waitFor();
+  assert.equal(await page.locator('[data-cge="pair"]').count(), 1);
+  async function imagePair(format) {
+    const count = exported.length,
+      scope = page.locator('[data-cge="pair"]').first();
+    await scope
+      .getByRole("button", { name: "↓ Export this Q&A", exact: true })
+      .click();
+    await scope.getByRole("button", { name: format, exact: true }).click();
+    await waitExport(count);
+  }
+  await imagePair("PDF");
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/image-pair.pdf",
+  );
+  await imagePair("Word (.docx)");
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/image-pair.docx",
+  );
+  const checkArt = () => {
+    const messages = requests.at(-1).document.messages;
+    assert.equal(messages.length, 2);
+    const b = messages[1].blocks.find((b) => b.type === "image");
+    assert.ok(b.image.data.startsWith("data:image/png;base64,"));
+    assert.equal(b.image.width, 240);
+    assert.equal(b.image.height, 120);
+  };
+  checkArt();
+  await collect("pdf", 2);
+  checkArt();
+  await collect("docx", 2);
+  checkArt();
+  results.push(
+    "Generated-image-only card without a text role or footer receives its Q&A button and embeds pixels in both pair and whole-chat PDF and Word exports.",
+  );
+  await page.evaluate(() => {
+    const section = document.querySelector("[data-turn-key]");
+    const body = document.createElement("div");
+    body.dataset.chatgptSearchUnitKey = "fallback-turn-0:1:assistant";
+    body.innerHTML =
+      '<p style="color:#1244bd">A plotted result with <b>formatted text</b>.</p><pre style="background:#202124;color:#fff"><code><span style="color:#ee7898">print</span>("colors")</code></pre><canvas width="300" height="90"></canvas><svg width="90" height="55"><rect width="90" height="55" fill="#dd3344"></rect></svg><iframe style="display:block;width:125px;height:45px;border:0" srcdoc="&lt;body style=&quot;margin:0;background:#00a98f&quot;&gt;Widget&lt;/body&gt;"></iframe><div style="height:850px;background:linear-gradient(#aaddff,#114488)">Tall visual output</div>';
+    const ctx = body.querySelector("canvas").getContext("2d");
+    ctx.fillStyle = "#bb29a5";
+    ctx.fillRect(0, 0, 300, 90);
+    section.insertBefore(body, section.querySelector("div[class]"));
+    const overlay = document.createElement("div");
+    overlay.style.cssText =
+      "position:fixed;top:20px;left:40%;width:160px;height:82px;background:#00ff00;z-index:2147483647;pointer-events:none";
+    document.body.append(overlay);
+    section.insertAdjacentHTML(
+      "beforeend",
+      '<div class="turn-action-controls"><button>Copy response</button></div>',
+    );
+  });
+  await page.waitForTimeout(600);
+  assert.equal(await page.locator('[data-cge="pair"]').count(), 1);
+  await imagePair("PDF as shown");
+  assert.ok(requests.at(-1).document.pages.length);
+  const count = exported.length,
+    tool = page.locator('[data-cge="toolbar"]');
+  await tool
+    .getByRole("button", { name: "Export conversation", exact: true })
+    .click();
+  await tool.getByRole("button", { name: "PDF as shown", exact: true }).click();
+  await page.getByRole("dialog").waitFor();
+  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("button", { name: "Download PDF as shown", exact: true })
+    .click();
+  await waitExport(count);
+  assert.equal(requests.at(-1).document.layout, "appearance");
+  results.push(
+    "As-shown pair and whole-chat PDFs capture real Chromium viewport pixels across a tall response with an image, styled code and canvas; the Chrome capture API is simulated with Playwright screenshots.",
+  );
+  await copyFile(
+    "test-results/" + exported.at(-1),
+    "test-results/as-shown.pdf",
+  );
+  approvedFixtureImage = await page
+    .locator('img[alt^="Generated image"]')
+    .getAttribute("src");
+  await context.route(
+    "https://cdn.oaiusercontent.com/example-generated.png",
+    (r) =>
+      r.fulfill({
+        contentType: "image/png",
+        body: Buffer.from(approvedFixtureImage.split(",")[1], "base64"),
+      }),
+  );
+  await page.evaluate(() => {
+    const img = document.querySelector('img[alt^="Generated image"]');
+    const card = img.closest('[class*="group/imagegen-image"]');
+    const turn = card.closest("[data-turn-key]");
+    turn.querySelector('[data-chatgpt-search-unit-key$=":assistant"]').remove();
+    turn.querySelector(".turn-action-controls")?.remove();
+    turn.after(card);
+    img.src = "https://cdn.oaiusercontent.com/example-generated.png";
+  });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('img[alt^="Generated image"]').naturalWidth ===
+      240,
+  );
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('[data-cge="pair"]').count(), 1);
+  await imagePair("PDF");
+  checkArt();
+  assert.ok(assetRequests >= 1);
+  results.push(
+    "A cross-origin gallery adjacent to its user turn exports through the raster asset fallback (simulated worker response) with no duplicate button.",
   );
   assert.deepEqual(errors, []);
   await writeFile(

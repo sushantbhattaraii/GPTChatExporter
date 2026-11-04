@@ -13,10 +13,10 @@ This is a visible-DOM protocol, not an account-history API client. It cannot est
 | Content script | Locate completed messages; isolated controls; normalize the selected range; scan/review history | No credentials, private endpoints, or application-state introspection |
 | Normalized model | Role, id, turn index, order, parent id, blocks, optional timestamp/media flag | Plain structured data; no page HTML execution |
 | Worker | Validate origin/format and payload size; load settings; coordinate generation/download status | Does not retain message content in storage |
-| Offscreen page | Generate files, hold and revoke Blob URLs | Bundled code/fonts; no network access; one generator at a time |
+| Offscreen page | Generate files, hold and revoke Blob URLs | Bundled code and fonts, local rendering, one generator at a time |
 | Popup/options | Active-tab entry point and device-local formatting settings | No unrelated-tab content access |
 
-Message blocks are paragraph, heading, code, math, list, table, quote or rule. Inline runs carry text and basic emphasis, link, sub/superscript or code/math hints. Renderer-specific features degrade deliberately (PDF sub/superscript retains text without exact positioning). Unsafe link protocols are discarded. Rich media uses available textual descriptions; image data is never fetched.
+Message blocks are paragraph, heading, code, math, list, table, quote or rule. Inline runs carry text and basic emphasis, link, sub/superscript or code/math hints. Renderer-specific features degrade deliberately (PDF sub/superscript retains text without exact positioning). Unsafe link protocols are discarded. Image blocks carry raster data or explicit fallback labels; approved image URLs already referenced by the selected message can be fetched locally.
 
 ## Streaming and observers
 
@@ -49,6 +49,10 @@ MathJax compiles recognized equations locally. PDF uses vector formula graphics 
 5. Revoke the Blob and remove the session record. A 30-minute expiry releases abandoned URLs.
 
 Worker restart is tolerated for downloads whose session record exists; no success is inferred from document creation. Extension/browser shutdown can interrupt an in-flight job; it is not automatically replayed. The last status remains session-scoped until browser shutdown and is shown in the popup for two minutes.
+
+## Visual PDF
+
+A user-invoked visual export collects stable message identities and records virtualized turn positions. In the active tab it temporarily masks unrelated regions, scrolls each requested surface into view, and crops viewport captures to verified message rectangles. Crops are assembled into paginated raster PDF pages locally. A tab/URL change, lost geometry, cancellation or size limit aborts the job. The mask and original scroll position are restored in a finally block. The formatted path uses readable source pixels or a size-limited, allowlisted asset retrieval fallback.
 
 ## Release boundary
 

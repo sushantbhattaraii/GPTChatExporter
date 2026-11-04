@@ -1,6 +1,7 @@
 import { renderEquation } from "./equations.js";
 import {
   Document,
+  ImageRun,
   ImportedXmlComponent,
   Packer,
   Paragraph,
@@ -61,6 +62,40 @@ export function wordDocument(input, s) {
   const nonempty = (value) => (value.length ? value : [p([])]);
   function convert(bs, depth = 0, quoted = false) {
     return bs.flatMap((b) => {
+      if (b.type === "image") {
+        const im = b.image;
+        if (!im.data)
+          return p([
+            new TextRun({
+              text: `[Image unavailable: ${im.alt}]`,
+              italics: true,
+            }),
+          ]);
+        const scale = Math.min(
+          1,
+          (((s.orientation === "landscape" ? 842 : 595) - 2 * s.margin) * 4) /
+            3 /
+            im.width,
+          ((((s.orientation === "landscape" ? 595 : 842) - 2 * s.margin) * 4) /
+            3 -
+            30) /
+            im.height,
+        );
+        const bytes = Uint8Array.from(atob(im.data.split(",")[1]), (c) =>
+          c.charCodeAt(0),
+        );
+        return p([
+          new ImageRun({
+            type: im.data.startsWith("data:image/png") ? "png" : "jpg",
+            data: bytes,
+            transformation: {
+              width: Math.round(im.width * scale),
+              height: Math.round(im.height * scale),
+            },
+            altText: { name: im.alt, title: im.alt, description: im.alt },
+          }),
+        ]);
+      }
       if (b.type === "heading")
         return p(runs(b.runs), {
           heading: HeadingLevel[`HEADING_${Math.min(b.level, 6)}`],

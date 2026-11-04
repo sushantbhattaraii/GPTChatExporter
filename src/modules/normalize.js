@@ -1,3 +1,4 @@
+import { imageRef, meaningfulImage } from "./media.js";
 // Convert the rendered DOM to a small, non-executable document model.
 export function safeLink(value, base = "https://chatgpt.com/") {
   try {
@@ -106,7 +107,12 @@ export function inline(node, style = {}) {
       style,
     );
   }
-  if (node.nodeType !== 1 || !visible(node) || node.matches(OMIT)) return [];
+  if (node.nodeType !== 1 || !visible(node)) return [];
+  if (node.matches('button,[role="button"]'))
+    return [...node.querySelectorAll("img")]
+      .filter((img) => visible(img) && meaningfulImage(img))
+      .map(imageRef);
+  if (node.matches(OMIT)) return [];
   if (node.matches(".katex-display"))
     return [{ ...equation(node), ...style, math: true, display: true }];
   if (node.matches(equationSelector)) {
@@ -115,13 +121,7 @@ export function inline(node, style = {}) {
   }
   if (node.tagName === "BR") return [{ text: "\n", ...style }];
   if (node.tagName === "IMG")
-    return [
-      {
-        text: `[Image: ${node.alt || "no text description"}]`,
-        ...style,
-        italic: true,
-      },
-    ];
+    return meaningfulImage(node) ? [imageRef(node)] : [];
   const next = { ...style };
   if (["STRONG", "B"].includes(node.tagName)) next.bold = true;
   if (["EM", "I"].includes(node.tagName)) next.italic = true;
@@ -157,7 +157,12 @@ export function blocks(root) {
       pending.push(...inline(el));
       continue;
     }
-    if (!visible(el) || el.matches(OMIT)) continue;
+    if (!visible(el)) continue;
+    if (el.matches('button,[role="button"]')) {
+      pending.push(...inline(el));
+      continue;
+    }
+    if (el.matches(OMIT)) continue;
     if (
       el.matches(
         ".katex-display,math[display=block],mjx-container[display=true]",

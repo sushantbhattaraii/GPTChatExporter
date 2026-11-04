@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-04T01:02:39.606Z",
+  "date": "2026-11-04T02:00:40.557Z",
   "browser": "141.0.7390.37",
   "environment": "Standalone Chromium renderer with synthetic DOM and mocked chrome.runtime/storage; no real Chrome download API",
   "results": [
@@ -13,7 +13,10 @@
     "Single-pair PDF followed by full Word export preserves sibling assistant units and retries an actual mid-scan content update.",
     "Popup uses the content script's real probe, retries after hydration, and enables PDF and Word for the updated layout.",
     "Settings interface operates under shipped CSP with mock Chrome Storage.",
-    "Popup detects ChatGPT, dispatches export, and disables export on other sites (mock tabs API)."
+    "Popup detects ChatGPT, dispatches export, and disables export on other sites (mock tabs API).",
+    "Generated-image-only card without a text role or footer receives its Q&A button and embeds pixels in both pair and whole-chat PDF and Word exports.",
+    "As-shown pair and whole-chat PDFs capture real Chromium viewport pixels across a tall response with an image, styled code and canvas; the Chrome capture API is simulated with Playwright screenshots.",
+    "A cross-origin gallery adjacent to its user turn exports through the raster asset fallback (simulated worker response) with no duplicate button."
   ],
   "errors": [],
   "files": [
@@ -27,6 +30,13 @@
     "renderer-8.docx",
     "renderer-9.docx",
     "renderer-10.pdf",
-    "renderer-11.docx"
+    "renderer-11.docx",
+    "renderer-12.pdf",
+    "renderer-13.docx",
+    "renderer-14.pdf",
+    "renderer-15.docx",
+    "renderer-16.pdf",
+    "renderer-17.pdf",
+    "renderer-18.pdf"
   ]
 }
