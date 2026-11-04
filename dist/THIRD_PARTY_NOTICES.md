@@ -1,6 +1,6 @@
 # Third-party notices
 
-Production dependency inventory from the lockfile. Some dependencies are used by upstream Node variants rather than the browser bundle. Original available license files are retained in THIRD_PARTY_LICENSES. DejaVu fonts retain their license in assets/fonts/LICENSE.txt and dist/FONT_LICENSE.txt. The Noto Sans SC and Devanagari faces and the Hangul subset of Noto Sans KR use SIL OFL 1.1. Their original font notices are in THIRD_PARTY_LICENSES. The original project code uses the root MIT license.
+Production dependency inventory from the lockfile. Some dependencies are used by upstream Node variants rather than the browser bundle. Original available license files are retained in THIRD_PARTY_LICENSES. DejaVu fonts retain their license in assets/fonts/LICENSE.txt and dist/FONT_LICENSE.txt. Liberation Sans 2.1.5 is bundled under SIL OFL 1.1. Its notice is in THIRD_PARTY_LICENSES/LiberationSans-OFL.txt. The Noto Sans SC and Devanagari faces and the Hangul subset of Noto Sans KR use SIL OFL 1.1. Their original font notices are in THIRD_PARTY_LICENSES. The original project code uses the root MIT license.
 
 | Package | Version | License | Retained files |
 |---|---|---|---|

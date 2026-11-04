@@ -52,4 +52,4 @@ Worker restart is tolerated for downloads whose session record exists; no succes
 
 ## PDF styling
 
-The content script serializes computed paragraph alignments and styled text runs for code. The PDF generator embeds those runs as text and paginates each message inside a role-colored panel.
+The content script serializes computed paragraph alignments and styled text runs for code. The PDF generator embeds those runs as text and paginates each message in a continuous transcript. Prompts use a narrower right-aligned measure. Replies use the full text width. Both scopes call the same PDF layout code. Figure rows carry their items and column count; tables can carry measured column proportions. Document warnings are kept in the PDF Subject field.

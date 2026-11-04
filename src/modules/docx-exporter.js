@@ -99,6 +99,9 @@ export function wordDocument(input, s) {
           }),
         ]);
       }
+      if (b.type === "gallery")
+        return b.items.flatMap((item) => convert(item, depth, quoted));
+      if (b.type === "figure") return convert(b.blocks, depth, quoted);
       if (b.type === "heading")
         return p(runs(b.runs), {
           heading: HeadingLevel[`HEADING_${Math.min(b.level, 6)}`],

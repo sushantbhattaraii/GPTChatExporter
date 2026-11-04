@@ -6,6 +6,7 @@
     orientation: "portrait",
     margin: 48,
     includeTitle: true,
+    showPdfTitle: false,
     includeTimestamps: false,
     includeUsers: true,
     includeCode: true,
@@ -25,6 +26,7 @@
     }
     for (const key of [
       "includeTitle",
+      "showPdfTitle",
       "includeTimestamps",
       "includeUsers",
       "includeCode",

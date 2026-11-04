@@ -458,11 +458,36 @@ export function messageIdentity(el) {
     turnIndex: turnIndex(el),
   };
 }
-export function extractMessage(el, order) {
+function transcriptRoots(el, nodes) {
+  const roots = visualRoots(el),
+    scope = el.closest(unitSelector) || turnFor(el);
+  // Some layouts put a visible introduction beside the final message body.
+  // Only adopt prose when this unit has exactly one recognized message owner.
+  if (scope === el || nodes.some((peer) => peer !== el && scope.contains(peer)))
+    return roots;
+  for (const part of scope.querySelectorAll(".markdown," + modernBody)) {
+    if (
+      !visible(part) ||
+      roots.some((root) => root.contains(part) || part.contains(root)) ||
+      part.closest(
+        'aside,nav,form,dialog,details,button,[hidden],[data-cge],[data-message-author-role="tool"],[data-message-author-role="user"],[data-turn="user"],[data-message-channel="analysis"],[data-testid*="reasoning" i],[data-testid*="thought" i]',
+      ) ||
+      part.closest(turnSelector) !== el.closest(turnSelector)
+    )
+      continue;
+    roots.push(part);
+  }
+  return roots.sort((a, b) => (a.compareDocumentPosition(b) & 4 ? -1 : 1));
+}
+export function extractMessage(
+  el,
+  order,
+  nodes = messageNodes(el.ownerDocument),
+) {
   const role = messageRole(el);
   // Prefer the actual message body; user prompts often have no markdown wrapper.
   const body = role === "user" ? el.querySelector(userBubble) || el : el;
-  const roots = role === "assistant" ? visualRoots(el) : [body];
+  const roots = role === "assistant" ? transcriptRoots(el, nodes) : [body];
   const content = liftImages(
     roots.flatMap((node) => {
       if (node.matches("img"))
@@ -569,7 +594,10 @@ export function extractPair(target, root = document) {
           "There is a gap between this response and the visible question. Reveal the missing turns first.",
         );
   }
-  return associate([extractMessage(nodes[u], 0), extractMessage(target, 1)]);
+  return associate([
+    extractMessage(nodes[u], 0, nodes),
+    extractMessage(target, 1, nodes),
+  ]);
 }
 // Several assistant units can occupy one turn. A turn/role pair is only a last resort.
 export function historyKey(message) {

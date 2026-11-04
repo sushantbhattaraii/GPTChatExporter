@@ -435,11 +435,20 @@ try {
   await settings.locator('[name="fontSize"]').fill("13");
   await settings.locator('[name="orientation"]').selectOption("landscape");
   await settings.locator('[name="includeUsers"]').uncheck();
+  assert.equal(
+    await settings.locator('[name="showPdfTitle"]').isChecked(),
+    false,
+  );
+  await settings.locator('[name="showPdfTitle"]').check();
   await settings
     .getByRole("button", { name: "Save settings", exact: true })
     .click();
   await settings.getByText("Settings saved.", { exact: true }).waitFor();
   assert.equal(await settings.evaluate(() => window.__settings.fontSize), 13);
+  assert.equal(
+    await settings.evaluate(() => window.__settings.showPdfTitle),
+    true,
+  );
   await settings.screenshot({
     path: "test-results/settings.png",
     fullPage: true,
@@ -760,6 +769,49 @@ B -->|No| D[Retry]</code></pre>
   }
   results.push(
     "Pair and full-chat PDFs export Mermaid, rendered SVG, checklist states, quotes, nested lists, multilingual text and current widget state.",
+  );
+  // A figure row and a proportionally sized table from the same bounded reply.
+  await page.evaluate(() => {
+    const q = document.querySelector('[data-chatgpt-search-unit-key$=":user"]');
+    q.innerHTML = "<p>Compare these three graph configurations.</p>";
+    const a = document.querySelector(
+      '[data-chatgpt-search-unit-key$=":assistant"]',
+    );
+    a.innerHTML = `<h1>Mobile agents on a graph</h1><p>Each card shows one initial configuration.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      ${["Dispersed", "Rooted", "General"]
+        .map(
+          (
+            label,
+            i,
+          ) => `<figure style="margin:0;padding:8px;border:1px solid #ddd">
+        <svg viewBox="0 0 150 60" width="150" height="60" role="img" aria-label="${label} illustration">
+          <line x1="16" y1="40" x2="130" y2="40" stroke="#555"/>
+          <circle cx="16" cy="40" r="7" fill="#cccccc"/><circle cx="75" cy="40" r="7" fill="#cccccc"/><circle cx="130" cy="40" r="7" fill="#cccccc"/>
+          <circle cx="${[16, 75, 130][i]}" cy="17" r="7" fill="#2864ed"/></svg>
+        <figcaption style="text-align:center"><b>${label}</b></figcaption></figure>`,
+        )
+        .join("")}</div>
+      <h2>Comparison</h2><table style="width:100%;table-layout:fixed"><colgroup><col style="width:65%"><col style="width:35%"></colgroup>
+      <thead><tr><th>Configuration</th><th>Agents</th></tr></thead>
+      <tbody><tr><td>Rooted configuration</td><td>3</td></tr></tbody></table>
+      <p><a href="https://example.org/graph">Graph reference</a></p>`;
+  });
+  for (const scope of ["pair", "chat"]) {
+    if (scope === "pair") await imagePair("PDF");
+    else await collect("pdf", 2);
+    const bs = requests.at(-1).document.messages[1].blocks;
+    assert.equal(bs.find((b) => b.type === "gallery")?.columns, 3);
+    assert(
+      Math.abs(bs.find((b) => b.type === "table").widthShares[0] - 0.65) < 0.02,
+    );
+    await copyFile(
+      "test-results/" + exported.at(-1),
+      "test-results/layout-" + scope + ".pdf",
+    );
+  }
+  results.push(
+    "Both PDF menus keep three illustrated cards together, honor table column widths, and export the reference-style transcript.",
   );
   assert.deepEqual(errors, []);
   await writeFile(

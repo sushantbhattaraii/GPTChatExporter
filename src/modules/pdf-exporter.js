@@ -8,7 +8,7 @@ import { plainText } from "./normalize.js";
 pdfMake.addVirtualFileSystem(fonts);
 pdfMake.fonts = {};
 for (const [name, base] of [
-  ["sans", "DejaVuSans"],
+  ["symbols", "DejaVuSans"],
   ["serif", "DejaVuSerif"],
   ["mono", "DejaVuSansMono"],
 ]) {
@@ -20,6 +20,12 @@ for (const [name, base] of [
     bolditalics: `${base}-Bold${italic}.ttf`,
   };
 }
+pdfMake.fonts.sans = {
+  normal: "LiberationSans-Regular.ttf",
+  bold: "LiberationSans-Bold.ttf",
+  italics: "LiberationSans-Italic.ttf",
+  bolditalics: "LiberationSans-BoldItalic.ttf",
+};
 for (const [key, file] of Object.entries({
   deva: "NotoSansDevanagari_400Regular.ttf",
   cjk: "NotoSansSC_400Regular.ttf",
@@ -38,11 +44,28 @@ const codeWrap = (s) =>
       .map((x, i) => (i && i % 20 === 0 ? "\u200b" + x : x))
       .join(""),
   );
-function runs(rs, s) {
+const INK = "#111111",
+  NAVY = "#1F3864",
+  LINK = "#0000EE";
+function printColor(run, heading) {
+  if (run.link) return LINK;
+  if (!run.color || run.code || run.background) return run.color;
+  const rgb = run.color
+    .slice(1)
+    .match(/../g)
+    ?.map((x) => parseInt(x, 16));
+  if (rgb?.length === 3 && Math.max(...rgb) - Math.min(...rgb) < 16) {
+    if (heading) return NAVY;
+    // Near-white theme ink needs a printable foreground on an unfilled page.
+    if (Math.min(...rgb) > 200 || Math.max(...rgb) < 34) return INK;
+  }
+  return run.color;
+}
+function runs(rs, s, heading) {
   return rs.flatMap((r) => {
     const lines = new Set([r.pdfStyle?.decoration].flat().filter(Boolean));
     if (r.strike) lines.add("lineThrough");
-    if (r.underline) lines.add("underline");
+    if (r.underline || r.link) lines.add("underline");
     return selectFonts(
       {
         text: r.code ? codeWrap(r.text) : r.text,
@@ -50,7 +73,7 @@ function runs(rs, s) {
         italics: r.italic,
         link: r.link,
         font: r.code ? "mono" : undefined,
-        color: r.color || (r.link ? "#175d9d" : undefined),
+        color: printColor(r, heading),
         background: r.background || (r.code ? "#f0f2f5" : undefined),
         ...r.pdfStyle,
         decoration: lines.size ? [...lines] : undefined,
@@ -87,12 +110,16 @@ function paragraph(b, s) {
   const style =
     b.type === "heading"
       ? { style: `h${Math.min(b.level, 3)}`, headlineLevel: b.level }
-      : { margin: [0, 0, 0, 7] };
+      : { margin: [0, 0, 0, s.paragraphGap ?? s.fontSize] };
   const out = [];
   let pending = [];
   const flush = () => {
     if (pending.length)
-      out.push({ text: runs(pending, s), ...style, alignment: b.alignment });
+      out.push({
+        text: runs(pending, s, b.type === "heading"),
+        ...style,
+        alignment: b.alignment,
+      });
     pending = [];
   };
   for (const r of b.runs) {
@@ -197,6 +224,53 @@ function codeBlock(block, s) {
 }
 function convert(bs, s) {
   return bs.flatMap((b) => {
+    if (b.type === "figure" || b.type === "gallery") {
+      const items = b.items || [b.blocks],
+        gap = 6,
+        pad = 8;
+      const columns = Math.max(
+        1,
+        Math.min(b.columns || 1, Math.floor(s.equationWidth / 75)),
+      );
+      const width = (s.equationWidth - (columns - 1) * gap) / columns;
+      const rows = [];
+      for (let i = 0; i < items.length; i += columns) {
+        rows.push({
+          columnGap: gap,
+          columns: items.slice(i, i + columns).map((item) => ({
+            width,
+            table: {
+              widths: ["*"],
+              body: [
+                [
+                  {
+                    stack: nonempty(
+                      convert(item, {
+                        ...s,
+                        equationWidth: width - 2 * pad - 1,
+                        paragraphGap: 3,
+                      }),
+                    ),
+                  },
+                ],
+              ],
+            },
+            layout: {
+              hLineWidth: () => 0.5,
+              vLineWidth: () => 0.5,
+              hLineColor: () => "#DDDDDD",
+              vLineColor: () => "#DDDDDD",
+              paddingLeft: () => pad,
+              paddingRight: () => pad,
+              paddingTop: () => pad,
+              paddingBottom: () => pad,
+            },
+          })),
+          margin: [0, 0, 0, s.fontSize],
+        });
+      }
+      return rows;
+    }
     if (b.type === "image") {
       const im = b.image;
       if (!im.data)
@@ -288,14 +362,18 @@ function convert(bs, s) {
               : {}),
             ...(b.ordered ? { counter: current } : {}),
             stack: nonempty(
-              convert(item, { ...s, equationWidth: s.equationWidth - 20 }),
+              convert(item, {
+                ...s,
+                paragraphGap: 0,
+                equationWidth: s.equationWidth - 30,
+              }),
             ),
           };
         }),
         start: b.start,
         reversed: b.reversed,
         type: b.listType || (b.ordered ? "decimal" : "disc"),
-        margin: [0, 0, 0, 8],
+        margin: [s.fontSize * 1.62, 0, 0, s.paragraphGap ?? s.fontSize],
       };
     }
     if (b.type === "table") {
@@ -303,7 +381,7 @@ function convert(bs, s) {
         n = grid[0]?.length || 0;
       if (!n) return [];
       // Wide tables remain readable as labeled rows instead of overflowing the page.
-      if (n > 8)
+      if (n > 8 || s.equationWidth < n * 18)
         return [
           { text: "Wide table (row-by-row)", bold: true },
           ...grid.map((row, i) => ({
@@ -317,32 +395,51 @@ function convert(bs, s) {
             margin: [0, 4, 0, 8],
           })),
         ];
+      const inner = s.equationWidth - n * 9 - (n + 1) * 0.5;
+      const weights =
+        b.widthShares?.length === n &&
+        b.widthShares.every((w) => inner * w >= 16)
+          ? b.widthShares
+          : Array(n).fill(1 / n);
+      const widths = weights.map((weight) => inner * weight);
+      const cellSize = Math.max(8, (s.fontSize * 10) / 11);
       return {
         table: {
           headerRows: grid[0].every((c) => c.header) ? 1 : 0,
-          widths: Array(n).fill("*"),
+          widths,
           body: grid.map((row) =>
-            row.map((c) => ({
+            row.map((c, i) => ({
               stack: nonempty(
-                convert(c.blocks, {
-                  ...s,
-                  equationWidth:
-                    (s.equationWidth ||
-                      (s.orientation === "landscape" ? 842 : 595) -
-                        2 * s.margin) /
-                      n -
-                    12,
-                }),
+                convert(
+                  c.blocks.map((block) =>
+                    c.header && block.type === "paragraph"
+                      ? { ...block, alignment: "center" }
+                      : block,
+                  ),
+                  {
+                    ...s,
+                    fontSize: cellSize,
+                    equationWidth: widths[i],
+                    paragraphGap: 0,
+                  },
+                ),
               ),
-              fillColor: c.header ? "#e9eef4" : undefined,
               bold: c.header,
-              margin: [3, 3, 3, 3],
             })),
           ),
         },
-        layout: "lightHorizontalLines",
-        fontSize: Math.max(8, s.fontSize - 1),
-        margin: [0, 5, 0, 12],
+        layout: {
+          hLineWidth: () => 0.5,
+          vLineWidth: () => 0.5,
+          hLineColor: () => "#999999",
+          vLineColor: () => "#999999",
+          paddingLeft: () => 4.5,
+          paddingRight: () => 4.5,
+          paddingTop: () => 3,
+          paddingBottom: () => 3,
+        },
+        fontSize: cellSize,
+        margin: [0, 0, 0, s.fontSize],
       };
     }
     if (b.type === "quote")
@@ -379,7 +476,7 @@ function convert(bs, s) {
             type: "line",
             x1: 0,
             y1: 0,
-            x2: 150,
+            x2: s.equationWidth,
             y2: 0,
             lineWidth: 0.5,
             lineColor: "#cbd5e1",
@@ -402,79 +499,87 @@ export function pdfDefinition(input, s) {
     doc.warnings.push(
       "Some characters are outside the bundled PDF font coverage. Some glyphs may need a different font in Word.",
     );
-  if (s.includeTitle)
+  if (s.showPdfTitle)
     content.push({ text: doc.title || "ChatGPT Conversation", style: "title" });
   if (s.includeTimestamps)
     content.push({
       text: `Exported ${new Date(doc.exportedAt).toLocaleString()} (export time)`,
       style: "meta",
     });
-  if (doc.warnings.length)
-    content.push({ text: doc.warnings.join("\n"), style: "note" });
+
+  // The print reference has a 3 pt horizontal and 9 pt vertical inset within
+  // its page margins. Only the prompt uses a narrower measure and inner padding.
+  const horizontal = s.margin + 3,
+    vertical = s.margin + 9;
   const usable =
-    (s.orientation === "landscape" ? 841.89 : 595.28) - 2 * s.margin;
-  const offset = Math.round(usable * 0.13);
+    (s.orientation === "landscape" ? 841.89 : 595.28) - 2 * horizontal;
   for (const m of doc.messages) {
     const user = m.role === "user";
-    const stack = [
-      {
-        text: user ? "USER" : "CHATGPT",
-        style: "label",
-        color: user ? "#405168" : "#246048",
-      },
-    ];
-    if (s.includeTimestamps && m.timestamp)
-      stack.push({ text: m.timestamp, style: "meta" });
-    stack.push(
-      ...convert(m.blocks, { ...s, equationWidth: usable - offset - 24 }),
-    );
-    content.push({
-      table: {
-        widths: ["*"],
-        body: [[{ stack, fillColor: user ? "#F7F8FA" : "#E8F5EC" }]],
-      },
-      layout: {
-        hLineWidth: () => 0,
-        vLineWidth: () => 0,
-        paddingLeft: () => 12,
-        paddingRight: () => 12,
-        paddingTop: () => 9,
-        paddingBottom: () => 6,
-      },
-      margin: user ? [0, 0, offset, 10] : [offset, 0, 0, 10],
+    const indent = user ? usable * 0.15 + 8 : 0,
+      right = user ? 9 : 0;
+    const blocks = user
+      ? m.blocks.map((b) =>
+          b.type === "paragraph" ? { ...b, alignment: "right" } : b,
+        )
+      : m.blocks;
+    const stack = convert(blocks, {
+      ...s,
+      equationWidth: usable - indent - right,
     });
+    if (s.includeTimestamps && m.timestamp)
+      stack.unshift({
+        text: m.timestamp,
+        style: "meta",
+        alignment: user ? "right" : "left",
+      });
+    if (stack.length)
+      content.push({
+        stack,
+        margin: [indent, user ? 16 : 0, right, user ? 6 : 0],
+      });
   }
+  const size = s.fontSize;
   return {
     info: {
       title: s.includeTitle ? doc.title : "ChatGPT export",
       creator: "ChatGPT Conversation Exporter",
+      subject: doc.warnings.join(" "),
     },
     pageSize: "A4",
     pageOrientation: s.orientation,
-    pageMargins: [s.margin, s.margin, s.margin, s.margin],
-    defaultStyle: { font: s.font, fontSize: s.fontSize, lineHeight: 1.2 },
+    pageMargins: [horizontal, vertical, horizontal, vertical],
+    defaultStyle: { font: s.font, fontSize: size, color: INK, lineHeight: 1.3 },
     content,
     styles: {
-      title: { fontSize: 22, bold: true, margin: [0, 0, 0, 16] },
-      meta: { fontSize: 8, color: "#526174", margin: [0, 0, 0, 8] },
-      note: { fontSize: 8, color: "#526174", margin: [0, 0, 0, 14] },
-      label: {
-        fontSize: 10,
+      title: {
+        fontSize: (size * 20) / 11,
         bold: true,
-        color: "#175d9d",
-        margin: [0, 0, 0, 5],
+        color: NAVY,
+        margin: [0, 0, 0, size],
       },
-      h1: { fontSize: s.fontSize + 7, bold: true, margin: [0, 12, 0, 6] },
-      h2: { fontSize: s.fontSize + 4, bold: true, margin: [0, 10, 0, 6] },
-      h3: { fontSize: s.fontSize + 2, bold: true, margin: [0, 8, 0, 5] },
+      meta: { fontSize: 8, color: "#526174", margin: [0, 0, 0, 6] },
+      h1: {
+        fontSize: (size * 20) / 11,
+        bold: true,
+        color: NAVY,
+        lineHeight: 1.14,
+        margin: [0, 1.5, 0, size + 2.5],
+      },
+      h2: {
+        fontSize: (size * 16) / 11,
+        bold: true,
+        color: NAVY,
+        lineHeight: 1.17,
+        margin: [0, 1, 0, size + 2],
+      },
+      h3: {
+        fontSize: (size * 13) / 11,
+        bold: true,
+        color: NAVY,
+        lineHeight: 1.18,
+        margin: [0, 2, 0, size],
+      },
     },
-    footer: (page, total) => ({
-      text: `${page} / ${total}`,
-      alignment: "center",
-      fontSize: 8,
-      color: "#526174",
-      margin: [0, 12, 0, 0],
-    }),
     pageBreakBefore: (node, following) =>
       Boolean(node.headlineLevel && following.length === 0),
   };

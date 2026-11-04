@@ -660,7 +660,34 @@
     }
     return item;
   }
+  function gallery(root, read) {
+    if (!root.matches?.("div,section,article,figure") || root.children.length < 2)
+      return null;
+    const css = root.ownerDocument.defaultView.getComputedStyle(root);
+    if (!/grid|flex/.test(css.display)) return null;
+    const cards = [...root.children].filter(visible);
+    if (cards.length < 2 || !cards.every(
+      (el) => el.matches("img,svg,canvas") || el.querySelector("img,svg,canvas")
+    ))
+      return null;
+    const rects = cards.map((el) => el.getBoundingClientRect());
+    if (rects.some((rect) => rect.width < 32 || rect.height < 24)) return null;
+    const columns = rects.filter(
+      (rect) => Math.abs(rect.top - rects[0].top) < 3
+    ).length;
+    if (columns < 2 || columns > 4 || rects[1].left < rects[0].right - 1)
+      return null;
+    return {
+      type: "gallery",
+      columns,
+      items: cards.map(
+        (el) => el.matches("img,svg,canvas") ? [{ type: "paragraph", runs: inline(el, {}, read) }] : blocks(el, read)
+      )
+    };
+  }
   function blocks(root, read = proseReader(root)) {
+    const group = gallery(root, read);
+    if (group) return [group];
     const out = [];
     let pending = [];
     const flush = () => {
@@ -772,7 +799,17 @@
             rowSpan: cell.rowSpan
           }))
         );
-        if (rows.length) out.push({ type: "table", rows });
+        if (rows.length) {
+          const regular = [...el.rows].find(
+            (row) => visible(row) && row.cells.length === rows[0].length && [...row.cells].every((cell) => cell.colSpan === 1)
+          );
+          const widths = regular && [...regular.cells].map((cell) => cell.getBoundingClientRect().width);
+          const sum = widths?.reduce((a, b) => a + b, 0);
+          const widthShares = sum > 0 && widths.every((w) => w > 0) ? widths.map((w) => w / sum) : void 0;
+          out.push({ type: "table", rows, widthShares });
+        }
+      } else if (tag === "FIGURE" && el.querySelector("img,svg,canvas")) {
+        out.push({ type: "figure", blocks: blocks(el, read) });
       } else if (tag === "BLOCKQUOTE")
         out.push({ type: "quote", blocks: blocks(el, read) });
       else if (tag === "HR") out.push({ type: "rule" });
@@ -797,7 +834,7 @@
       init_pdf_style();
       init_media();
       OMIT = 'button,nav,[data-conversation-role]:is(h1,h2,h3,h4,h5,h6),.turn-action-controls,script,style,textarea,input,select,svg,[role="button"],[data-cge],[data-testid="thought-process"],[data-testid="reasoning"],.katex-html';
-      BLOCK = "P,H1,H2,H3,H4,H5,H6,PRE,UL,OL,TABLE,BLOCKQUOTE,HR,DIV,SECTION,ARTICLE,FIGURE,DETAILS,SUMMARY,FORM,FIELDSET";
+      BLOCK = "P,H1,H2,H3,H4,H5,H6,PRE,UL,OL,TABLE,BLOCKQUOTE,HR,DIV,SECTION,ARTICLE,FIGURE,FIGCAPTION,DETAILS,SUMMARY,FORM,FIELDSET";
       equationSelector = ".katex,math,[data-math],[data-latex],mjx-container";
     }
   });
@@ -1113,10 +1150,23 @@
       turnIndex: turnIndex(el)
     };
   }
-  function extractMessage(el, order) {
+  function transcriptRoots(el, nodes) {
+    const roots = visualRoots(el), scope = el.closest(unitSelector) || turnFor(el);
+    if (scope === el || nodes.some((peer) => peer !== el && scope.contains(peer)))
+      return roots;
+    for (const part of scope.querySelectorAll(".markdown," + modernBody)) {
+      if (!visible(part) || roots.some((root) => root.contains(part) || part.contains(root)) || part.closest(
+        'aside,nav,form,dialog,details,button,[hidden],[data-cge],[data-message-author-role="tool"],[data-message-author-role="user"],[data-turn="user"],[data-message-channel="analysis"],[data-testid*="reasoning" i],[data-testid*="thought" i]'
+      ) || part.closest(turnSelector) !== el.closest(turnSelector))
+        continue;
+      roots.push(part);
+    }
+    return roots.sort((a, b) => a.compareDocumentPosition(b) & 4 ? -1 : 1);
+  }
+  function extractMessage(el, order, nodes = messageNodes(el.ownerDocument)) {
     const role = messageRole(el);
     const body = role === "user" ? el.querySelector(userBubble) || el : el;
-    const roots = role === "assistant" ? visualRoots(el) : [body];
+    const roots = role === "assistant" ? transcriptRoots(el, nodes) : [body];
     const content = liftImages(
       roots.flatMap((node) => {
         if (node.matches("img"))
@@ -1210,7 +1260,10 @@
             "There is a gap between this response and the visible question. Reveal the missing turns first."
           );
     }
-    return associate([extractMessage(nodes[u], 0), extractMessage(target, 1)]);
+    return associate([
+      extractMessage(nodes[u], 0, nodes),
+      extractMessage(target, 1, nodes)
+    ]);
   }
   function historyKey(message) {
     if (message.unitKey)
@@ -1583,6 +1636,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     orientation: "portrait",
     margin: 48,
     includeTitle: true,
+    showPdfTitle: false,
     includeTimestamps: false,
     includeUsers: true,
     includeCode: true,
@@ -1602,6 +1656,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
     }
     for (const key of [
       "includeTitle",
+      "showPdfTitle",
       "includeTimestamps",
       "includeUsers",
       "includeCode",

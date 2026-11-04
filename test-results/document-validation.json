@@ -1,139 +1,163 @@
 [
   {
     "file": "conversation.pdf",
-    "pages": 2,
-    "bytes": 39518,
+    "pages": 1,
+    "bytes": 38664,
     "valid": true
   },
   {
     "file": "formatted-chat.pdf",
     "pages": 1,
-    "bytes": 42948,
+    "bytes": 42795,
     "valid": true
   },
   {
     "file": "formatted-pair.pdf",
     "pages": 1,
-    "bytes": 42293,
+    "bytes": 42630,
     "valid": true
   },
   {
     "file": "image-pair.pdf",
     "pages": 1,
-    "bytes": 14256,
+    "bytes": 8532,
+    "valid": true
+  },
+  {
+    "file": "layout-chat.pdf",
+    "pages": 1,
+    "bytes": 18923,
+    "valid": true
+  },
+  {
+    "file": "layout-pair.pdf",
+    "pages": 1,
+    "bytes": 18758,
     "valid": true
   },
   {
     "file": "long.pdf",
-    "pages": 15,
-    "bytes": 74878,
+    "pages": 13,
+    "bytes": 72732,
     "valid": true
   },
   {
     "file": "pair.pdf",
     "pages": 1,
-    "bytes": 37401,
+    "bytes": 38183,
     "valid": true
   },
   {
     "file": "renderer-1.pdf",
     "pages": 1,
-    "bytes": 37406,
+    "bytes": 38163,
     "valid": true
   },
   {
     "file": "renderer-10.pdf",
     "pages": 1,
-    "bytes": 12214,
+    "bytes": 6513,
     "valid": true
   },
   {
     "file": "renderer-12.pdf",
     "pages": 1,
-    "bytes": 14256,
+    "bytes": 8532,
     "valid": true
   },
   {
     "file": "renderer-14.pdf",
     "pages": 1,
-    "bytes": 17046,
+    "bytes": 8697,
     "valid": true
   },
   {
     "file": "renderer-16.pdf",
     "pages": 1,
-    "bytes": 14256,
+    "bytes": 8532,
     "valid": true
   },
   {
     "file": "renderer-17.pdf",
     "pages": 1,
-    "bytes": 14649,
+    "bytes": 8988,
     "valid": true
   },
   {
     "file": "renderer-18.pdf",
     "pages": 1,
-    "bytes": 13789,
+    "bytes": 8005,
     "valid": true
   },
   {
     "file": "renderer-19.pdf",
     "pages": 1,
-    "bytes": 42293,
+    "bytes": 42630,
     "valid": true
   },
   {
     "file": "renderer-20.pdf",
     "pages": 1,
-    "bytes": 42948,
+    "bytes": 42795,
     "valid": true
   },
   {
     "file": "renderer-21.pdf",
     "pages": 2,
-    "bytes": 31267,
+    "bytes": 33838,
     "valid": true
   },
   {
     "file": "renderer-22.pdf",
     "pages": 2,
-    "bytes": 32211,
+    "bytes": 34003,
+    "valid": true
+  },
+  {
+    "file": "renderer-23.pdf",
+    "pages": 1,
+    "bytes": 18758,
+    "valid": true
+  },
+  {
+    "file": "renderer-24.pdf",
+    "pages": 1,
+    "bytes": 18923,
     "valid": true
   },
   {
     "file": "renderer-3.pdf",
-    "pages": 2,
-    "bytes": 39510,
+    "pages": 1,
+    "bytes": 38662,
     "valid": true
   },
   {
     "file": "renderer-7.pdf",
     "pages": 1,
-    "bytes": 12214,
+    "bytes": 6513,
     "valid": true
   },
   {
     "file": "rich-chat.pdf",
     "pages": 2,
-    "bytes": 32211,
+    "bytes": 34003,
     "valid": true
   },
   {
     "file": "rich-pair.pdf",
     "pages": 2,
-    "bytes": 31267,
+    "bytes": 33838,
     "valid": true
   },
   {
     "file": "settings.pdf",
-    "pages": 2,
-    "bytes": 31321,
+    "pages": 1,
+    "bytes": 29105,
     "valid": true
   },
   {
     "file": "conversation.docx",
-    "bytes": 11993,
+    "bytes": 11995,
     "valid": true
   },
   {
@@ -143,12 +167,12 @@
   },
   {
     "file": "long.docx",
-    "bytes": 13271,
+    "bytes": 13267,
     "valid": true
   },
   {
     "file": "pair.docx",
-    "bytes": 11897,
+    "bytes": 11896,
     "valid": true
   },
   {
@@ -168,12 +192,12 @@
   },
   {
     "file": "renderer-2.docx",
-    "bytes": 11897,
+    "bytes": 11899,
     "valid": true
   },
   {
     "file": "renderer-4.docx",
-    "bytes": 11997,
+    "bytes": 11996,
     "valid": true
   },
   {
@@ -183,17 +207,17 @@
   },
   {
     "file": "renderer-6.docx",
-    "bytes": 10881,
+    "bytes": 10882,
     "valid": true
   },
   {
     "file": "renderer-8.docx",
-    "bytes": 10546,
+    "bytes": 10547,
     "valid": true
   },
   {
     "file": "renderer-9.docx",
-    "bytes": 10672,
+    "bytes": 10671,
     "valid": true
   },
   {

@@ -1,16 +1,18 @@
 # Validation report and release checklist
 
-## Version 1.3.0
+## Version 1.4.0
 
 The Chromium renderer test exercises the PDF menu for both a single response and the conversation, using styled tokens, tabs, blank lines, four paragraph alignments and numbered inline formatting examples. The PDF validator checks the exported text spans and colored page regions. To smoke-test in your signed-in chat, export the same highlighted answer using each menu, compare token colors to the chat, and select the code in the resulting PDF.
 
-The rich-content fixture exports the same response through both PDF menus. It includes a branching Mermaid flowchart, a rendered SVG with an HTML label, a two-paragraph quote, nested lists, three checkbox states, multilingual prose and a Fibonacci control changed to eight terms. A readable frame exports its text while a sandboxed frame gets a labeled fallback. Run `python tests/validate_rich_pdf.py` on the generated PDFs.
+The rich-content fixture exports the same response through both PDF menus. It includes a branching Mermaid flowchart, a rendered SVG with an HTML label, a two-paragraph quote, nested lists, three checkbox states, multilingual prose and a Fibonacci control changed to eight terms. A readable frame exports its text while a sandboxed frame gets a labeled fallback. Run `python tests/validate_rich_pdf.py` on the generated PDFs. A separate layout fixture exports three graph illustrations, captions, weighted table columns and a safe hyperlink through both PDF menus.
+
+For visual comparison, the two PDF menus were also exercised on a reconstruction of the supplied reference’s opening page. Check the question’s four lines, the first heading and the last paragraph. The preview is an excerpt. Actual chat markup, assets and pagination may differ in a live conversation.
 
 ## Reproduce the automated checks
 
-Run `npm ci` and `npm run check`. The suite builds the extension and exercises extraction, document generation, simulated downloads, and both export menus in standalone Chromium. The renderer uses synthetic chat pages and mock Chrome transport. See `test-results/final-1.3.0.log` and `test-results/render-results.json`.
+Run `npm ci` and `npm run check`. The suite builds the extension and exercises extraction, document generation, simulated downloads, and both export menus in standalone Chromium. The renderer uses synthetic chat pages and mock Chrome transport. See `test-results/final-1.4.0.log` and `test-results/render-results.json`.
 
-Afterward, run `python tests/validate_pdf_styles.py`, `python tests/validate_documents.py` and `python tests/validate_images.py`. These checks use PyMuPDF, pypdf, Pillow and NumPy. They inspect the final files for token RGB values and font emphasis, tab widths and blank lines, paragraph positions and panel fills, long code pagination, document bounds and embedded image pixels.
+Afterward, run `python tests/validate_pdf_styles.py`, `python tests/validate_documents.py` and `python tests/validate_images.py`. These checks use PyMuPDF, pypdf, Pillow and NumPy. They inspect the final files for token RGB values and font emphasis, tab widths and blank lines, paragraph positions, the absence of message fills, table rules and figure-row alignment, long code pagination, document bounds and embedded image pixels.
 
 ## Local installation test
 
@@ -20,7 +22,7 @@ This environment blocked the Chromium persistent-profile socket used by `npm run
 
 1. Load `dist`, refresh ChatGPT, open Chrome's extension errors panel and clear previous errors.
 2. Create Q1/A1, Q2/A2, Q3/A3 with distinguishable unique text. Wait for each answer.
-3. Export A2 in both formats. Verify exactly Q2 and A2 appear, and Q1/Q3 do not.
+3. Export A2 in both formats. Verify exactly Q2 and A2 appear, and Q1/Q3 do not. In the PDF confirm that the prompt sits on the right, the answer starts at the left margin, and both have an unfilled background.
 4. Export the entire conversation in each format. Check range preview, chronology, labels and no duplicates.
 5. Repeat with a Python code block, long line, heading, nested numbered/bulleted list, hyperlink, table and KaTeX formula. Confirm the documented LaTeX fallback.
 6. Edit Q2, regenerate A2, switch available alternatives, then repeat pair export on the visible branch. Confirm no hidden branch appears.

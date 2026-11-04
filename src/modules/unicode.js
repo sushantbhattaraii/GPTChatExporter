@@ -23,7 +23,7 @@ export function fontFor(char, preferred) {
     cache.set(
       cp,
       ["deva", "hangul", "cjk"].find((key) => has(fallback[key], cp)) ||
-        (base.sans.has(cp) ? "sans" : null),
+        (base.symbols.has(cp) ? "symbols" : base.sans.has(cp) ? "sans" : null),
     );
   return cache.get(cp);
 }

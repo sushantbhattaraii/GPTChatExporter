@@ -1,8 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.3.0.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.4.0.
 
-**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.3.0** in the popup.
+**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.4.0** in the popup.
 
 The new version requests site access for ChatGPT and OpenAI image delivery. Review the extension card if Chrome asks you to enable it after the update.
 
@@ -17,7 +17,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 - PDF and genuine OOXML `.docx` output; no renamed HTML files.
 - Full-conversation export from the floating toolbar or Chrome popup.
 - Safe visible scrolling to collect history, including indexed virtualized turns; a range review before export.
-- Headings, emphasis, nested lists, tables, clickable links, monospaced code, role labels and page numbers.
+- Headings, emphasis, nested lists, tables, clickable links and monospaced code. Word documents also include role labels and page numbers.
 - Typeset PDF formulas and editable Word equations for recognized TeX and MathML.
 - Font family, size, A4 orientation, margins, timestamps, title, question visibility, code visibility and Save As settings.
 - Generated images embedded in formatted PDF and Word when readable. Image-only replies get a Q&A control in a separate row outside the gallery. When an outer layout clips that row, the control appears at the visible image edge.
@@ -32,7 +32,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.3.0** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.4.0** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 
@@ -52,7 +52,9 @@ By default questions and code are included. If you disable them in settings, the
 
 ## PDF formatting
 
-The same PDF renderer serves one Q&A and a full conversation. Prompts sit on the left in off-white panels and replies on the right in light green. Each paragraph keeps its own alignment, including justified text. Selectable prose also carries rendered bold, italic, combined emphasis, underline, strikethrough, inline highlight and accent colors, including inside lists. Code uses the visible syntax-token colors and background, indentation, tab stops, line breaks and emphasis. Code is selectable text in a bundled monospaced font. A long line wraps at the panel edge, and page breaks follow the available paper size. See `examples/formatted-chat.pdf`.
+Both PDF buttons print the same A4 transcript. Prompts are right-aligned in a narrower column. Replies use the full text width and retain their paragraph alignment. Both appear directly on the page. At the default 11 pt body size, the three heading levels use 20, 16 and 13 pt navy type. Links are blue and underlined. The first page starts with the conversation unless you turn on the printed title or timestamps.
+
+The exporter uses thin gray rules for tables and follows readable source column widths. Side-by-side rows of illustrated cards keep their captions and order when the page exposes their layout. Code, diagrams, text, and highlights retain their own formatting. Long code lines wrap within the available width. See `examples/transcript-layout.pdf` for typography, tables and figures, and `examples/formatted-chat.pdf` for syntax highlighting and inline styles.
 
 The floating bubble uses a **download arrow** to open the export menu and a **gear** to open settings. Hover over a format icon for its tooltip. Keyboard users can tab to the buttons, which have accessible names. The individual **Export this Q&A** control retains its text label.
 
@@ -73,7 +75,7 @@ Checklists show the current checked, unchecked or mixed state. Nested lists reta
 
 The collector uses ordinary page scrolling only. It attempts to expose older turns, then traverses downward, collecting stable identifiers and ordering by turn index. It rejects identifiable gaps, conflicting versions, streaming output and unorderable virtualization. Collection times out after 45 seconds.
 
-**Completeness boundary:** the DOM cannot prove that ChatGPT has made all historical content available. No backend fetch is used to bypass this. The review dialog and an export note disclose this boundary. Only the displayed branch is collected; hidden alternatives are excluded. An apparently stable top or bottom is not proof of server-side completeness.
+**Completeness boundary:** the DOM cannot prove that ChatGPT has made all historical content available. No backend fetch is used to bypass this. The review dialog explains this boundary. In the PDF it is recorded in the document properties under Subject. Only the displayed branch is collected; hidden alternatives are excluded. An apparently stable top or bottom is not proof of server-side completeness.
 
 ## Find and open downloads
 
@@ -93,22 +95,22 @@ Click the **gear icon** in the floating toolbar, or **Document settings** in the
 | Font | Sans serif, serif or monospace |
 | Body size | 8–18 pt |
 | Paper | A4 portrait or landscape |
-| Margins | 24–90 pt; 72 pt equals one inch |
-| Title | Include/exclude the page-derived conversation title |
+| Margins | 24–90 pt. PDF text also has a 3 pt horizontal inset and a 9 pt vertical inset. The default PDF text starts 51 pt from the left edge. |
+| Title | Include the conversation title in Word and in PDF properties. A separate checkbox prints the title above the PDF transcript and defaults to off. |
 | Timestamps | Export time, plus message times only when exposed as `time[datetime]` |
 | User questions | Include/exclude user messages |
 | Code | Include/exclude block code, recursively |
 | Save As | Ask where to save, or use Chrome's normal download behavior |
 
-PDF embeds DejaVu Sans, Serif and Mono; Word requests Arial, Times New Roman or Courier New and relies on the reader's installed fonts. Code uses monospace independently of the body font. Settings stay in local Chrome extension storage. Reset restores the form; click Save to apply it.
+PDF uses Liberation Sans by default, with DejaVu Serif and DejaVu Sans Mono available as alternatives. For missing glyphs it can use DejaVu Sans or the bundled Noto fonts. Word requests Arial, Times New Roman or Courier New and relies on the reader's installed fonts. Code uses monospace independently of the body font. Settings stay in local Chrome extension storage. Reset restores the form; click Save to apply it.
 
 ## Formatting and known limitations
 
 - **Equations:** PDF uses vector graphics for display formulas, fractions and radicals. Simple expressions stay inline, and complex inline formulas receive their own line. Word uses editable Office Math equations. Explicit math delimiters and formula-only LaTeX fences are recognized. Unsupported expressions retain their source with an “Unrendered equation” label. Ordinary programming examples stay as code.
 - **Images/media/files:** formatted PDF and Word include accessible image pixels in message order. Images are scaled proportionally, up to 1600 pixels on the longer side, and a source asset fetch is limited to 12 MB. If an asset is unreadable a labelled placeholder appears. Attachment file contents are not opened.
-- **Fonts:** PDFs support the bundled fonts' glyph coverage, including much Latin/Greek/Cyrillic and many math symbols. The exporter selects bundled Noto fonts for Devanagari (including Nepali and Hindi), Chinese and Japanese characters, kana and Hangul when the body font lacks those glyphs. The fallback faces are regular weight. Color emoji, rare ideographs, and characters outside all bundled fonts can still be missing. A warning appears for uncovered characters. Word preserves the Unicode text and may substitute installed fonts; script shaping/rendering is reader-dependent. Some code/math symbols may have narrower monospace coverage.
-- **Tables:** standard tables remain tables. Merged cells are flattened with placeholders and an export note. Tables wider than eight columns are represented row-by-row to avoid horizontal clipping. Long rows may split across pages.
-- **Code.** The PDF uses rendered token styles, expands tabs to the displayed tab stops and preserves blank lines. Long lines wrap at the available panel width. Only code present in the page can be read.
+- **Fonts:** PDFs support the bundled fonts' glyph coverage, including much Latin/Greek/Cyrillic and many math symbols. The exporter selects bundled Noto fonts for Devanagari (including Nepali and Hindi), Chinese and Japanese characters, kana and Hangul when the body font lacks those glyphs. The fallback faces are regular weight. Color emoji, rare ideographs, and characters outside all bundled fonts can still be missing. The PDF Subject field records a warning for uncovered characters. Word preserves the Unicode text and may substitute installed fonts; script shaping/rendering is reader-dependent. Some code/math symbols may have narrower monospace coverage.
+- **Tables:** standard tables remain tables. Merged cells are flattened with placeholders and a note in the PDF properties. Tables wider than eight columns are represented row-by-row to avoid horizontal clipping. Long rows may split across pages.
+- **Code.** The PDF uses rendered token styles, expands tabs to the displayed tab stops and preserves blank lines. Long lines wrap at the available text width. Only code present in the page can be read.
 - **Pagination:** PDF headings are kept with following content where feasible; Word headings use keep-next. Long paragraphs, rows and code may span pages. This is not a pixel-for-pixel screenshot.
 - **Links/citations:** safe HTTP(S) and mailto hyperlinks are retained. Script/data links are discarded. Citation widgets without accessible anchors may degrade to visible text or be omitted if they are interface buttons.
 - **Completion:** unknown final-message completion markers fail closed. The extension uses recognized role and turn markers, headings and generated-image cards to identify messages. An unfamiliar layout may prevent it from identifying the reply or its prompt. Work-mode Pages, embedded documents and multi-pane content outside the conversation DOM are not exported as separate artifacts.
@@ -165,7 +167,7 @@ chatgpt-conversation-exporter/
       filename.js           Portable local-time filenames
       settings.js           Defaults, validation and local preferences
       ui.js                 Isolated controls, menus and range review
-  assets/fonts/             Licensed, bundled DejaVu font files
+  assets/fonts/             Liberation, DejaVu and Noto font files
   scripts/build.mjs         Deterministic source bundling (esbuild)
   tests/                    Unit, renderer, real-extension and artifact validators
   examples/                 Sample outputs from synthetic conversations
@@ -226,7 +228,7 @@ python tests/validate_documents.py
 python tests/validate_images.py
 ```
 
-The PDF style check verifies actual font faces, drawn decorations, syntax colors, indentation, paragraph alignment and message-panel positions in both export modes. See `TESTING.md` for executed versus pending checks and live validation steps.
+The PDF style check verifies actual font faces, drawn decorations, syntax colors, indentation, paragraph alignment and prompt and reply positions in both export modes. See `TESTING.md` for executed versus pending checks and live validation steps.
 
 ## Troubleshooting
 
@@ -248,9 +250,9 @@ The PDF style check verifies actual font faces, drawn decorations, syntax colors
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
 
-**Bold or strikethrough is missing.** Check that the popup shows **v1.3.0**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
+**Bold or strikethrough is missing.** Check that the popup shows **v1.4.0**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
 
-**Equation looks like LaTeX:** check the popup shows v1.3.0 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
+**Equation looks like LaTeX:** check the popup shows v1.4.0 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
 **Boxes/missing glyphs in PDF:** export Word and use a font installed for that language. The font coverage limitation is explicit above.
 

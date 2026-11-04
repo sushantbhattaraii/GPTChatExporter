@@ -233,3 +233,24 @@ test("a partly mounted grouped turn cannot borrow an earlier question", () => {
   assert.throws(() => extractPair(nodes[1], d), /question from this response/);
   assert.throws(() => associate(snapshot(d)), /question from this response/);
 });
+
+test("a visible introduction in a single assistant turn precedes its body in both export scopes", () => {
+  const dom = new JSDOM(
+    fixture(
+      turn(0, "user", "Question") +
+        turn(1, "assistant", "<h1>Final answer</h1>"),
+    ),
+  );
+  const root = dom.window.document;
+  const answer = root.querySelector('[data-message-author-role="assistant"]');
+  answer.insertAdjacentHTML(
+    "beforebegin",
+    '<div class="markdown"><p>Public introduction.</p></div><div data-testid="reasoning"><p class="markdown">Private reasoning.</p></div><div hidden class="markdown">Hidden alternative.</div>',
+  );
+  for (const messages of [extractPair(answer, root), snapshot(root)]) {
+    assert.equal(
+      plainText(messages[1].blocks),
+      "Public introduction.\nFinal answer",
+    );
+  }
+});

@@ -4,6 +4,7 @@ export const DEFAULTS = Object.freeze({
   orientation: "portrait",
   margin: 48,
   includeTitle: true,
+  showPdfTitle: false,
   includeTimestamps: false,
   includeUsers: true,
   includeCode: true,
@@ -23,6 +24,7 @@ export function normalizeSettings(input = {}) {
   }
   for (const key of [
     "includeTitle",
+    "showPdfTitle",
     "includeTimestamps",
     "includeUsers",
     "includeCode",

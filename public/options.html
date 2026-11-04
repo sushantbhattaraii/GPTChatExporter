@@ -11,7 +11,7 @@
       <img src="icons/48.png" width="48" height="48" alt="" />
       <div>
         <h1>Document settings</h1>
-        <span class="muted">ChatGPT Conversation Exporter · v1.2.1</span>
+        <span class="muted">ChatGPT Conversation Exporter · v1.4.0</span>
       </div>
     </header>
     <form id="settings">
@@ -20,7 +20,7 @@
         <div class="grid">
           <label class="field"
             >Font family<select name="font">
-              <option value="sans">Sans serif (Arial / DejaVu Sans)</option>
+              <option value="sans">Sans serif (Arial / Liberation Sans)</option>
               <option value="serif">Serif (Times / DejaVu Serif)</option>
               <option value="mono">
                 Monospace (Courier New / DejaVu Mono)
@@ -53,8 +53,11 @@
       <section class="card">
         <h2>Content & downloads</h2>
         <label class="check"
-          ><input name="includeTitle" type="checkbox" />Include conversation
-          title</label
+          ><input name="includeTitle" type="checkbox" />Use the conversation
+          title in Word and in PDF properties</label
+        ><label class="check"
+          ><input name="showPdfTitle" type="checkbox" />Print the conversation
+          title above the PDF transcript</label
         ><label class="check"
           ><input name="includeTimestamps" type="checkbox" />Include export time
           and available message timestamps</label
