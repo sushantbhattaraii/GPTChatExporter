@@ -1,8 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.2.0.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.2.1.
 
-**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.2.0** in the popup.
+**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.2.1** in the popup.
 
 The new version requests site access for ChatGPT and OpenAI image delivery. Review the extension card if Chrome asks you to enable it after the update.
 
@@ -32,7 +32,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.2.0** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.2.1** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 
@@ -52,7 +52,7 @@ By default questions and code are included. If you disable them in settings, the
 
 ## PDF formatting
 
-The same PDF renderer serves one Q&A and a full conversation. Prompts sit on the left in off-white panels and replies on the right in light green. Each paragraph keeps its own alignment, including justified text. Code uses the visible syntax-token colors and background, indentation, tab stops, line breaks and emphasis. Code is selectable text in a bundled monospaced font. A long line wraps at the panel edge, and page breaks follow the available paper size. See `examples/formatted-chat.pdf`.
+The same PDF renderer serves one Q&A and a full conversation. Prompts sit on the left in off-white panels and replies on the right in light green. Each paragraph keeps its own alignment, including justified text. Selectable prose also carries rendered bold, italic, combined emphasis, underline, strikethrough, inline highlight and accent colors, including inside lists. Code uses the visible syntax-token colors and background, indentation, tab stops, line breaks and emphasis. Code is selectable text in a bundled monospaced font. A long line wraps at the panel edge, and page breaks follow the available paper size. See `examples/formatted-chat.pdf`.
 
 The floating bubble uses a **download arrow** to open the export menu and a **gear** to open settings. Hover over a format icon or focus it with the keyboard to see its label. The individual **Export this Q&A** control retains its text label.
 
@@ -221,7 +221,7 @@ This separate script exercises actual extension loading and downloads against a 
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
 
-**Equation looks like LaTeX:** check the popup shows v1.2.0 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
+**Equation looks like LaTeX:** check the popup shows v1.2.1 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
 **Boxes/missing glyphs in PDF:** export Word and use a font installed for that language. The font coverage limitation is explicit above.
 

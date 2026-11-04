@@ -33,6 +33,25 @@ for path in [root / "formatted-pair.pdf", root / "formatted-chat.pdf"]:
         assert abs(ret["bbox"][0]-keyword["bbox"][0]-4*advance)<0.2
         dy = ret["origin"][1]-keyword["origin"][1]
         assert abs(span("print(")["origin"][1]-ret["origin"][1]-2*dy)<0.2
+        assert "Bold" in span("Bold text")["font"]
+        assert "Oblique" in span("Italic text")["font"]
+        assert "BoldOblique" in span("Bold + Italic")["font"]
+        assert span("This text is green.")["color"]==0x178146
+        def find_ink(phrase, color, y_offset):
+            box=page.search_for(phrase)[0]
+            target=box.y0+box.height*y_offset
+            return any(d["fill"] and tuple(round(v*255) for v in d["fill"])==color
+                       and d["rect"].y0-1 <= target <= d["rect"].y1+1
+                       and d["rect"].x0 <= box.x0+1 and d["rect"].x1 >= box.x1-1
+                       for d in page.get_drawings())
+        assert find_ink("This text has been deleted.", (0,0,0), 0.6)
+        assert find_ink("This text is underlined.", (0,0,0), 0.96)
+        box=page.search_for("This text is highlighted.")[0]
+        highlights=[d["rect"] for d in page.get_drawings() if d["fill"]
+                    and tuple(round(v*255) for v in d["fill"])==(255,241,157)]
+        assert highlights and all(any(r.contains(point) for r in highlights)
+                        for point in [box.tl+(1,1), box.br-(1,1)])
+        assert "Bold" not in next(s for s in spans if "This is an important message." in s["text"])["font"]
     print(path.name, "passed color, placement, alignment, whitespace and selectable text checks")
 
 with fitz.open(root / "long.pdf") as doc:

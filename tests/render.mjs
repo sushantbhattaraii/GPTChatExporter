@@ -670,6 +670,15 @@ print(greet("Ada"))</code></pre>
     <p style="text-align:center">Centered caption</p>
     <p style="text-align:right">Right aligned note</p>
     <p style="text-align:justify">The paragraph below the code uses justified alignment. Its words spread across the available line width while the last line ends naturally inside the reply.</p>
+    <ol>
+      <li><span style="font-weight:700">Bold text</span>: This is an important message.</li>
+      <li><span style="font-style:italic">Italic text</span>: This sentence is emphasized.</li>
+      <li><strong><em>Bold + Italic</em></strong>: This is very important!</li>
+      <li>Underlined text: <u><span>This text is underlined.</span></u></li>
+      <li>Strikethrough: <span style="text-decoration:line-through"><span>This text has been deleted.</span></span></li>
+      <li>Highlighted text: <mark style="background-color:#fff19d"><span>This text is highlighted.</span></mark></li>
+      <li>Colored text: <span style="color:#178146">This text is green.</span></li>
+    </ol>
     </div></section>`;
   });
   await page.waitForFunction(

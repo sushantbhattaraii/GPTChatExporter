@@ -23,3 +23,17 @@ test("direction-relative alignment and inline code emphasis survive extraction",
   assert.equal(token.pdfStyle.color, "#247389");
   assert.equal(token.bold, true);
 });
+
+test("list item styles reach direct text and nested spans without styling the next item", () => {
+  const { document } = new JSDOM(`<ol>
+    <li style="font-weight:700"><span>Bold text</span><span style="font-weight:400">: Regular</span></li>
+    <li><u><del><span>Both decorations</span></del></u> Plain</li>
+  </ol>`).window;
+  const [list] = blocks(document.body);
+  const [bold, regular] = list.items[0][0].runs;
+  assert.ok(bold.bold);
+  assert.ok(!regular.bold);
+  const [both, plain] = list.items[1][0].runs;
+  assert.ok(both.underline && both.strike);
+  assert.ok(!plain.underline && !plain.strike);
+});

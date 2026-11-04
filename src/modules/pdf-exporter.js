@@ -26,17 +26,22 @@ const codeWrap = (s) =>
       .join(""),
   );
 function runs(rs) {
-  return rs.map((r) => ({
-    text: r.code ? codeWrap(r.text) : r.text,
-    bold: r.bold,
-    italics: r.italic,
-    decoration: r.strike ? "lineThrough" : undefined,
-    link: r.link,
-    font: r.code ? "mono" : undefined,
-    color: r.link ? "#175d9d" : undefined,
-    background: r.code ? "#f0f2f5" : undefined,
-    ...r.pdfStyle,
-  }));
+  return rs.map((r) => {
+    const lines = new Set([r.pdfStyle?.decoration].flat().filter(Boolean));
+    if (r.strike) lines.add("lineThrough");
+    if (r.underline) lines.add("underline");
+    return {
+      text: r.code ? codeWrap(r.text) : r.text,
+      bold: r.bold,
+      italics: r.italic,
+      link: r.link,
+      font: r.code ? "mono" : undefined,
+      color: r.color || (r.link ? "#175d9d" : undefined),
+      background: r.background || (r.code ? "#f0f2f5" : undefined),
+      ...r.pdfStyle,
+      decoration: lines.size ? [...lines] : undefined,
+    };
+  });
 }
 const nonempty = (value) => (value.length ? value : [{ text: " " }]);
 function formulaBlock(eq, s) {

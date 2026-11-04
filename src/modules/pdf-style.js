@@ -49,6 +49,66 @@ function blend(fg, bg) {
 }
 const hex = (rgb) =>
   "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("");
+// Snapshot styles per extraction so virtualized elements and theme changes are read afresh.
+export function proseReader(root) {
+  const cache = new WeakMap();
+  const baseColor = view(root).color;
+  function read(el) {
+    if (cache.has(el)) return cache.get(el);
+    const parent =
+      el === root || !el.parentElement ? {} : read(el.parentElement);
+    const css = view(el),
+      tag = el.tagName;
+    const weight = css.fontWeight;
+    const bold = weight
+      ? weight === "bold" || weight === "bolder" || Number(weight) >= 600
+      : ["B", "STRONG"].includes(tag) || parent.bold;
+    const italic = css.fontStyle
+      ? /italic|oblique/.test(css.fontStyle)
+      : ["I", "EM"].includes(tag) || parent.italic;
+    // Decorations painted by an ancestor extend through its inline descendants.
+    const line = css.textDecorationLine || css.textDecoration || "";
+    const strike =
+      parent.strike ||
+      line.includes("line-through") ||
+      (!line && ["DEL", "S", "STRIKE"].includes(tag));
+    const underline =
+      parent.underline ||
+      line.includes("underline") ||
+      (!line && ["U", "INS"].includes(tag));
+    let background = parent.background;
+    // Limit highlights to text-level backgrounds so the page theme never replaces role panels.
+    if (css.display.startsWith("inline") || tag === "MARK" || tag === "SPAN") {
+      const bg = rgba(css.backgroundColor, el.ownerDocument);
+      if (bg?.[3])
+        background = hex(
+          blend(bg, background ? fromHex(background) : [255, 255, 255]),
+        );
+    }
+    let color;
+    if (css.color && (css.color !== baseColor || background)) {
+      const fg = rgba(css.color, el.ownerDocument);
+      if (fg)
+        color = hex(
+          blend(fg, background ? fromHex(background) : [255, 255, 255]),
+        );
+    }
+    const result = {
+      bold: bold || undefined,
+      italic: italic || undefined,
+      strike: strike || undefined,
+      underline: underline || undefined,
+      color,
+      background,
+    };
+    cache.set(el, result);
+    return result;
+  }
+  return read;
+}
+function fromHex(color) {
+  return [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+}
 export function readCode(pre) {
   const code =
     pre.tagName === "PRE" && pre.querySelectorAll("code").length === 1

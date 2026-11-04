@@ -206,6 +206,51 @@
       (v, i) => fg ? Math.round(fg[i] * fg[3] + v * (1 - fg[3])) : v
     );
   }
+  function proseReader(root) {
+    const cache = /* @__PURE__ */ new WeakMap();
+    const baseColor = view(root).color;
+    function read(el) {
+      if (cache.has(el)) return cache.get(el);
+      const parent = el === root || !el.parentElement ? {} : read(el.parentElement);
+      const css = view(el), tag = el.tagName;
+      const weight = css.fontWeight;
+      const bold = weight ? weight === "bold" || weight === "bolder" || Number(weight) >= 600 : ["B", "STRONG"].includes(tag) || parent.bold;
+      const italic = css.fontStyle ? /italic|oblique/.test(css.fontStyle) : ["I", "EM"].includes(tag) || parent.italic;
+      const line = css.textDecorationLine || css.textDecoration || "";
+      const strike = parent.strike || line.includes("line-through") || !line && ["DEL", "S", "STRIKE"].includes(tag);
+      const underline = parent.underline || line.includes("underline") || !line && ["U", "INS"].includes(tag);
+      let background = parent.background;
+      if (css.display.startsWith("inline") || tag === "MARK" || tag === "SPAN") {
+        const bg = rgba(css.backgroundColor, el.ownerDocument);
+        if (bg?.[3])
+          background = hex(
+            blend(bg, background ? fromHex(background) : [255, 255, 255])
+          );
+      }
+      let color;
+      if (css.color && (css.color !== baseColor || background)) {
+        const fg = rgba(css.color, el.ownerDocument);
+        if (fg)
+          color = hex(
+            blend(fg, background ? fromHex(background) : [255, 255, 255])
+          );
+      }
+      const result = {
+        bold: bold || void 0,
+        italic: italic || void 0,
+        strike: strike || void 0,
+        underline: underline || void 0,
+        color,
+        background
+      };
+      cache.set(el, result);
+      return result;
+    }
+    return read;
+  }
+  function fromHex(color) {
+    return [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+  }
   function readCode(pre) {
     const code = pre.tagName === "PRE" && pre.querySelectorAll("code").length === 1 ? pre.querySelector("code") : pre;
     const doc = pre.ownerDocument, colors = /* @__PURE__ */ new Map(), styles = /* @__PURE__ */ new WeakMap(), backgrounds = /* @__PURE__ */ new WeakMap();
@@ -376,7 +421,7 @@
     if (pos < text.length) runs.push({ text: text.slice(pos), ...style });
     return runs;
   }
-  function inline(node, style = {}) {
+  function inline(node, style = {}, read = proseReader(node.parentElement || node)) {
     if (node.nodeType === 3) {
       const parent = node.parentElement;
       const preserve = parent && (/pre|break-spaces/.test(
@@ -386,7 +431,7 @@
       ));
       return textRuns(
         preserve ? node.textContent : node.textContent.replace(/\s+/g, " "),
-        style
+        { ...style, ...read(parent) }
       );
     }
     if (node.nodeType !== 1 || !visible(node)) return [];
@@ -403,18 +448,18 @@
     if (node.tagName === "IMG")
       return meaningfulImage(node) ? [imageRef(node)] : [];
     const next = { ...style };
-    if (["STRONG", "B"].includes(node.tagName)) next.bold = true;
-    if (["EM", "I"].includes(node.tagName)) next.italic = true;
-    if (["S", "DEL"].includes(node.tagName)) next.strike = true;
     if (node.tagName === "CODE") {
       const snippet = readCode(node);
+      const prose = read(node);
       return snippet.tokens.map(
         ({ text, color, background, bold, italics, decoration, fontSize }) => ({
           ...next,
           text,
           code: true,
-          bold: bold || next.bold,
-          italic: italics || next.italic,
+          bold,
+          italic: italics,
+          strike: prose.strike,
+          underline: prose.underline,
           pdfStyle: {
             color,
             background: background || snippet.background,
@@ -428,7 +473,7 @@
     if (node.tagName === "SUB") next.sub = true;
     if (node.tagName === "A")
       next.link = safeLink(node.getAttribute("href"), node.ownerDocument.URL);
-    return [...node.childNodes].flatMap((n) => inline(n, next));
+    return [...node.childNodes].flatMap((n) => inline(n, next, read));
   }
   function trimmed(runs) {
     const r = runs.filter((x) => x.text !== "");
@@ -441,7 +486,7 @@
     }
     return r.filter((x) => x.text !== "");
   }
-  function blocks(root) {
+  function blocks(root, read = proseReader(root)) {
     const out = [];
     let pending = [];
     const flush = () => {
@@ -452,12 +497,12 @@
     };
     for (const el of root.childNodes) {
       if (el.nodeType !== 1) {
-        pending.push(...inline(el));
+        pending.push(...inline(el, {}, read));
         continue;
       }
       if (!visible(el)) continue;
       if (el.matches('button,[role="button"]')) {
-        pending.push(...inline(el));
+        pending.push(...inline(el, {}, read));
         continue;
       }
       if (el.matches(OMIT)) continue;
@@ -469,7 +514,7 @@
         continue;
       }
       if (!BLOCK.split(",").includes(el.tagName) && !el.matches(".cm-content")) {
-        pending.push(...inline(el));
+        pending.push(...inline(el, {}, read));
         continue;
       }
       flush();
@@ -479,7 +524,7 @@
           type: "heading",
           level: Number(tag[1]),
           alignment: textAlignment(el),
-          runs: trimmed(inline(el))
+          runs: trimmed(inline(el, {}, read))
         });
       else if (tag === "PRE" || el.matches(".cm-content")) {
         const snippet = readCode(el), { text, language } = snippet;
@@ -495,12 +540,12 @@
           type: "list",
           ordered: tag === "OL",
           start: Number(el.getAttribute("start")) || 1,
-          items: [...el.children].filter((n) => n.tagName === "LI" && visible(n)).map((n) => blocks(n))
+          items: [...el.children].filter((n) => n.tagName === "LI" && visible(n)).map((n) => blocks(n, read))
         });
       } else if (tag === "TABLE") {
         const rows = [...el.rows].filter(visible).map(
           (row) => [...row.cells].map((cell) => ({
-            blocks: blocks(cell),
+            blocks: blocks(cell, read),
             header: cell.tagName === "TH",
             colSpan: cell.colSpan,
             rowSpan: cell.rowSpan
@@ -508,13 +553,13 @@
         );
         if (rows.length) out.push({ type: "table", rows });
       } else if (tag === "BLOCKQUOTE")
-        out.push({ type: "quote", blocks: blocks(el) });
+        out.push({ type: "quote", blocks: blocks(el, read) });
       else if (tag === "HR") out.push({ type: "rule" });
       else if (tag === "P") {
-        const runs = trimmed(inline(el));
+        const runs = trimmed(inline(el, {}, read));
         if (runs.length)
           out.push({ type: "paragraph", runs, alignment: textAlignment(el) });
-      } else out.push(...blocks(el));
+      } else out.push(...blocks(el, read));
     }
     flush();
     return out;
@@ -1045,7 +1090,7 @@
           throw new ChangedDuringScan(
             "The conversation kept changing during both history scans. Finish editing or generating the reply and retry."
           );
-        if (!prior) seen.set(key, m);
+        seen.set(key, m);
       }
       for (const old of previous) {
         if (old.turnIndex === null || keys.has(historyKey(old))) continue;

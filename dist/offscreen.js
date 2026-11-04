@@ -103137,17 +103137,22 @@
     (word) => Array.from(word).map((x, i) => i && i % 20 === 0 ? "\u200B" + x : x).join("")
   );
   function runs(rs) {
-    return rs.map((r) => ({
-      text: r.code ? codeWrap(r.text) : r.text,
-      bold: r.bold,
-      italics: r.italic,
-      decoration: r.strike ? "lineThrough" : void 0,
-      link: r.link,
-      font: r.code ? "mono" : void 0,
-      color: r.link ? "#175d9d" : void 0,
-      background: r.code ? "#f0f2f5" : void 0,
-      ...r.pdfStyle
-    }));
+    return rs.map((r) => {
+      const lines = new Set([r.pdfStyle?.decoration].flat().filter(Boolean));
+      if (r.strike) lines.add("lineThrough");
+      if (r.underline) lines.add("underline");
+      return {
+        text: r.code ? codeWrap(r.text) : r.text,
+        bold: r.bold,
+        italics: r.italic,
+        link: r.link,
+        font: r.code ? "mono" : void 0,
+        color: r.color || (r.link ? "#175d9d" : void 0),
+        background: r.background || (r.code ? "#f0f2f5" : void 0),
+        ...r.pdfStyle,
+        decoration: lines.size ? [...lines] : void 0
+      };
+    });
   }
   var nonempty = (value) => value.length ? value : [{ text: " " }];
   function formulaBlock(eq, s) {
@@ -117266,6 +117271,7 @@
           bold: r.bold,
           italics: r.italic,
           strike: r.strike,
+          underline: r.underline ? { type: "single" } : void 0,
           font: r.code || r.math ? "Courier New" : void 0,
           superScript: r.sup,
           subScript: r.sub,

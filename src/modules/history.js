@@ -74,7 +74,8 @@ export async function collectHistory({
         throw new ChangedDuringScan(
           "The conversation kept changing during both history scans. Finish editing or generating the reply and retry.",
         );
-      if (!prior) seen.set(key, m);
+      // Keep the latest rendered styles when the text and identity still match.
+      seen.set(key, m);
     }
     // A replacement at an occupied slot may be a branch switch. Retry from an empty
     // snapshot instead of mixing the former answer with the replacement.

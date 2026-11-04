@@ -1,4 +1,4 @@
-import { readCode, textAlignment } from "./pdf-style.js";
+import { proseReader, readCode, textAlignment } from "./pdf-style.js";
 import { imageRef, meaningfulImage } from "./media.js";
 // Convert the rendered DOM to a small, non-executable document model.
 export function safeLink(value, base = "https://chatgpt.com/") {
@@ -92,7 +92,11 @@ function textRuns(text, style) {
   if (pos < text.length) runs.push({ text: text.slice(pos), ...style });
   return runs;
 }
-export function inline(node, style = {}) {
+export function inline(
+  node,
+  style = {},
+  read = proseReader(node.parentElement || node),
+) {
   if (node.nodeType === 3) {
     const parent = node.parentElement;
     const preserve =
@@ -105,7 +109,7 @@ export function inline(node, style = {}) {
         ));
     return textRuns(
       preserve ? node.textContent : node.textContent.replace(/\s+/g, " "),
-      style,
+      { ...style, ...read(parent) },
     );
   }
   if (node.nodeType !== 1 || !visible(node)) return [];
@@ -124,18 +128,18 @@ export function inline(node, style = {}) {
   if (node.tagName === "IMG")
     return meaningfulImage(node) ? [imageRef(node)] : [];
   const next = { ...style };
-  if (["STRONG", "B"].includes(node.tagName)) next.bold = true;
-  if (["EM", "I"].includes(node.tagName)) next.italic = true;
-  if (["S", "DEL"].includes(node.tagName)) next.strike = true;
   if (node.tagName === "CODE") {
     const snippet = readCode(node);
+    const prose = read(node);
     return snippet.tokens.map(
       ({ text, color, background, bold, italics, decoration, fontSize }) => ({
         ...next,
         text,
         code: true,
-        bold: bold || next.bold,
-        italic: italics || next.italic,
+        bold,
+        italic: italics,
+        strike: prose.strike,
+        underline: prose.underline,
         pdfStyle: {
           color,
           background: background || snippet.background,
@@ -149,7 +153,7 @@ export function inline(node, style = {}) {
   if (node.tagName === "SUB") next.sub = true;
   if (node.tagName === "A")
     next.link = safeLink(node.getAttribute("href"), node.ownerDocument.URL);
-  return [...node.childNodes].flatMap((n) => inline(n, next));
+  return [...node.childNodes].flatMap((n) => inline(n, next, read));
 }
 function trimmed(runs) {
   const r = runs.filter((x) => x.text !== "");
@@ -162,7 +166,7 @@ function trimmed(runs) {
   }
   return r.filter((x) => x.text !== "");
 }
-export function blocks(root) {
+export function blocks(root, read = proseReader(root)) {
   const out = [];
   let pending = [];
   const flush = () => {
@@ -173,12 +177,12 @@ export function blocks(root) {
   };
   for (const el of root.childNodes) {
     if (el.nodeType !== 1) {
-      pending.push(...inline(el));
+      pending.push(...inline(el, {}, read));
       continue;
     }
     if (!visible(el)) continue;
     if (el.matches('button,[role="button"]')) {
-      pending.push(...inline(el));
+      pending.push(...inline(el, {}, read));
       continue;
     }
     if (el.matches(OMIT)) continue;
@@ -193,7 +197,7 @@ export function blocks(root) {
       continue;
     }
     if (!BLOCK.split(",").includes(el.tagName) && !el.matches(".cm-content")) {
-      pending.push(...inline(el));
+      pending.push(...inline(el, {}, read));
       continue;
     }
     flush();
@@ -203,7 +207,7 @@ export function blocks(root) {
         type: "heading",
         level: Number(tag[1]),
         alignment: textAlignment(el),
-        runs: trimmed(inline(el)),
+        runs: trimmed(inline(el, {}, read)),
       });
     else if (tag === "PRE" || el.matches(".cm-content")) {
       const snippet = readCode(el),
@@ -230,12 +234,12 @@ export function blocks(root) {
         start: Number(el.getAttribute("start")) || 1,
         items: [...el.children]
           .filter((n) => n.tagName === "LI" && visible(n))
-          .map((n) => blocks(n)),
+          .map((n) => blocks(n, read)),
       });
     } else if (tag === "TABLE") {
       const rows = [...el.rows].filter(visible).map((row) =>
         [...row.cells].map((cell) => ({
-          blocks: blocks(cell),
+          blocks: blocks(cell, read),
           header: cell.tagName === "TH",
           colSpan: cell.colSpan,
           rowSpan: cell.rowSpan,
@@ -243,13 +247,13 @@ export function blocks(root) {
       );
       if (rows.length) out.push({ type: "table", rows });
     } else if (tag === "BLOCKQUOTE")
-      out.push({ type: "quote", blocks: blocks(el) });
+      out.push({ type: "quote", blocks: blocks(el, read) });
     else if (tag === "HR") out.push({ type: "rule" });
     else if (tag === "P") {
-      const runs = trimmed(inline(el));
+      const runs = trimmed(inline(el, {}, read));
       if (runs.length)
         out.push({ type: "paragraph", runs, alignment: textAlignment(el) });
-    } else out.push(...blocks(el));
+    } else out.push(...blocks(el, read));
   }
   flush();
   return out;

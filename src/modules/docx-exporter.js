@@ -41,6 +41,7 @@ function runs(rs) {
           bold: r.bold,
           italics: r.italic,
           strike: r.strike,
+          underline: r.underline ? { type: "single" } : undefined,
           font: r.code || r.math ? "Courier New" : undefined,
           superScript: r.sup,
           subScript: r.sub,
