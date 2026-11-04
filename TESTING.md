@@ -1,6 +1,6 @@
 # Validation report and release checklist
 
-## Version 1.5.2
+## Version 1.5.3
 
 The Chromium renderer test exercises the PDF menu for both a single response and the conversation, using styled tokens, tabs, blank lines, four paragraph alignments and numbered inline formatting examples. The PDF validator checks the exported text spans and colored page regions. To smoke-test in your signed-in chat, export the same highlighted answer using each menu, compare token colors to the chat, and select the code in the resulting PDF.
 
@@ -14,9 +14,11 @@ The university fixture reconstructs three search results with thumbnail overlays
 
 The scrollable-code fixture exports five snippets through the single Q&A and whole-conversation menus. It includes a real CodeMirror 5 editor, a CodeMirror 6 document fixture, two DOM-only panes and a native code block. It starts with both scroll axes displaced. The tests compare the full model text, including blank and repeated lines, and check scrollbar restoration. Run `python tests/validate_scroll_code_pdf.py` to verify the printed characters and page bounds in the final PDFs.
 
+The SVG fixture exports a 40-pixel-wide vector source through both PDF menus. It includes a responsive HTTPS image, nested SVGs, a blob URL revoked during the conversation review, CSS previews that reuse local IDs, a bitmap inside an inline SVG and a color-filter effect. Run `python tests/validate_svg_pdf.py` to check native paths, gradients, selectable labels, preserved bounds, the print-resolution fallback and 24 separate tick marks at 800% zoom.
+
 ## Reproduce the automated checks
 
-Run `npm ci` and `npm run check`. The suite builds the extension and exercises extraction, document generation, simulated downloads, and both export menus in standalone Chromium. The renderer uses synthetic chat pages and mock Chrome transport. See `test-results/final-1.5.2.log` and `test-results/render-results.json`.
+Run `npm ci` and `npm run check`. The suite builds the extension and exercises extraction, document generation, simulated downloads, and both export menus in standalone Chromium. The renderer uses synthetic chat pages and mock Chrome transport. See `test-results/final-1.5.3.log` and `test-results/render-results.json`.
 
 Afterward, run `python tests/validate_pdf_styles.py`, `python tests/validate_documents.py` and `python tests/validate_images.py`. These checks use PyMuPDF, pypdf, Pillow and NumPy. They inspect the final files for token RGB values and font emphasis, tab widths and blank lines, paragraph positions, the absence of message fills, table rules and figure-row alignment, long code pagination, document bounds and embedded image pixels.
 

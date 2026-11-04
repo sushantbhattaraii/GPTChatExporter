@@ -11,11 +11,11 @@
 
   // src/modules/image-box.js
   function displayedImageBox(el, style, rect) {
-    const px = (name) => parseFloat(style[name]) || 0;
-    const left = px("borderLeftWidth") + px("paddingLeft");
-    const top = px("borderTopWidth") + px("paddingTop");
-    const width = rect.width - left - px("borderRightWidth") - px("paddingRight");
-    const height = rect.height - top - px("borderBottomWidth") - px("paddingBottom");
+    const px2 = (name) => parseFloat(style[name]) || 0;
+    const left = px2("borderLeftWidth") + px2("paddingLeft");
+    const top = px2("borderTopWidth") + px2("paddingTop");
+    const width = rect.width - left - px2("borderRightWidth") - px2("paddingRight");
+    const height = rect.height - top - px2("borderBottomWidth") - px2("paddingBottom");
     if (!(width > 0 && height > 0)) return;
     const bitmap = el.matches("img,canvas");
     const fit = bitmap ? style.objectFit || "fill" : style.backgroundSize === "cover" ? "cover" : "contain";
@@ -104,12 +104,450 @@
     }
   });
 
+  // src/modules/svg-source.js
+  function svgText(bytes) {
+    const encoding = bytes[0] === 255 && bytes[1] === 254 ? "utf-16le" : bytes[0] === 254 && bytes[1] === 255 ? "utf-16be" : "utf-8";
+    return new TextDecoder(encoding).decode(bytes);
+  }
+  function svgHeader(text) {
+    return /^\s*(?:(?:<\?xml\b[^?]*\?>|<!--[\s\S]*?-->|<!DOCTYPE\s+svg\b[^>[\]]*>)\s*)*<(?:[\w.-]+:)?svg(?=[\s/>])/i.test(
+      text
+    );
+  }
+  function svgDataText(url) {
+    const header = svgDataURL.exec(url);
+    if (!header || url.length > 36e6) return;
+    const payload = url.slice(header[0].length).split("#")[0].replace(/%(?![\da-f]{2})/gi, "%25");
+    const text = /;base64(?:;|,)/i.test(header[0]) ? svgText(
+      Uint8Array.from(
+        atob(decodeURIComponent(payload)),
+        (c) => c.charCodeAt(0)
+      )
+    ) : decodeURIComponent(payload);
+    if (text.length <= 12e6 && svgHeader(text)) return text;
+  }
+  var svgDataURL;
+  var init_svg_source = __esm({
+    "src/modules/svg-source.js"() {
+      svgDataURL = /^data:image\/svg\+xml(?:;[^,]*)?,/i;
+    }
+  });
+
+  // src/modules/diagram.js
+  function local(value, base2) {
+    if (!value.includes("url(")) return value;
+    const match = /^url\(["']?([^"')]+)["']?\)$/.exec(value);
+    if (!match) return null;
+    try {
+      const url = new URL(match[1], base2);
+      return url.href.split("#")[0] === base2.split("#")[0] && url.hash ? "url(" + url.hash + ")" : null;
+    } catch {
+      return null;
+    }
+  }
+  function svgImageHref(value) {
+    return value.length <= 16000030 && /^data:image\/(?:png;base64,\s*iVBORw0KGgo|jpeg;base64,\s*\/9j\/)[a-z\d+/=\s]*$/i.test(
+      value
+    );
+  }
+  function diagramSVG(root, { image = false, nestedImage, specifiedPaint } = {}) {
+    const doc = root.ownerDocument, win = doc.defaultView;
+    const box = root.viewBox?.baseVal;
+    const width = box?.width || root.getBoundingClientRect().width;
+    const height = box?.height || root.getBoundingClientRect().height;
+    if (!(width > 0 && height > 0) || root.querySelectorAll("*").length > 12e3)
+      return null;
+    function clone(node) {
+      if (node.nodeType === 3) return doc.createTextNode(node.textContent);
+      if (node.nodeType !== 1) return null;
+      const css = win.getComputedStyle(node);
+      if (css.display === "none" && ![
+        "defs",
+        "symbol",
+        "marker",
+        "clipPath",
+        "mask",
+        "pattern",
+        "linearGradient",
+        "radialGradient"
+      ].includes(node.localName) || css.visibility === "hidden")
+        return null;
+      if (node.localName === "foreignObject") {
+        const group = doc.createElementNS(svgNS, "g");
+        const matrix = node.getScreenCTM()?.inverse();
+        if (!matrix) return null;
+        const walker = doc.createTreeWalker(node, 4);
+        while (walker.nextNode()) {
+          const n = walker.currentNode;
+          const style = win.getComputedStyle(n.parentElement);
+          for (const match of n.textContent.matchAll(/\S+/gu)) {
+            const range = doc.createRange();
+            range.setStart(n, match.index);
+            range.setEnd(n, match.index + match[0].length);
+            const rect = range.getBoundingClientRect();
+            if (!rect.width) continue;
+            const p = new win.DOMPoint(
+              rect.left,
+              rect.bottom - rect.height * 0.19
+            ).matrixTransform(matrix);
+            const t = doc.createElementNS(svgNS, "text");
+            t.setAttribute("x", p.x);
+            t.setAttribute("y", p.y);
+            t.setAttribute("font-size", style.fontSize);
+            t.setAttribute("fill", style.color);
+            t.textContent = match[0];
+            group.append(t);
+          }
+        }
+        return group;
+      }
+      if (!svgTags.has(node.localName)) return null;
+      const nested = node.localName === "image" && nestedImage?.(node);
+      if (node.localName === "image" && !nested && !svgImageHref(
+        node.getAttribute("href") || node.getAttributeNS("http://www.w3.org/1999/xlink", "href") || ""
+      ))
+        return null;
+      const copy = doc.createElementNS(svgNS, nested ? "svg" : node.localName);
+      for (const a of node.attributes) {
+        if (svgGeometry.has(a.name) || a.localName === "href" && (/^#[\w:.-]+$/.test(a.value) || node.localName === "image" && svgImageHref(a.value)))
+          copy.setAttribute(
+            a.localName,
+            node.localName === "image" && a.localName === "href" ? a.value.replace(/\s+/g, "") : a.value
+          );
+      }
+      for (const prop of svgPaint) {
+        const declared = specifiedPaint?.(node, prop);
+        if (specifiedPaint && !declared) continue;
+        const computed = css.getPropertyValue(prop);
+        const value = /^currentcolor$/i.test(declared || "") && /^(fill|stroke|stop-color)$/.test(prop) && computed === css.color ? "currentColor" : local(computed || "", doc.URL);
+        if (prop === "stroke-dasharray" && value !== "none" && value?.split(/[ ,]+/).some((v) => !(parseFloat(v) > 0)))
+          continue;
+        if (value && (!["overflow", "font-family"].includes(prop) || image || node.hasAttribute(prop)))
+          copy.setAttribute(prop, value);
+      }
+      if (image && !node.hasAttribute("transform") && css.transform && css.transform !== "none")
+        copy.setAttribute("transform", css.transform);
+      if (image) {
+        const fields = {
+          rect: ["x", "y", "width", "height", "rx", "ry"],
+          circle: ["cx", "cy", "r"],
+          ellipse: ["cx", "cy", "rx", "ry"]
+        }[node.localName] || [];
+        for (const field of fields) {
+          const length = css.getPropertyValue(field);
+          if (length && length !== "auto") copy.setAttribute(field, length);
+        }
+      }
+      if (nested) {
+        const inner = new win.DOMParser().parseFromString(
+          nested.svg,
+          "image/svg+xml"
+        ).documentElement;
+        copy.setAttribute("viewBox", `0 0 ${nested.width} ${nested.height}`);
+        copy.setAttribute("overflow", "hidden");
+        if (!copy.hasAttribute("width")) copy.setAttribute("width", nested.width);
+        if (!copy.hasAttribute("height"))
+          copy.setAttribute("height", nested.height);
+        inner.setAttribute("width", nested.width);
+        inner.setAttribute("height", nested.height);
+        copy.append(doc.importNode(inner, true));
+      }
+      for (const child of node.childNodes) {
+        const c = clone(child);
+        if (c) copy.append(c);
+      }
+      return copy;
+    }
+    const svg = clone(root);
+    if (!svg) return null;
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+    if (!box?.width) svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    if (image) {
+      for (const key of ["x", "y", "width", "height"]) svg.removeAttribute(key);
+      const prefix = "cge-svg-" + ++imageNumber + "-";
+      for (const n of [svg, ...svg.querySelectorAll("*")]) {
+        for (const attr of [...n.attributes]) {
+          if (attr.name === "id") n.setAttribute("id", prefix + attr.value);
+          else if (attr.name === "href" && attr.value.startsWith("#"))
+            n.setAttribute("href", "#" + prefix + attr.value.slice(1));
+          else if (attr.value.startsWith("url(#"))
+            n.setAttribute(
+              attr.name,
+              attr.value.replace("url(#", "url(#" + prefix)
+            );
+        }
+      }
+    }
+    return {
+      type: "diagram",
+      svg: new XMLSerializer().serializeToString(svg),
+      width,
+      height,
+      text: root.getAttribute("aria-label") || [...root.querySelectorAll("title,text,foreignObject")].map((n) => n.textContent.trim()).filter(Boolean).join(" ").slice(0, 1200) || "Diagram"
+    };
+  }
+  var svgNS, svgTags, svgGeometry, svgPaint, imageNumber;
+  var init_diagram = __esm({
+    "src/modules/diagram.js"() {
+      svgNS = "http://www.w3.org/2000/svg";
+      svgTags = new Set(
+        "svg g defs symbol marker pattern mask image path rect circle ellipse line polyline polygon text tspan textPath title desc clipPath linearGradient radialGradient stop use".split(
+          " "
+        )
+      );
+      svgGeometry = new Set(
+        "id viewBox preserveAspectRatio transform d x y x1 y1 x2 y2 dx dy r rx ry cx cy fx fy points width height refX refY markerWidth markerHeight markerUnits orient offset gradientUnits gradientTransform spreadMethod clipPathUnits patternUnits patternContentUnits patternTransform maskUnits maskContentUnits textLength lengthAdjust startOffset rotate".split(
+          " "
+        )
+      );
+      svgPaint = "fill stroke color stroke-width stroke-dasharray stroke-dashoffset stroke-linejoin stroke-linecap stroke-miterlimit fill-rule fill-opacity stroke-opacity opacity text-anchor dominant-baseline font-size font-weight font-style font-family marker-start marker-end marker-mid clip-path clip-rule mask stop-color stop-opacity overflow".split(
+        " "
+      );
+      imageNumber = 0;
+    }
+  });
+
+  // src/modules/svg-image.js
+  function safeStyle(style) {
+    const kept = [];
+    for (const prop of style) {
+      if (!styleProps.has(prop) && !prop.startsWith("--")) continue;
+      const value = style.getPropertyValue(prop);
+      if (/[\\<>@]/.test(value) || /(?:image-set|image|attr|src|paint)\s*\(/i.test(value) || /url\s*\(/i.test(value) && !/^url\(\s*["']?#[\w:.-]+["']?\s*\)$/i.test(value))
+        continue;
+      kept.push(
+        prop + ":" + value + (style.getPropertyPriority(prop) ? " !important" : "")
+      );
+    }
+    return kept.join(";");
+  }
+  function px(length) {
+    const m = /^\s*(\d*\.?\d+)\s*(px|pt|pc|in|cm|mm)?\s*$/i.exec(length || "");
+    return m && Number(m[1]) * { px: 1, pt: 96 / 72, pc: 16, in: 96, cm: 96 / 2.54, mm: 96 / 25.4 }[m[2]?.toLowerCase() || "px"];
+  }
+  function fitsVectorBudget(root) {
+    if (root.querySelectorAll("*").length > 12e3) return false;
+    const costs = /* @__PURE__ */ new Map(), visiting = /* @__PURE__ */ new Set(), limit = 6e4;
+    function cost(node, depth) {
+      if (depth > 128 || visiting.has(node)) return limit + 1;
+      if (costs.has(node)) return costs.get(node);
+      visiting.add(node);
+      let total = 1;
+      if (node.localName === "use") {
+        const href = node.getAttribute("href") || node.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+        const target = href?.startsWith("#") && root.ownerDocument.getElementById(href.slice(1));
+        if (target) total += cost(target, depth + 1);
+      }
+      for (const child of node.children) {
+        if (total > limit) break;
+        total += cost(child, depth + 1);
+      }
+      visiting.delete(node);
+      costs.set(node, total);
+      return total;
+    }
+    return cost(root, 0) <= limit;
+  }
+  function nestedVector(href, doc, depth) {
+    if (depth >= 4 || !svgDataURL.test(href || "")) return null;
+    try {
+      const graphic = readSVGImage(
+        svgDataText(href),
+        { ownerDocument: doc },
+        depth + 1
+      );
+      return graphic?.svg ? graphic : null;
+    } catch {
+      return null;
+    }
+  }
+  function renderedSVG(root) {
+    return diagramSVG(root, {
+      nestedImage: (node) => nestedVector(
+        node.getAttribute("href") || node.getAttributeNS("http://www.w3.org/1999/xlink", "href"),
+        root.ownerDocument,
+        0
+      )
+    });
+  }
+  function readSVGImage(text, el, depth = 0) {
+    if (!text || text.length > 12e6 || /<!ENTITY\s|<!DOCTYPE[^>]*\[/i.test(text))
+      return null;
+    const xml = new DOMParser().parseFromString(
+      text.replace(/<!DOCTYPE\s+svg\b[^>]*>/i, ""),
+      "image/svg+xml"
+    );
+    const root = xml.documentElement;
+    if (root.localName !== "svg" || root.namespaceURI !== svgNS || root.querySelector("parsererror"))
+      return null;
+    const vb = (root.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+    const ratio = vb[2] > 0 && vb[3] > 0 ? vb[2] / vb[3] : 0;
+    const w = px(root.getAttribute("width")), h = px(root.getAttribute("height"));
+    const width = el.naturalWidth || w || (h && ratio ? h * ratio : vb[2]) || 300;
+    const height = el.naturalHeight || h || (w && ratio ? w / ratio : vb[3]) || 150;
+    if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height)))
+      return null;
+    if (!fitsVectorBudget(root)) return { width, height, rasterRoot: root };
+    const doc = el.ownerDocument, win = doc.defaultView, sheet = new win.CSSStyleSheet();
+    const nestedImages = /* @__PURE__ */ new WeakMap();
+    let unsupported = !!root.querySelector("switch,textPath[method=stretch]");
+    function cssRules(node) {
+      const source = new win.CSSStyleSheet();
+      source.replaceSync(node.textContent);
+      for (const rule of source.cssRules) {
+        if (rule.type === CSSRule.FONT_FACE_RULE || rule.type === CSSRule.MEDIA_RULE)
+          unsupported = true;
+        if (!rule.selectorText || /:(?:host|host-context)|::(?:slotted|part)/i.test(rule.selectorText))
+          continue;
+        if (rule.style.getPropertyValue("filter") && rule.style.filter !== "none")
+          unsupported = true;
+        const css = safeStyle(rule.style);
+        if (css)
+          sheet.insertRule(
+            rule.selectorText.replace(/:root\b/g, "svg") + "{" + css + "}",
+            sheet.cssRules.length
+          );
+      }
+    }
+    function copy(node, label = false) {
+      if (node.nodeType === 3 || node.nodeType === 4)
+        return doc.createTextNode(node.textContent);
+      if (node.nodeType !== 1) return null;
+      if (label && node.namespaceURI === htmlNS) {
+        if (!labelTags.has(node.localName)) {
+          if (!["script", "style", "link", "iframe", "object", "embed"].includes(
+            node.localName
+          ))
+            unsupported = true;
+          return null;
+        }
+        const n2 = doc.createElementNS(htmlNS, node.localName);
+        for (const name of ["id", "class", "dir"])
+          if (node.hasAttribute(name))
+            n2.setAttribute(name, node.getAttribute(name));
+        if (node.hasAttribute("style"))
+          n2.setAttribute("style", safeStyle(node.style));
+        for (const child of node.childNodes) {
+          const clean2 = copy(child, true);
+          if (clean2) n2.append(clean2);
+        }
+        return n2;
+      }
+      if (label) {
+        unsupported = true;
+        return null;
+      }
+      if (node.namespaceURI !== svgNS) return null;
+      if (node.localName === "style") {
+        cssRules(node);
+        return null;
+      }
+      const tag = node.localName === "a" ? "g" : node.localName;
+      if (!svgTags.has(tag) && tag !== "foreignObject") return null;
+      if (node.hasAttribute("filter") && node.getAttribute("filter") !== "none" || node.style?.filter && node.style.filter !== "none")
+        unsupported = true;
+      const n = doc.createElementNS(svgNS, tag);
+      for (const a of node.attributes) {
+        const v = a.value;
+        if (a.localName === "href") {
+          if (tag === "g") continue;
+          if (tag === "image" && /^data:image\//i.test(v) && !svgImageHref(v)) {
+            const nested = nestedVector(v, doc, depth);
+            if (nested) nestedImages.set(n, nested);
+            else unsupported = true;
+          }
+          if (/^#[\w:.-]+$/.test(v) || node.localName === "image" && svgImageHref(v))
+            n.setAttribute("href", v);
+        } else if (svgGeometry.has(a.name) || a.name === "class")
+          n.setAttribute(a.name, v);
+        else if (svgPaint.includes(a.name) && !/[\\<>@]/.test(v) && (!/url\s*\(/i.test(v) || /^url\(\s*['"]?#[\w:.-]+['"]?\s*\)$/i.test(v)))
+          n.setAttribute(a.name, v);
+      }
+      if (node.hasAttribute("style"))
+        n.setAttribute("style", safeStyle(node.style));
+      for (const child of node.childNodes) {
+        const safe = copy(child, tag === "foreignObject");
+        if (safe) n.append(safe);
+      }
+      return n;
+    }
+    const clean = copy(root);
+    if (!clean) return null;
+    const result = { width, height };
+    if (unsupported) return { ...result, rasterRoot: root };
+    const host = doc.createElement("div");
+    host.dataset.cge = "svg-source";
+    host.style.cssText = `all:initial;position:fixed;left:-100000px;top:0;width:${width}px;height:${height}px;contain:strict;pointer-events:none;color:black`;
+    const shadow = host.attachShadow({ mode: "closed" });
+    shadow.adoptedStyleSheets = [sheet];
+    clean.setAttribute("width", width);
+    clean.setAttribute("height", height);
+    shadow.append(clean);
+    doc.body.append(host);
+    try {
+      const matches = /* @__PURE__ */ new WeakMap();
+      for (const rule of sheet.cssRules) {
+        for (const node of shadow.querySelectorAll(rule.selectorText)) {
+          if (!matches.has(node)) matches.set(node, /* @__PURE__ */ new Map());
+          for (const prop of rule.style)
+            matches.get(node).set(prop, rule.style.getPropertyValue(prop));
+        }
+      }
+      const vector = diagramSVG(clean, {
+        image: true,
+        nestedImage: (n) => nestedImages.get(n),
+        specifiedPaint: (node, prop) => node.style?.getPropertyValue(prop) || matches.get(node)?.get(prop) || node.getAttribute(prop)
+      });
+      return vector ? { ...result, svg: vector.svg } : { ...result, rasterRoot: root };
+    } finally {
+      host.remove();
+    }
+  }
+  var styleProps, htmlNS, labelTags;
+  var init_svg_image = __esm({
+    "src/modules/svg-image.js"() {
+      init_diagram();
+      init_svg_source();
+      styleProps = /* @__PURE__ */ new Set([
+        ...svgPaint,
+        "display",
+        "visibility",
+        "transform",
+        "x",
+        "y",
+        "r",
+        "rx",
+        "ry",
+        "cx",
+        "cy",
+        "width",
+        "height",
+        "white-space",
+        "line-height",
+        "text-align",
+        "vertical-align",
+        "box-sizing",
+        "padding-top",
+        "padding-right",
+        "padding-bottom",
+        "padding-left"
+      ]);
+      htmlNS = "http://www.w3.org/1999/xhtml";
+      labelTags = new Set(
+        "div span p b strong i em br small sub sup".split(" ")
+      );
+    }
+  });
+
   // src/modules/media.js
-  function beginImages() {
+  function beginImages(format) {
+    exportFormat = format;
     session = /* @__PURE__ */ new Map();
   }
   function endImages() {
     session = null;
+    exportFormat = null;
   }
   function meaningfulImage(img) {
     if (img.closest(
@@ -162,8 +600,11 @@
         source,
         urls: el.tagName === "IMG" ? imgURLs(el) : [source],
         pixels: old?.pixels,
-        tried: old?.tried
+        tried: old?.tried,
+        blob: old?.blob
       };
+      if (exportFormat === "pdf" && !item.blob && localBlob(source, el))
+        item.blob = fetchBlob(source).catch(() => null);
       if (!item.pixels && item.tried !== el && (el.tagName === "CANVAS" || el.complete && el.naturalWidth > 1 && el.currentSrc === source)) {
         try {
           item.pixels = raster(el);
@@ -185,17 +626,17 @@
       }
     };
   }
-  function raster(el) {
+  function raster(el, printSize2) {
     const width = el.naturalWidth || el.width, height = el.naturalHeight || el.height;
     if (!width || !height) throw new Error("Image has not loaded");
     const scale = Math.min(1, 1600 / Math.max(width, height));
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(width * scale));
-    canvas.height = Math.max(1, Math.round(height * scale));
+    canvas.width = printSize2?.width || Math.max(1, Math.round(width * scale));
+    canvas.height = printSize2?.height || Math.max(1, Math.round(height * scale));
     const ctx = canvas.getContext("2d");
     ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
     let data = canvas.toDataURL("image/png");
-    if (data.length > 4e5) {
+    if (!printSize2 && data.length > 4e5) {
       const alpha = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
       let opaque = true;
       for (let i = 3; i < alpha.length; i += 4)
@@ -218,39 +659,111 @@
       })
     );
   }
-  async function resolve(ref) {
+  function localBlob(url, el) {
+    if (!url.startsWith("blob:")) return false;
+    try {
+      return new URL(url).origin === el.ownerDocument.location.origin;
+    } catch {
+      return false;
+    }
+  }
+  async function fetchBlob(url) {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return response.ok && blob.size <= 12e6 ? blob : null;
+  }
+  function mayBeSVG(url) {
+    if (url.startsWith("data:")) return svgDataURL.test(url);
+    return !/\.(?:png|jpe?g|webp|gif|avif|bmp|ico)(?:[?#]|$)/i.test(url);
+  }
+  function printSize(vector, display) {
+    const { width, height } = vector;
+    const factor = Math.min(
+      Math.max(
+        1,
+        4 * (display.width || width) / width,
+        4 * (display.height || height) / height
+      ),
+      4096 / Math.max(width, height),
+      Math.sqrt(12e6 / (width * height))
+    );
+    return {
+      width: Math.max(1, Math.round(width * factor)),
+      height: Math.max(1, Math.round(height * factor))
+    };
+  }
+  async function fromSVG(text, item, format, display, fragment = "") {
+    if (!text) return;
+    const source = readSVGImage(text, item.el);
+    if (!source) return;
+    if (format === "pdf" && source.svg && !fragment) return source;
+    if (format !== "pdf" && item.pixels) return item.pixels;
+    const size = format === "pdf" ? printSize(source, display) : { width: source.width, height: source.height };
+    const root = source.rasterRoot || new DOMParser().parseFromString(
+      !fragment && source.svg || text,
+      "image/svg+xml"
+    ).documentElement;
+    root.querySelectorAll("script,animate,animateTransform,set,iframe,object,embed").forEach((n) => n.remove());
+    if (!root.hasAttribute("viewBox"))
+      root.setAttribute("viewBox", `0 0 ${source.width} ${source.height}`);
+    root.setAttribute("width", size.width);
+    root.setAttribute("height", size.height);
+    root.style.setProperty("width", size.width + "px", "important");
+    root.style.setProperty("height", size.height + "px", "important");
+    const img = new Image();
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(root)) + fragment;
+    await img.decode();
+    const result = raster(img, format === "pdf" ? size : void 0);
+    return { ...result, width: source.width, height: source.height };
+  }
+  async function resolve(ref, format, display) {
     const item = session?.get(ref.key);
     if (!item) return null;
-    if (item.pixels) return item.pixels;
-    if (item.el.tagName === "IMG" && !item.el.complete && item.el.currentSrc === item.source) {
+    const tryVector = format === "pdf" && item.urls.some(mayBeSVG);
+    if (item.pixels && !tryVector) return item.pixels;
+    if (item.el.tagName === "IMG" && !item.el.complete && item.el.currentSrc === item.source)
       await Promise.race([
         item.el.decode().catch(() => {
         }),
         new Promise((r) => setTimeout(r, 1600))
       ]);
-    }
-    if (item.el.tagName === "CANVAS" || item.el.complete && item.el.naturalWidth > 1 && item.el.currentSrc === item.source) {
+    if (!item.pixels && (item.el.tagName === "CANVAS" || item.el.complete && item.el.naturalWidth > 1 && item.el.currentSrc === item.source)) {
       try {
-        return raster(item.el);
+        item.pixels = raster(item.el);
       } catch {
       }
     }
+    if (item.pixels && !tryVector) return item.pixels;
     let permissionOrigin;
     for (let source of item.urls) {
       try {
-        const u = new URL(source, item.el.ownerDocument.baseURI);
         let bitmap;
-        if (u.protocol === "blob:" && u.origin === item.el.ownerDocument.location.origin) {
-          const response = await fetch(u.href);
-          const blob = await response.blob();
-          if (!response.ok || blob.size > 12e6) continue;
+        const fragment = new URL(source).hash;
+        if (localBlob(source, item.el)) {
+          const blob = await (item.blob || fetchBlob(source));
+          if (!blob) continue;
+          if (blob.type.split(";")[0] === "image/svg+xml" || svgHeader(
+            svgText(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()))
+          )) {
+            const result = await fromSVG(
+              svgText(new Uint8Array(await blob.arrayBuffer())),
+              item,
+              format,
+              display,
+              fragment
+            );
+            if (result) return result;
+            continue;
+          }
+          if (item.pixels) return item.pixels;
           bitmap = await createImageBitmap(blob);
         } else {
-          if (!/^data:image\/(png|jpeg|webp|gif|avif);base64,/i.test(source)) {
-            if (u.protocol !== "https:") continue;
+          if (!source.startsWith("data:")) {
+            if (new URL(source).protocol !== "https:") continue;
+            if (item.pixels && !mayBeSVG(source)) return item.pixels;
             const result = await chrome.runtime.sendMessage({
               type: "CGE_IMAGE",
-              url: u.href
+              url: source
             });
             if (!result?.ok) {
               permissionOrigin ||= result?.permissionOrigin;
@@ -258,6 +771,18 @@
             }
             source = result.data;
           }
+          if (svgDataURL.test(source)) {
+            const result = await fromSVG(
+              svgDataText(source),
+              item,
+              format,
+              display,
+              fragment
+            );
+            if (result) return result;
+            continue;
+          }
+          if (item.pixels) return item.pixels;
           bitmap = await decodeRaster(source);
         }
         try {
@@ -268,13 +793,31 @@
       } catch {
       }
     }
-    return permissionOrigin ? { permissionOrigin } : null;
+    if (item.pixels && format === "pdf" && item.el.tagName === "IMG" && item.el.currentSrc === item.source && (svgDataURL.test(item.source) || /\.svg(?:[?#]|$)/i.test(item.source))) {
+      try {
+        return {
+          ...raster(item.el, printSize(item.pixels, display)),
+          width: item.pixels.width,
+          height: item.pixels.height
+        };
+      } catch {
+      }
+    }
+    return item.pixels || (permissionOrigin ? { permissionOrigin } : null);
   }
   async function embedImages(messages, { requestAccess, format, signal } = {}) {
     const slots2 = /* @__PURE__ */ new Map(), pixels = /* @__PURE__ */ new Map();
     function add(ref, set) {
-      if (!slots2.has(ref.key)) slots2.set(ref.key, { ref, setters: [] });
-      slots2.get(ref.key).setters.push(set);
+      if (!slots2.has(ref.key))
+        slots2.set(ref.key, {
+          ref,
+          setters: [],
+          display: { width: 0, height: 0 }
+        });
+      const slot = slots2.get(ref.key), box = ref.display?.crop || ref.display;
+      slot.display.width = Math.max(slot.display.width, box?.width || 0);
+      slot.display.height = Math.max(slot.display.height, box?.height || 0);
+      slot.setters.push(set);
     }
     function visit(bs) {
       for (const b of bs) {
@@ -294,6 +837,7 @@
             delete asset.occurrence;
             Object.assign(asset, {
               data: data.data,
+              svg: data.svg,
               rasterWidth: data.width,
               rasterHeight: data.height
             });
@@ -310,7 +854,8 @@
         while (index < keys.length) {
           if (signal?.aborted) throw new Error("Export cancelled.");
           const key = keys[index++];
-          pixels.set(key, await resolve(slots2.get(key).ref));
+          const slot = slots2.get(key);
+          pixels.set(key, await resolve(slot.ref, format, slot.display));
         }
       }
       await Promise.all(Array.from({ length: Math.min(keys.length, 4) }, worker));
@@ -324,7 +869,7 @@
     }
     for (const [key, item] of slots2) {
       const data = pixels.get(key);
-      for (const set of item.setters) set(data?.data ? data : {});
+      for (const set of item.setters) set(data?.data || data?.svg ? data : {});
     }
   }
   function liftImages(bs) {
@@ -356,11 +901,13 @@
       return [b];
     });
   }
-  var session, canvasIds, occurrences, nextOccurrence;
+  var session, exportFormat, canvasIds, occurrences, nextOccurrence;
   var init_media = __esm({
     "src/modules/media.js"() {
       init_image_box();
       init_links();
+      init_svg_source();
+      init_svg_image();
       canvasIds = /* @__PURE__ */ new WeakMap();
       occurrences = /* @__PURE__ */ new WeakMap();
       nextOccurrence = 0;
@@ -385,110 +932,6 @@
   }
   var init_visibility = __esm({
     "src/modules/visibility.js"() {
-    }
-  });
-
-  // src/modules/diagram.js
-  function local(value, base2) {
-    if (!value.includes("url(")) return value;
-    const match = /^url\(["']?([^"')]+)["']?\)$/.exec(value);
-    if (!match) return null;
-    try {
-      const url = new URL(match[1], base2);
-      return url.href.split("#")[0] === base2.split("#")[0] && url.hash ? "url(" + url.hash + ")" : null;
-    } catch {
-      return null;
-    }
-  }
-  function diagramSVG(root) {
-    const doc = root.ownerDocument, win = doc.defaultView;
-    const box = root.viewBox?.baseVal;
-    const width = box?.width || root.getBoundingClientRect().width;
-    const height = box?.height || root.getBoundingClientRect().height;
-    if (!(width > 0 && height > 0) || root.querySelectorAll("*").length > 12e3)
-      return null;
-    function clone(node) {
-      if (node.nodeType === 3) return doc.createTextNode(node.textContent);
-      if (node.nodeType !== 1) return null;
-      const css = win.getComputedStyle(node);
-      if (css.display === "none" || css.visibility === "hidden") return null;
-      if (node.localName === "foreignObject") {
-        const group = doc.createElementNS(namespace, "g");
-        const matrix = node.getScreenCTM()?.inverse();
-        if (!matrix) return null;
-        const walker = doc.createTreeWalker(node, 4);
-        while (walker.nextNode()) {
-          const n = walker.currentNode;
-          const style = win.getComputedStyle(n.parentElement);
-          for (const match of n.textContent.matchAll(/\S+/gu)) {
-            const range = doc.createRange();
-            range.setStart(n, match.index);
-            range.setEnd(n, match.index + match[0].length);
-            const rect = range.getBoundingClientRect();
-            if (!rect.width) continue;
-            const p = new win.DOMPoint(
-              rect.left,
-              rect.bottom - rect.height * 0.19
-            ).matrixTransform(matrix);
-            const t = doc.createElementNS(namespace, "text");
-            t.setAttribute("x", p.x);
-            t.setAttribute("y", p.y);
-            t.setAttribute("font-size", style.fontSize);
-            t.setAttribute("fill", style.color);
-            t.textContent = match[0];
-            group.append(t);
-          }
-        }
-        return group;
-      }
-      if (!tags.has(node.localName)) return null;
-      const copy = doc.createElementNS(namespace, node.localName);
-      for (const a of node.attributes) {
-        if (geometry.has(a.name) || a.localName === "href" && /^#[\w:.-]+$/.test(a.value))
-          copy.setAttribute(a.localName, a.value);
-      }
-      for (const prop of paint) {
-        const value = local(css.getPropertyValue(prop) || "", doc.URL);
-        if (prop === "stroke-dasharray" && value !== "none" && value?.split(/[ ,]+/).some((v) => !(parseFloat(v) > 0)))
-          continue;
-        if (value) copy.setAttribute(prop, value);
-      }
-      for (const child of node.childNodes) {
-        const c = clone(child);
-        if (c) copy.append(c);
-      }
-      return copy;
-    }
-    const svg = clone(root);
-    if (!svg) return null;
-    svg.setAttribute("width", width);
-    svg.setAttribute("height", height);
-    if (!box?.width) svg.setAttribute("viewBox", "0 0 " + width + " " + height);
-    return {
-      type: "diagram",
-      svg: new XMLSerializer().serializeToString(svg),
-      width,
-      height,
-      text: root.getAttribute("aria-label") || [...root.querySelectorAll("title,text,foreignObject")].map((n) => n.textContent.trim()).filter(Boolean).join(" ").slice(0, 1200) || "Diagram"
-    };
-  }
-  var namespace, tags, geometry, paint;
-  var init_diagram = __esm({
-    "src/modules/diagram.js"() {
-      namespace = "http://www.w3.org/2000/svg";
-      tags = new Set(
-        "svg g defs marker path rect circle ellipse line polyline polygon text tspan title desc clipPath linearGradient radialGradient stop use".split(
-          " "
-        )
-      );
-      geometry = new Set(
-        "id viewBox preserveAspectRatio transform d x y x1 y1 x2 y2 dx dy r rx ry cx cy points width height refX refY markerWidth markerHeight markerUnits orient offset gradientUnits gradientTransform spreadMethod".split(
-          " "
-        )
-      );
-      paint = "fill stroke color stroke-width stroke-dasharray stroke-dashoffset stroke-linejoin stroke-linecap fill-rule fill-opacity stroke-opacity opacity text-anchor dominant-baseline font-size font-weight font-style marker-start marker-end marker-mid clip-path stop-color stop-opacity".split(
-        " "
-      );
     }
   });
 
@@ -541,6 +984,10 @@
     const source = code.getAttribute("data-raw-code") || wrapper.getAttribute("data-raw-code") || code.getAttribute("data-source-code") || oneBody && scope.getAttribute("data-code") || oneBody && (scope.getAttribute("data-clipboard-text") || scope.querySelector("[data-clipboard-text]")?.getAttribute("data-clipboard-text"));
     if (typeof source === "string" && source) return { text: source };
     if (code.matches("textarea[readonly]")) return { text: code.value };
+    const raw = oneBody && scope.querySelector(
+      "textarea[readonly][data-code-source],textarea[readonly][data-raw-code]"
+    );
+    if (raw) return { text: raw.value };
     if (!active) return;
     if (active.has(code)) return active.get(code);
     const ancestor = code.closest(totalSelector);
@@ -958,6 +1405,10 @@
       "table,pre,code[class*=language-],.cm-editor,.cm-content,.CodeMirror,.monaco-editor,[data-code-block],.katex,mjx-container,[data-message-author-role],input,textarea,select,iframe"
     ) || box.width < 110 || box.height < 36 || box.height > box.width * 2.8)
       return false;
+    if ([...scope.querySelectorAll("code")].some(
+      (code) => code.textContent.includes("\n")
+    ))
+      return false;
     if (el.matches(
       "[data-testid*=flowchart i],[data-testid*=job-card i],[data-component*=flowchart i],[data-component*=job-card i],[aria-roledescription=flowchart i]"
     ))
@@ -1009,7 +1460,7 @@
     const defs = create("defs");
     out.append(defs);
     const colorCache = /* @__PURE__ */ new Map();
-    function paint2(color) {
+    function paint(color) {
       if (!colorCache.has(color)) {
         const v = rgba(color, doc);
         colorCache.set(
@@ -1024,7 +1475,7 @@
     }
     function shape(g, r, s) {
       const x = num(r.left - box.left), y = num(r.top - box.top), w = num(r.width), h = num(r.height);
-      const bg = paint2(s.backgroundColor), rad = Math.min(parseFloat(s.borderTopLeftRadius) || 0, h / 2, w / 2);
+      const bg = paint(s.backgroundColor), rad = Math.min(parseFloat(s.borderTopLeftRadius) || 0, h / 2, w / 2);
       if (bg)
         g.append(
           create("rect", {
@@ -1041,7 +1492,7 @@
       const widths = sides.map((k) => parseFloat(s["border" + k + "Width"]) || 0);
       const colors = sides.map((k) => s["border" + k + "Color"]);
       if (widths[0] > 0 && widths.every((v) => v === widths[0]) && colors.every((v) => v === colors[0])) {
-        const b = widths[0], c = paint2(colors[0]);
+        const b = widths[0], c = paint(colors[0]);
         if (c && w >= b && h >= b)
           g.append(
             create("rect", {
@@ -1064,7 +1515,7 @@
           [x, y, x, y + h]
         ];
         widths.forEach((v, i) => {
-          const c = v && paint2(colors[i]);
+          const c = v && paint(colors[i]);
           if (!c) return;
           const [x1, y1, x2, y2] = lines2[i];
           g.append(
@@ -1084,7 +1535,7 @@
     const ctx = doc.createElement("canvas").getContext("2d"), metrics = /* @__PURE__ */ new Map();
     function textLine(g, text, rect, s) {
       if (!text || !rect.width || !rect.height) return;
-      const c = paint2(s.color);
+      const c = paint(s.color);
       if (!c) return;
       const font = `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
       if (!metrics.has(font)) {
@@ -1198,7 +1649,7 @@
         g.setAttribute("clip-path", `url(#${id})`);
       }
       if (el.matches("svg")) {
-        const diagram = diagramSVG(el);
+        const diagram = renderedSVG(el);
         if (diagram) {
           const svg = new win.DOMParser().parseFromString(
             diagram.svg,
@@ -1279,7 +1730,7 @@
   var NS, skip, num;
   var init_html_layout = __esm({
     "src/modules/html-layout.js"() {
-      init_diagram();
+      init_svg_image();
       init_pdf_style();
       init_links();
       init_image_box();
@@ -1403,7 +1854,7 @@
     if (control) return control;
     if (el.matches("canvas")) return imageRef(el);
     if (el.matches("svg") && !el.closest(".katex,mjx-container") && (el.matches("[aria-roledescription], [id*=mermaid i], [role=img]") || el.getBoundingClientRect().width >= 48 && el.getBoundingClientRect().height >= 32)) {
-      const diagram = diagramSVG(el);
+      const diagram = renderedSVG(el);
       if (diagram) return { text: diagram.text, diagram };
     }
     return null;
@@ -1609,9 +2060,8 @@
         pending.push(...inline(el, {}, read));
         continue;
       }
-      const isCode = el.matches(codeBlock) || el.matches("[data-code-block]") && !el.querySelector(codeBlock) || el.matches("code") && /block/.test(
-        el.ownerDocument.defaultView.getComputedStyle(el).display
-      );
+      const codeStyle = el.matches("code") && el.ownerDocument.defaultView.getComputedStyle(el);
+      const isCode = el.matches(codeBlock) || el.matches("[data-code-block]") && !el.querySelector(codeBlock) || codeStyle && (/block/.test(codeStyle.display) || el.textContent.includes("\n") && /pre|break-spaces/.test(codeStyle.whiteSpace));
       if (el.matches(OMIT) && !isCode) continue;
       const layout = !isCode && readHtmlLayout(el);
       if (layout) {
@@ -1710,7 +2160,7 @@
   var OMIT, BLOCK, equationSelector;
   var init_normalize = __esm({
     "src/modules/normalize.js"() {
-      init_diagram();
+      init_svg_image();
       init_pdf_style();
       init_media();
       init_links();
@@ -2762,7 +3212,7 @@ LAST: ${plainText2(data.messages.at(-1).blocks).slice(0, 220)}`;
       return;
     }
     busy = true;
-    beginImages();
+    beginImages(format);
     controller = new AbortController();
     const startRoute = location.href;
     const stop = (e) => {

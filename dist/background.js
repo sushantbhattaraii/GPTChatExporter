@@ -27,6 +27,17 @@
     }
   }
 
+  // src/modules/svg-source.js
+  function svgText(bytes) {
+    const encoding = bytes[0] === 255 && bytes[1] === 254 ? "utf-16le" : bytes[0] === 254 && bytes[1] === 255 ? "utf-16be" : "utf-8";
+    return new TextDecoder(encoding).decode(bytes);
+  }
+  function svgHeader(text) {
+    return /^\s*(?:(?:<\?xml\b[^?]*\?>|<!--[\s\S]*?-->|<!DOCTYPE\s+svg\b[^>[\]]*>)\s*)*<(?:[\w.-]+:)?svg(?=[\s/>])/i.test(
+      text
+    );
+  }
+
   // src/modules/media-fetch.js
   async function readDisplayedAsset(value, sender) {
     if (!sender.tab || !sender.url?.startsWith("https://chatgpt.com/") || !allowedAsset(value) && !publicImageOrigin(value))
@@ -47,8 +58,9 @@
     }
     let type = (res.headers.get("Content-Type")?.split(";")[0].trim() || "application/octet-stream").toLowerCase();
     if (type === "image/jpg") type = "image/jpeg";
+    if (type === "application/xml" || type === "text/xml") type = "image/svg+xml";
     if (type === "binary/octet-stream") type = "application/octet-stream";
-    if (!res.ok || !(firstParty ? allowedAsset(res.url) : publicImageOrigin(res.url) === origin) || !(type === "application/octet-stream" || /^image\/(png|jpeg|webp|gif|avif)$/.test(type)))
+    if (!res.ok || !(firstParty ? allowedAsset(res.url) : publicImageOrigin(res.url) === origin) || !(type === "application/octet-stream" || /^image\/(png|jpeg|webp|gif|avif|svg\+xml)$/.test(type)))
       throw new Error("Image could not be read");
     const reader = res.body.getReader(), chunks = [];
     let size = 0;
@@ -68,6 +80,8 @@
       joined.set(chunk, pos);
       pos += chunk.length;
     }
+    if (type === "image/svg+xml" && !svgHeader(svgText(joined.subarray(0, 65536))))
+      throw new Error("Asset is not a supported SVG image.");
     if (type === "application/octet-stream") {
       const head = String.fromCharCode(...joined.subarray(0, 16));
       if (head.startsWith("\x89PNG\r\n\n")) type = "image/png";
@@ -77,6 +91,8 @@
         type = "image/gif";
       else if (head.startsWith("RIFF") && head.slice(8, 12) === "WEBP")
         type = "image/webp";
+      else if (svgHeader(svgText(joined.subarray(0, 65536))))
+        type = "image/svg+xml";
       else throw new Error("Asset is not a supported image.");
     }
     let binary = "";

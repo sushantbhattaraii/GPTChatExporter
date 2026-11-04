@@ -1,9 +1,9 @@
 // Print a bounded HTML illustration/card from its live boxes and text ranges.
 // Ordinary prose and tables still use the flowing, paginated document renderer.
-import { diagramSVG } from "./diagram.js";
+import { renderedSVG } from "./svg-image.js";
 import { rgba } from "./pdf-style.js";
 import { linkOn } from "./links.js";
-import { imagePlacement, rasterViewport } from "./image-box.js";
+import { imagePlacement, imageViewport } from "./image-box.js";
 import { visuallyClipped } from "./visibility.js";
 import { selectFonts } from "./unicode.js";
 import { imageRef, imageSource } from "./media.js";
@@ -352,7 +352,7 @@ export function readHtmlLayout(root) {
       g.setAttribute("clip-path", `url(#${id})`);
     }
     if (el.matches("svg")) {
-      const diagram = diagramSVG(el);
+      const diagram = renderedSVG(el);
       if (diagram) {
         const svg = new win.DOMParser().parseFromString(
           diagram.svg,
@@ -446,13 +446,13 @@ export function printableLayoutSVG(block) {
     const box = a.display || a;
     if (a.data && !a.display)
       return `<image x="${a.x}" y="${a.y}" width="${a.width}" height="${a.height}" preserveAspectRatio="${a.fit}" href="${a.data}"/>`;
-    if (a.data)
-      return rasterViewport(
+    if (a.data || a.svg)
+      return imageViewport(
         a.x,
         a.y,
         box,
         imagePlacement(box, a.rasterWidth, a.rasterHeight),
-        a.data,
+        a,
       );
     // A long alternative or a tiny broken favicon must never paint over the
     // next column. Draw the unavailable-image indicator inside its own bounds.

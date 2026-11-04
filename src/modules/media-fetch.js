@@ -1,4 +1,5 @@
 import { allowedAsset, publicImageOrigin } from "./image-origins.js";
+import { svgHeader, svgText } from "./svg-source.js";
 export { allowedAsset } from "./image-origins.js";
 export async function readDisplayedAsset(value, sender) {
   if (
@@ -32,6 +33,7 @@ export async function readDisplayedAsset(value, sender) {
     "application/octet-stream"
   ).toLowerCase();
   if (type === "image/jpg") type = "image/jpeg";
+  if (type === "application/xml" || type === "text/xml") type = "image/svg+xml";
   if (type === "binary/octet-stream") type = "application/octet-stream";
   if (
     !res.ok ||
@@ -40,7 +42,7 @@ export async function readDisplayedAsset(value, sender) {
       : publicImageOrigin(res.url) === origin) ||
     !(
       type === "application/octet-stream" ||
-      /^image\/(png|jpeg|webp|gif|avif)$/.test(type)
+      /^image\/(png|jpeg|webp|gif|avif|svg\+xml)$/.test(type)
     )
   )
     throw new Error("Image could not be read");
@@ -63,6 +65,11 @@ export async function readDisplayedAsset(value, sender) {
     joined.set(chunk, pos);
     pos += chunk.length;
   }
+  if (
+    type === "image/svg+xml" &&
+    !svgHeader(svgText(joined.subarray(0, 65536)))
+  )
+    throw new Error("Asset is not a supported SVG image.");
   if (type === "application/octet-stream") {
     const head = String.fromCharCode(...joined.subarray(0, 16));
     if (head.startsWith("\x89PNG\r\n\x1a\n")) type = "image/png";
@@ -72,6 +79,8 @@ export async function readDisplayedAsset(value, sender) {
       type = "image/gif";
     else if (head.startsWith("RIFF") && head.slice(8, 12) === "WEBP")
       type = "image/webp";
+    else if (svgHeader(svgText(joined.subarray(0, 65536))))
+      type = "image/svg+xml";
     else throw new Error("Asset is not a supported image.");
   }
   let binary = "";

@@ -1,18 +1,18 @@
 // Keep SVG geometry, paint and text. Only fragment references may survive.
 // HTML labels in Mermaid are foreignObjects, which PDF's SVG engine cannot draw.
-const namespace = "http://www.w3.org/2000/svg";
-const tags = new Set(
-  "svg g defs marker path rect circle ellipse line polyline polygon text tspan title desc clipPath linearGradient radialGradient stop use".split(
+export const svgNS = "http://www.w3.org/2000/svg";
+export const svgTags = new Set(
+  "svg g defs symbol marker pattern mask image path rect circle ellipse line polyline polygon text tspan textPath title desc clipPath linearGradient radialGradient stop use".split(
     " ",
   ),
 );
-const geometry = new Set(
-  "id viewBox preserveAspectRatio transform d x y x1 y1 x2 y2 dx dy r rx ry cx cy points width height refX refY markerWidth markerHeight markerUnits orient offset gradientUnits gradientTransform spreadMethod".split(
+export const svgGeometry = new Set(
+  "id viewBox preserveAspectRatio transform d x y x1 y1 x2 y2 dx dy r rx ry cx cy fx fy points width height refX refY markerWidth markerHeight markerUnits orient offset gradientUnits gradientTransform spreadMethod clipPathUnits patternUnits patternContentUnits patternTransform maskUnits maskContentUnits textLength lengthAdjust startOffset rotate".split(
     " ",
   ),
 );
-const paint =
-  "fill stroke color stroke-width stroke-dasharray stroke-dashoffset stroke-linejoin stroke-linecap fill-rule fill-opacity stroke-opacity opacity text-anchor dominant-baseline font-size font-weight font-style marker-start marker-end marker-mid clip-path stop-color stop-opacity".split(
+export const svgPaint =
+  "fill stroke color stroke-width stroke-dasharray stroke-dashoffset stroke-linejoin stroke-linecap stroke-miterlimit fill-rule fill-opacity stroke-opacity opacity text-anchor dominant-baseline font-size font-weight font-style font-family marker-start marker-end marker-mid clip-path clip-rule mask stop-color stop-opacity overflow".split(
     " ",
   );
 function local(value, base) {
@@ -28,7 +28,19 @@ function local(value, base) {
     return null;
   }
 }
-export function diagramSVG(root) {
+export function svgImageHref(value) {
+  return (
+    value.length <= 16000030 &&
+    /^data:image\/(?:png;base64,\s*iVBORw0KGgo|jpeg;base64,\s*\/9j\/)[a-z\d+/=\s]*$/i.test(
+      value,
+    )
+  );
+}
+let imageNumber = 0;
+export function diagramSVG(
+  root,
+  { image = false, nestedImage, specifiedPaint } = {},
+) {
   const doc = root.ownerDocument,
     win = doc.defaultView;
   const box = root.viewBox?.baseVal;
@@ -40,9 +52,23 @@ export function diagramSVG(root) {
     if (node.nodeType === 3) return doc.createTextNode(node.textContent);
     if (node.nodeType !== 1) return null;
     const css = win.getComputedStyle(node);
-    if (css.display === "none" || css.visibility === "hidden") return null;
+    if (
+      (css.display === "none" &&
+        ![
+          "defs",
+          "symbol",
+          "marker",
+          "clipPath",
+          "mask",
+          "pattern",
+          "linearGradient",
+          "radialGradient",
+        ].includes(node.localName)) ||
+      css.visibility === "hidden"
+    )
+      return null;
     if (node.localName === "foreignObject") {
-      const group = doc.createElementNS(namespace, "g");
+      const group = doc.createElementNS(svgNS, "g");
       const matrix = node.getScreenCTM()?.inverse();
       if (!matrix) return null;
       const walker = doc.createTreeWalker(node, 4);
@@ -59,7 +85,7 @@ export function diagramSVG(root) {
             rect.left,
             rect.bottom - rect.height * 0.19,
           ).matrixTransform(matrix);
-          const t = doc.createElementNS(namespace, "text");
+          const t = doc.createElementNS(svgNS, "text");
           t.setAttribute("x", p.x);
           t.setAttribute("y", p.y);
           t.setAttribute("font-size", style.fontSize);
@@ -70,17 +96,45 @@ export function diagramSVG(root) {
       }
       return group;
     }
-    if (!tags.has(node.localName)) return null;
-    const copy = doc.createElementNS(namespace, node.localName);
+    if (!svgTags.has(node.localName)) return null;
+    const nested = node.localName === "image" && nestedImage?.(node);
+    if (
+      node.localName === "image" &&
+      !nested &&
+      !svgImageHref(
+        node.getAttribute("href") ||
+          node.getAttributeNS("http://www.w3.org/1999/xlink", "href") ||
+          "",
+      )
+    )
+      return null;
+    const copy = doc.createElementNS(svgNS, nested ? "svg" : node.localName);
     for (const a of node.attributes) {
       if (
-        geometry.has(a.name) ||
-        (a.localName === "href" && /^#[\w:.-]+$/.test(a.value))
+        svgGeometry.has(a.name) ||
+        (a.localName === "href" &&
+          (/^#[\w:.-]+$/.test(a.value) ||
+            (node.localName === "image" && svgImageHref(a.value))))
       )
-        copy.setAttribute(a.localName, a.value);
+        copy.setAttribute(
+          a.localName,
+          node.localName === "image" && a.localName === "href"
+            ? a.value.replace(/\s+/g, "")
+            : a.value,
+        );
     }
-    for (const prop of paint) {
-      const value = local(css.getPropertyValue(prop) || "", doc.URL);
+    for (const prop of svgPaint) {
+      const declared = specifiedPaint?.(node, prop);
+      // A referenced symbol inherits paint from each <use>. Baking the
+      // definition's default black into its children loses those colors.
+      if (specifiedPaint && !declared) continue;
+      const computed = css.getPropertyValue(prop);
+      const value =
+        /^currentcolor$/i.test(declared || "") &&
+        /^(fill|stroke|stop-color)$/.test(prop) &&
+        computed === css.color
+          ? "currentColor"
+          : local(computed || "", doc.URL);
       // PDF dash arrays require strictly positive lengths. Mermaid uses 0 for solid strokes.
       if (
         prop === "stroke-dasharray" &&
@@ -88,7 +142,46 @@ export function diagramSVG(root) {
         value?.split(/[ ,]+/).some((v) => !(parseFloat(v) > 0))
       )
         continue;
-      if (value) copy.setAttribute(prop, value);
+      if (
+        value &&
+        (!["overflow", "font-family"].includes(prop) ||
+          image ||
+          node.hasAttribute(prop))
+      )
+        copy.setAttribute(prop, value);
+    }
+    if (
+      image &&
+      !node.hasAttribute("transform") &&
+      css.transform &&
+      css.transform !== "none"
+    )
+      copy.setAttribute("transform", css.transform);
+    if (image) {
+      const fields =
+        {
+          rect: ["x", "y", "width", "height", "rx", "ry"],
+          circle: ["cx", "cy", "r"],
+          ellipse: ["cx", "cy", "rx", "ry"],
+        }[node.localName] || [];
+      for (const field of fields) {
+        const length = css.getPropertyValue(field);
+        if (length && length !== "auto") copy.setAttribute(field, length);
+      }
+    }
+    if (nested) {
+      const inner = new win.DOMParser().parseFromString(
+        nested.svg,
+        "image/svg+xml",
+      ).documentElement;
+      copy.setAttribute("viewBox", `0 0 ${nested.width} ${nested.height}`);
+      copy.setAttribute("overflow", "hidden");
+      if (!copy.hasAttribute("width")) copy.setAttribute("width", nested.width);
+      if (!copy.hasAttribute("height"))
+        copy.setAttribute("height", nested.height);
+      inner.setAttribute("width", nested.width);
+      inner.setAttribute("height", nested.height);
+      copy.append(doc.importNode(inner, true));
     }
     for (const child of node.childNodes) {
       const c = clone(child);
@@ -101,6 +194,24 @@ export function diagramSVG(root) {
   svg.setAttribute("width", width);
   svg.setAttribute("height", height);
   if (!box?.width) svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+  if (image) {
+    // The PDF placement supplies the displayed viewport. Isolate local IDs
+    // when several independent SVG files share the same printed card.
+    for (const key of ["x", "y", "width", "height"]) svg.removeAttribute(key);
+    const prefix = "cge-svg-" + ++imageNumber + "-";
+    for (const n of [svg, ...svg.querySelectorAll("*")]) {
+      for (const attr of [...n.attributes]) {
+        if (attr.name === "id") n.setAttribute("id", prefix + attr.value);
+        else if (attr.name === "href" && attr.value.startsWith("#"))
+          n.setAttribute("href", "#" + prefix + attr.value.slice(1));
+        else if (attr.value.startsWith("url(#"))
+          n.setAttribute(
+            attr.name,
+            attr.value.replace("url(#", "url(#" + prefix),
+          );
+      }
+    }
+  }
   return {
     type: "diagram",
     svg: new XMLSerializer().serializeToString(svg),

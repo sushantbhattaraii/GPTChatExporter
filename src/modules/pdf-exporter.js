@@ -2,7 +2,7 @@ import pdfMake from "pdfmake/build/pdfmake.js";
 import fonts from "../font-data.json" with { type: "json" };
 import { fontFor, selectFonts } from "./unicode.js";
 import { printableLayoutSVG } from "./html-layout.js";
-import { imagePlacement, rasterViewport } from "./image-box.js";
+import { imagePlacement, imageViewport } from "./image-box.js";
 import { prepareDiagrams } from "./render-diagrams.js";
 import { prepareDocument, tableGrid } from "./document.js";
 import { renderEquation } from "./equations.js";
@@ -294,7 +294,7 @@ function convert(bs, s) {
     if (b.type === "image") {
       const im = b.image;
       if (im.display?.hidden) return [];
-      if (!im.data)
+      if (!im.data && !im.svg)
         return {
           text: `[Image unavailable: ${im.alt}]`,
           italics: true,
@@ -323,10 +323,11 @@ function convert(bs, s) {
         Math.abs(paint.x) < 0.01 &&
         Math.abs(paint.y) < 0.01;
       return {
-        ...(fillsBox
+        ...(fillsBox && !im.svg
           ? { image: im.data }
           : {
-              svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box.width} ${box.height}">${rasterViewport(0, 0, box, paint, im.data)}</svg>`,
+              svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box.width} ${box.height}">${imageViewport(0, 0, box, paint, im)}</svg>`,
+              font: "sans",
             }),
         width: box.width * scale,
         height: box.height * scale,

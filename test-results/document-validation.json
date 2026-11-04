@@ -14,7 +14,7 @@
   {
     "file": "chunked-chat.pdf",
     "pages": 1,
-    "bytes": 1392760,
+    "bytes": 1392622,
     "valid": true
   },
   {
@@ -194,7 +194,19 @@
   {
     "file": "renderer-33.pdf",
     "pages": 1,
-    "bytes": 1392760,
+    "bytes": 38184,
+    "valid": true
+  },
+  {
+    "file": "renderer-34.pdf",
+    "pages": 1,
+    "bytes": 38349,
+    "valid": true
+  },
+  {
+    "file": "renderer-36.pdf",
+    "pages": 1,
+    "bytes": 1392622,
     "valid": true
   },
   {
@@ -240,6 +252,18 @@
     "valid": true
   },
   {
+    "file": "svg-chat.pdf",
+    "pages": 1,
+    "bytes": 38349,
+    "valid": true
+  },
+  {
+    "file": "svg-pair.pdf",
+    "pages": 1,
+    "bytes": 38184,
+    "valid": true
+  },
+  {
     "file": "thumbnails-chat.pdf",
     "pages": 1,
     "bytes": 140189,
@@ -253,7 +277,7 @@
   },
   {
     "file": "conversation.docx",
-    "bytes": 11992,
+    "bytes": 11995,
     "valid": true
   },
   {
@@ -268,12 +292,12 @@
   },
   {
     "file": "pair.docx",
-    "bytes": 11895,
+    "bytes": 11894,
     "valid": true
   },
   {
     "file": "renderer-11.docx",
-    "bytes": 10690,
+    "bytes": 10689,
     "valid": true
   },
   {
@@ -293,22 +317,27 @@
   },
   {
     "file": "renderer-31.docx",
-    "bytes": 13188,
+    "bytes": 13186,
     "valid": true
   },
   {
     "file": "renderer-32.docx",
-    "bytes": 13269,
+    "bytes": 13268,
+    "valid": true
+  },
+  {
+    "file": "renderer-35.docx",
+    "bytes": 18306,
     "valid": true
   },
   {
     "file": "renderer-4.docx",
-    "bytes": 11998,
+    "bytes": 11995,
     "valid": true
   },
   {
     "file": "renderer-5.docx",
-    "bytes": 10567,
+    "bytes": 10569,
     "valid": true
   },
   {
@@ -318,27 +347,27 @@
   },
   {
     "file": "renderer-8.docx",
-    "bytes": 10547,
+    "bytes": 10546,
     "valid": true
   },
   {
     "file": "renderer-9.docx",
-    "bytes": 10672,
+    "bytes": 10670,
     "valid": true
   },
   {
     "file": "scroll-code-chat.docx",
-    "bytes": 13269,
+    "bytes": 13268,
     "valid": true
   },
   {
     "file": "scroll-code-pair.docx",
-    "bytes": 13188,
+    "bytes": 13186,
     "valid": true
   },
   {
     "file": "settings.docx",
-    "bytes": 11781,
+    "bytes": 11783,
     "valid": true
   },
   {

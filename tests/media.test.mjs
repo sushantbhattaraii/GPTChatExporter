@@ -131,3 +131,42 @@ test("withheld OpenAI thumbnail access returns the exact host that Chrome can gr
     globalThis.chrome = oldChrome;
   }
 });
+
+test("SVG bytes are accepted from permitted image URLs by MIME or SVG signature, not by filename alone", async () => {
+  const { svgDataText } = await import("../src/modules/svg-source.js");
+  const svg =
+    '<?xml version="1.0"?><!--vector--><!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg"><text>δ + 25%</text></svg>';
+  const url = "https://cdn.oaiusercontent.com/asset?id=vector",
+    sender = { url: "https://chatgpt.com/c/test", tab: { id: 1 } };
+  const old = globalThis.fetch;
+  let mime = "image/svg+xml",
+    body = svg;
+  globalThis.fetch = async () => {
+    const res = new Response(body, { headers: { "Content-Type": mime } });
+    Object.defineProperty(res, "url", { value: url });
+    return res;
+  };
+  try {
+    for (mime of ["image/svg+xml", "application/octet-stream", "text/xml"]) {
+      assert.equal(
+        svgDataText((await readDisplayedAsset(url, sender)).data),
+        svg,
+      );
+    }
+    assert.equal(
+      svgDataText(
+        "data:image/svg+xml;utf8," +
+          encodeURIComponent(svg).replace("%25", "%"),
+      ),
+      svg,
+    );
+    mime = "image/svg+xml";
+    body = "<html><svg></svg></html>";
+    await assert.rejects(readDisplayedAsset(url, sender), /SVG/);
+    mime = "text/html";
+    body = svg;
+    await assert.rejects(readDisplayedAsset(url, sender), /could not be read/);
+  } finally {
+    globalThis.fetch = old;
+  }
+});

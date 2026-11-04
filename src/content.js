@@ -115,7 +115,7 @@ async function run(scope, format, target) {
     return;
   }
   busy = true;
-  beginImages();
+  beginImages(format);
   controller = new AbortController();
   const startRoute = location.href;
   const stop = (e) => {

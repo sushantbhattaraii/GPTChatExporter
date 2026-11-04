@@ -60,4 +60,6 @@ The selected image's DOM source, responsive alternatives and loaded pixels are k
 
 The content script records bounded HTML components from browser layout rectangles, text ranges, computed paint and local SVG paths. It includes safe hyperlink destinations and places resolved images in the vector drawing. The document engine keeps these components together as space permits. Word uses their semantic content.
 
+For PDF images, the reader prefers SVG bytes before a cached bitmap. It parses XML inertly, resolves allowed paint and text styles in an isolated tree and embeds the resulting drawing at the measured viewport. Each SVG has its own fragment IDs within a printed card. Browser-only effects use a lossless print-size rendering bounded at 4,096 pixels per side and 12 megapixels.
+
 Large documents transfer through the service worker in sequenced chunks. The offscreen document checks the tab/document identity, offsets and UTF-8 length before parsing. Abandoned partial transfers expire. The extension never stores chat content in Chrome storage.

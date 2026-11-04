@@ -11,6 +11,7 @@ import {
 } from "./career-fixture.mjs";
 import { standard, fixture, turn } from "./fixtures.mjs";
 import { universityFixture } from "./thumbnail-fixture.mjs";
+import { installSVGFixture, remoteSVG, svgDrawing } from "./svg-fixture.mjs";
 import {
   installScrollFixture,
   checkIsolatedReader,
@@ -142,6 +143,13 @@ let exported = [],
   requests = [];
 await page.exposeFunction("__send", async (msg) => {
   if (msg.type === "CGE_IMAGE") {
+    if (msg.url === remoteSVG)
+      return {
+        ok: true,
+        data:
+          "data:image/svg+xml;base64," +
+          Buffer.from(svgDrawing("Remote route", "#994923")).toString("base64"),
+      };
     if (msg.url === "https://cdn.oaiusercontent.com/example-generated.png") {
       assetRequests++;
       return { ok: true, data: approvedFixtureImage };
@@ -237,7 +245,7 @@ try {
   results.push(
     "Middle Q&A buttons invoke real bundled PDF/DOCX generators with only Q2/A2.",
   );
-  async function collect(format, expected) {
+  async function collect(format, expected, onReview) {
     const count = exported.length,
       scope = page.locator('[data-cge="toolbar"]');
     await scope
@@ -256,6 +264,7 @@ try {
       await page.getByRole("dialog").innerText(),
       new RegExp(`Collected ${expected} messages`),
     );
+    if (onReview) await onReview();
     await page.getByRole("dialog").getByRole("checkbox").check();
     await page
       .getByRole("button", {
@@ -1026,6 +1035,76 @@ B -->|No| D[Retry]</code></pre>
   }
   results.push(
     "Pair and conversation Word exports receive the same complete scrolling snippets.",
+  );
+  const blockedSVGRequests = await installSVGFixture(page, context);
+  for (const scope of ["pair", "chat"]) {
+    if (scope === "pair") await imagePair("PDF");
+    else
+      await collect("pdf", 2, () =>
+        page.evaluate(() =>
+          URL.revokeObjectURL(document.querySelector("#blob-vector").src),
+        ),
+      );
+    const bs = requests.at(-1).document.messages[1].blocks;
+    const photos = [];
+    function visit(blocks) {
+      for (const b of blocks) {
+        if (b.type === "image") photos.push(b.image);
+        if (b.assets) photos.push(...b.assets);
+        if (b.blocks) visit(b.blocks);
+        for (const item of b.items || []) visit(item);
+      }
+    }
+    visit(bs);
+    const framed = bs.find((b) => b.type === "layout");
+    assert(
+      framed?.assets.filter((a) => a.svg).length === 2,
+      "Both SVG previews stay inside the same visual card",
+    );
+
+    for (const alt of [
+      "Full route",
+      "Remote route",
+      "Blob route",
+      "CSS route preview",
+      "Embedded route preview",
+    ]) {
+      const asset = photos.find((a) => a.alt === alt);
+      assert(asset?.svg?.includes("<path"), "Missing vector for " + alt);
+      assert(!asset.data, "Unexpected bitmap for " + alt);
+    }
+    assert(
+      photos
+        .find((a) => a.alt === "Color-filtered route")
+        ?.data?.startsWith("data:image/png;"),
+    );
+    assert.doesNotMatch(
+      photos.find((a) => a.alt === "Full route").svg,
+      /__cgeUnsafeSVG|must-not-load-from-svg|onclick|<script/i,
+    );
+    assert.equal(await page.evaluate(() => window.__cgeUnsafeSVG), undefined);
+    assert.deepEqual(blockedSVGRequests, []);
+    await copyFile(
+      "test-results/" + exported.at(-1),
+      "test-results/svg-" + scope + ".pdf",
+    );
+  }
+  results.push(
+    "Both PDF menus preserve inline, data URL, blob, responsive HTTPS and CSS-backed SVG drawings, with a print-resolution fallback for a filter.",
+  );
+  await imagePair("Word (.docx)");
+  assert(
+    requests
+      .at(-1)
+      .document.messages[1].blocks.some(
+        (b) =>
+          b.type === "image" &&
+          b.image.alt === "Full route" &&
+          b.image.data?.startsWith("data:image/png;"),
+      ),
+  );
+  results.push(
+    "The Word image export still embeds the raster representation of an SVG.",
   );
   await page.evaluate(() => {
     const canvas = document.createElement("canvas");

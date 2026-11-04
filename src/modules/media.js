@@ -1,12 +1,16 @@
 import { displayedImageBox } from "./image-box.js";
 import { linkOn } from "./links.js";
+import { svgDataURL, svgDataText, svgHeader, svgText } from "./svg-source.js";
+import { readSVGImage } from "./svg-image.js";
 // Only images actually displayed in an exported message enter this export-scoped cache.
-let session;
-export function beginImages() {
+let session, exportFormat;
+export function beginImages(format) {
+  exportFormat = format;
   session = new Map();
 }
 export function endImages() {
   session = null;
+  exportFormat = null;
 }
 export function meaningfulImage(img) {
   if (
@@ -97,7 +101,11 @@ export function imageRef(
       urls: el.tagName === "IMG" ? imgURLs(el) : [source],
       pixels: old?.pixels,
       tried: old?.tried,
+      blob: old?.blob,
     };
+    // A virtualized turn can revoke its blob URL as soon as it leaves the DOM.
+    if (exportFormat === "pdf" && !item.blob && localBlob(source, el))
+      item.blob = fetchBlob(source).catch(() => null);
     if (
       !item.pixels &&
       item.tried !== el &&
@@ -123,18 +131,18 @@ export function imageRef(
     },
   };
 }
-function raster(el) {
+function raster(el, printSize) {
   const width = el.naturalWidth || el.width,
     height = el.naturalHeight || el.height;
   if (!width || !height) throw new Error("Image has not loaded");
   const scale = Math.min(1, 1600 / Math.max(width, height));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
+  canvas.width = printSize?.width || Math.max(1, Math.round(width * scale));
+  canvas.height = printSize?.height || Math.max(1, Math.round(height * scale));
   const ctx = canvas.getContext("2d");
   ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
   let data = canvas.toDataURL("image/png");
-  if (data.length > 400000) {
+  if (!printSize && data.length > 400000) {
     const alpha = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     let opaque = true;
     for (let i = 3; i < alpha.length; i += 4)
@@ -157,49 +165,138 @@ export function decodeRaster(data) {
     }),
   );
 }
-async function resolve(ref) {
+function localBlob(url, el) {
+  if (!url.startsWith("blob:")) return false;
+  try {
+    return new URL(url).origin === el.ownerDocument.location.origin;
+  } catch {
+    return false;
+  }
+}
+async function fetchBlob(url) {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return response.ok && blob.size <= 12000000 ? blob : null;
+}
+function mayBeSVG(url) {
+  if (url.startsWith("data:")) return svgDataURL.test(url);
+  // A signed or extensionless image URL may resolve to SVG. Known bitmap
+  // formats keep their existing pixel path without another network request.
+  return !/\.(?:png|jpe?g|webp|gif|avif|bmp|ico)(?:[?#]|$)/i.test(url);
+}
+function printSize(vector, display) {
+  const { width, height } = vector;
+  const factor = Math.min(
+    Math.max(
+      1,
+      (4 * (display.width || width)) / width,
+      (4 * (display.height || height)) / height,
+    ),
+    4096 / Math.max(width, height),
+    Math.sqrt(12000000 / (width * height)),
+  );
+  return {
+    width: Math.max(1, Math.round(width * factor)),
+    height: Math.max(1, Math.round(height * factor)),
+  };
+}
+async function fromSVG(text, item, format, display, fragment = "") {
+  if (!text) return;
+  const source = readSVGImage(text, item.el);
+  if (!source) return;
+  if (format === "pdf" && source.svg && !fragment) return source;
+  if (format !== "pdf" && item.pixels) return item.pixels;
+  // Unsupported SVG effects are rendered in the browser's isolated image
+  // mode. Size the SVG before decoding, so its intrinsic thumbnail resolution
+  // cannot cap the print bitmap.
+  const size =
+    format === "pdf"
+      ? printSize(source, display)
+      : { width: source.width, height: source.height };
+  const root =
+    source.rasterRoot ||
+    new DOMParser().parseFromString(
+      (!fragment && source.svg) || text,
+      "image/svg+xml",
+    ).documentElement;
+  root
+    .querySelectorAll("script,animate,animateTransform,set,iframe,object,embed")
+    .forEach((n) => n.remove());
+  if (!root.hasAttribute("viewBox"))
+    root.setAttribute("viewBox", `0 0 ${source.width} ${source.height}`);
+  root.setAttribute("width", size.width);
+  root.setAttribute("height", size.height);
+  root.style.setProperty("width", size.width + "px", "important");
+  root.style.setProperty("height", size.height + "px", "important");
+  const img = new Image();
+  img.src =
+    "data:image/svg+xml;charset=utf-8," +
+    encodeURIComponent(new XMLSerializer().serializeToString(root)) +
+    fragment;
+  await img.decode();
+  const result = raster(img, format === "pdf" ? size : undefined);
+  // Layout uses original proportions even when the fallback carries more pixels.
+  return { ...result, width: source.width, height: source.height };
+}
+async function resolve(ref, format, display) {
   const item = session?.get(ref.key);
   if (!item) return null;
-  if (item.pixels) return item.pixels;
+  const tryVector = format === "pdf" && item.urls.some(mayBeSVG);
+  if (item.pixels && !tryVector) return item.pixels;
   if (
     item.el.tagName === "IMG" &&
     !item.el.complete &&
     item.el.currentSrc === item.source
-  ) {
+  )
     await Promise.race([
       item.el.decode().catch(() => {}),
       new Promise((r) => setTimeout(r, 1600)),
     ]);
-  }
   if (
-    item.el.tagName === "CANVAS" ||
-    (item.el.complete &&
-      item.el.naturalWidth > 1 &&
-      item.el.currentSrc === item.source)
+    !item.pixels &&
+    (item.el.tagName === "CANVAS" ||
+      (item.el.complete &&
+        item.el.naturalWidth > 1 &&
+        item.el.currentSrc === item.source))
   ) {
     try {
-      return raster(item.el);
+      item.pixels = raster(item.el);
     } catch {}
   }
+  if (item.pixels && !tryVector) return item.pixels;
   let permissionOrigin;
   for (let source of item.urls) {
     try {
-      const u = new URL(source, item.el.ownerDocument.baseURI);
       let bitmap;
-      if (
-        u.protocol === "blob:" &&
-        u.origin === item.el.ownerDocument.location.origin
-      ) {
-        const response = await fetch(u.href);
-        const blob = await response.blob();
-        if (!response.ok || blob.size > 12_000_000) continue;
+      const fragment = new URL(source).hash;
+      if (localBlob(source, item.el)) {
+        const blob = await (item.blob || fetchBlob(source));
+        if (!blob) continue;
+        if (
+          blob.type.split(";")[0] === "image/svg+xml" ||
+          svgHeader(
+            svgText(new Uint8Array(await blob.slice(0, 65536).arrayBuffer())),
+          )
+        ) {
+          const result = await fromSVG(
+            svgText(new Uint8Array(await blob.arrayBuffer())),
+            item,
+            format,
+            display,
+            fragment,
+          );
+          if (result) return result;
+          continue;
+        }
+        if (item.pixels) return item.pixels;
         bitmap = await createImageBitmap(blob);
       } else {
-        if (!/^data:image\/(png|jpeg|webp|gif|avif);base64,/i.test(source)) {
-          if (u.protocol !== "https:") continue;
+        if (!source.startsWith("data:")) {
+          if (new URL(source).protocol !== "https:") continue;
+          if (item.pixels && !mayBeSVG(source)) return item.pixels;
           const result = await chrome.runtime.sendMessage({
             type: "CGE_IMAGE",
-            url: u.href,
+            url: source,
           });
           if (!result?.ok) {
             permissionOrigin ||= result?.permissionOrigin;
@@ -207,6 +304,18 @@ async function resolve(ref) {
           }
           source = result.data;
         }
+        if (svgDataURL.test(source)) {
+          const result = await fromSVG(
+            svgDataText(source),
+            item,
+            format,
+            display,
+            fragment,
+          );
+          if (result) return result;
+          continue;
+        }
+        if (item.pixels) return item.pixels;
         bitmap = await decodeRaster(source);
       }
       try {
@@ -215,10 +324,27 @@ async function resolve(ref) {
         bitmap.close();
       }
     } catch {
-      /* Try the source or responsive alternative actually named in the page. */
+      /* Try another source actually named in the displayed image. */
     }
   }
-  return permissionOrigin ? { permissionOrigin } : null;
+  if (
+    item.pixels &&
+    format === "pdf" &&
+    item.el.tagName === "IMG" &&
+    item.el.currentSrc === item.source &&
+    (svgDataURL.test(item.source) || /\.svg(?:[?#]|$)/i.test(item.source))
+  ) {
+    // The browser may still have a drawable SVG even if its source bytes are
+    // inaccessible on a second read. Redraw that image at print size.
+    try {
+      return {
+        ...raster(item.el, printSize(item.pixels, display)),
+        width: item.pixels.width,
+        height: item.pixels.height,
+      };
+    } catch {}
+  }
+  return item.pixels || (permissionOrigin ? { permissionOrigin } : null);
 }
 export async function embedImages(
   messages,
@@ -227,8 +353,17 @@ export async function embedImages(
   const slots = new Map(),
     pixels = new Map();
   function add(ref, set) {
-    if (!slots.has(ref.key)) slots.set(ref.key, { ref, setters: [] });
-    slots.get(ref.key).setters.push(set);
+    if (!slots.has(ref.key))
+      slots.set(ref.key, {
+        ref,
+        setters: [],
+        display: { width: 0, height: 0 },
+      });
+    const slot = slots.get(ref.key),
+      box = ref.display?.crop || ref.display;
+    slot.display.width = Math.max(slot.display.width, box?.width || 0);
+    slot.display.height = Math.max(slot.display.height, box?.height || 0);
+    slot.setters.push(set);
   }
   function visit(bs) {
     for (const b of bs) {
@@ -248,6 +383,7 @@ export async function embedImages(
           delete asset.occurrence;
           Object.assign(asset, {
             data: data.data,
+            svg: data.svg,
             rasterWidth: data.width,
             rasterHeight: data.height,
           });
@@ -264,7 +400,8 @@ export async function embedImages(
       while (index < keys.length) {
         if (signal?.aborted) throw new Error("Export cancelled.");
         const key = keys[index++];
-        pixels.set(key, await resolve(slots.get(key).ref));
+        const slot = slots.get(key);
+        pixels.set(key, await resolve(slot.ref, format, slot.display));
       }
     }
     await Promise.all(Array.from({ length: Math.min(keys.length, 4) }, worker));
@@ -282,7 +419,7 @@ export async function embedImages(
   }
   for (const [key, item] of slots) {
     const data = pixels.get(key);
-    for (const set of item.setters) set(data?.data ? data : {});
+    for (const set of item.setters) set(data?.data || data?.svg ? data : {});
   }
 }
 // Move images out of inline runs so both document engines preserve their original order.

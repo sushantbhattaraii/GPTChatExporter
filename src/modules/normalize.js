@@ -1,4 +1,4 @@
-import { diagramSVG } from "./diagram.js";
+import { renderedSVG } from "./svg-image.js";
 import { proseReader, readCode, textAlignment } from "./pdf-style.js";
 import { imageRef, meaningfulImage } from "./media.js";
 // Convert the rendered DOM to a small, non-executable document model.
@@ -176,7 +176,7 @@ function semanticRun(el) {
       (el.getBoundingClientRect().width >= 48 &&
         el.getBoundingClientRect().height >= 32))
   ) {
-    const diagram = diagramSVG(el);
+    const diagram = renderedSVG(el);
     if (diagram) return { text: diagram.text, diagram };
   }
   return null;

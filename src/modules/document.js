@@ -8,8 +8,11 @@ export function documentWarnings(doc) {
   function walk(bs) {
     for (const b of bs) {
       if (
-        (b.type === "image" && !b.image?.display?.hidden && !b.image?.data) ||
-        b.assets?.some((a) => !a.data)
+        (b.type === "image" &&
+          !b.image?.display?.hidden &&
+          !b.image?.data &&
+          !b.image?.svg) ||
+        b.assets?.some((a) => !a.data && !a.svg)
       )
         unreadable = true;
       if (

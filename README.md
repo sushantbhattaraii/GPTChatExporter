@@ -1,8 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.5.2.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.5.3.
 
-**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.5.2** in the popup.
+**Updating an earlier version?** Extract the ZIP and copy the contents of the new `dist` folder into the `dist` folder Chrome already loads. Click **Reload** on the extension card at `chrome://extensions/`, refresh the conversation tab, and verify **v1.5.3** in the popup.
 
 The new version requests site access for ChatGPT and OpenAI image delivery. Review the extension card if Chrome asks you to enable it after the update.
 
@@ -32,7 +32,7 @@ The new version requests site access for ChatGPT and OpenAI image delivery. Revi
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.5.2** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.5.3** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 
@@ -61,6 +61,8 @@ The floating bubble uses a **download arrow** to open the export menu and a **ge
 ### Diagrams, checklists and live controls
 
 A Mermaid code fence becomes a vector diagram in the PDF. The exporter can also read an already-rendered SVG, including its shapes, arrows and text labels. If local Mermaid rendering fails or the source requests external resources, the PDF includes the source. A diagram inside an inaccessible embedded frame requires its source or a readable preview in the chat.
+
+Both PDF buttons keep SVG paths, gradients and text as vector content, including SVG files displayed in image tags, CSS backgrounds and preview cards. Zoom in on the tick marks in `examples/vector-images.pdf` to see the result. Embedded bitmap photos keep their original detail. Effects such as SVG filters use a print-resolution image when the PDF renderer needs one.
 
 PDF images use the dimensions at which they appear in the conversation. A 96-pixel thumbnail prints 72 points wide at normal scale, even if its file is 1,200 pixels wide. If the page or table column is narrower, the image scales down to fit. Search-result rows retain their thumbnail crops, visible text and clickable links. See `examples/thumbnail-layout.pdf`.
 
@@ -111,7 +113,7 @@ PDF uses Liberation Sans by default, with DejaVu Serif and DejaVu Sans Mono avai
 ## Formatting and known limitations
 
 - **Equations:** PDF uses vector graphics for display formulas, fractions and radicals. Simple expressions stay inline, and complex inline formulas receive their own line. Word uses editable Office Math equations. Explicit math delimiters and formula-only LaTeX fences are recognized. Unsupported expressions retain their source with an “Unrendered equation” label. Ordinary programming examples stay as code.
-- **Images/media/files:** PDF and Word keep readable image pixels in message order, including responsive and lazy-loaded sources. If Chrome needs site access, open the extension icon, choose **Allow images and continue**, and approve the listed image origins. The same export resumes. The in-chat dialog also offers **Continue without these images** and **Cancel export**. The embedded raster is limited to 1,600 pixels on its longer side and each source fetch is limited to 12 MB. An unreadable standalone image gets a labelled placeholder. Within a visual card, an unavailable image gets a small marker inside its own box. Attachment file contents are not opened.
+- **Images/media/files:** PDF and Word keep readable image pixels in message order, including responsive and lazy-loaded sources. If Chrome needs site access, open the extension icon, choose **Allow images and continue**, and approve the listed image origins. The same export resumes. The in-chat dialog also offers **Continue without these images** and **Cancel export**. Ordinary raster images are limited to 1,600 pixels on their longer side and each source fetch is limited to 12 MB. An unreadable standalone image gets a labelled placeholder. Within a visual card, an unavailable image gets a small marker inside its own box. Attachment file contents are not opened.
 - **Fonts:** PDFs support the bundled fonts' glyph coverage, including much Latin/Greek/Cyrillic and many math symbols. The exporter selects bundled Noto fonts for Devanagari (including Nepali and Hindi), Chinese and Japanese characters, kana and Hangul when the body font lacks those glyphs. The fallback faces are regular weight. Color emoji, rare ideographs, and characters outside all bundled fonts can still be missing. The PDF Subject field records a warning for uncovered characters. Word preserves the Unicode text and may substitute installed fonts; script shaping/rendering is reader-dependent. Some code/math symbols may have narrower monospace coverage.
 - **Tables:** standard tables remain tables. Merged cells are flattened with placeholders and a note in the PDF properties. Tables wider than eight columns are represented row-by-row to avoid horizontal clipping. Long rows may split across pages.
 - **Code.** The PDF uses rendered token styles, expands tabs to the displayed tab stops and preserves blank lines. Long lines wrap to the PDF column, and long snippets continue across pages. Both export buttons read the full document of a supported code editor. Lines without token styles use the block’s base text color. A DOM-only pane can be collected by scrolling its rows, checking coverage and restoring its original position. If the exporter detects a gap it cannot recover, it stops and identifies the snippet problem. See `examples/scrollable-code.pdf`.
@@ -170,6 +172,8 @@ chatgpt-conversation-exporter/
       links.js              Read content labels and real link destinations
       transfer.js           Stage large models in acknowledged, document-bound chunks
       media.js              Resolve displayed images for embedding
+      svg-source.js         Identify and decode SVG source bytes
+      svg-image.js          Sanitize SVG artwork and resolve its styles
       media-fetch.js        Validate and retrieve permitted image assets
       document.js           Settings filter, warnings and table normalization
       pdf-exporter.js       pdfmake layout and PDF stream generation
@@ -239,6 +243,7 @@ python tests/validate_images.py
 python tests/validate_career_pdf.py
 python tests/validate_thumbnail_pdf.py
 python tests/validate_scroll_code_pdf.py
+python tests/validate_svg_pdf.py
 ```
 
 The PDF style check verifies actual font faces, drawn decorations, syntax colors, indentation, paragraph alignment and prompt and reply positions in both export modes. See `TESTING.md` for executed versus pending checks and live validation steps.
@@ -263,9 +268,9 @@ The PDF style check verifies actual font faces, drawn decorations, syntax colors
 
 **Settings don't appear to apply:** click Save settings and make a new export. Existing files are not modified.
 
-**Bold or strikethrough is missing.** Check that the popup shows **v1.5.2**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
+**Bold or strikethrough is missing.** Check that the popup shows **v1.5.3**, refresh the conversation tab, and export a new PDF. Compare the styled words with the surrounding plain text. The sample in `examples/formatted-chat.pdf` shows the expected result.
 
-**Equation looks like LaTeX:** check the popup shows v1.5.2 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
+**Equation looks like LaTeX:** check the popup shows v1.5.3 and export again. A formula marked “Unrendered equation” used syntax the local renderer could not convert.
 
 **Boxes/missing glyphs in PDF:** export Word and use a font installed for that language. The font coverage limitation is explicit above.
 

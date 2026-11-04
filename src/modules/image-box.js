@@ -114,6 +114,12 @@ export function imagePlacement(box, rasterWidth, rasterHeight) {
 
 // An explicit viewport clips cover crops and reserves the empty space of contain.
 // The PDF still embeds the source bitmap at its original export resolution.
-export function rasterViewport(x, y, box, placement, data) {
-  return `<svg x="${x}" y="${y}" width="${box.width}" height="${box.height}" overflow="hidden"><image x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" preserveAspectRatio="none" href="${data}"/></svg>`;
+export function imageViewport(x, y, box, placement, image) {
+  const viewport = `x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}"`;
+  // Insert the sanitized SVG itself. An SVG data URL inside an <image> is
+  // treated as a bitmap by the PDF renderer.
+  const content = image.svg
+    ? image.svg.replace(/^<svg\b/, `<svg ${viewport}`)
+    : `<image ${viewport} preserveAspectRatio="none" href="${image.data}"/>`;
+  return `<svg x="${x}" y="${y}" width="${box.width}" height="${box.height}" overflow="hidden">${content}</svg>`;
 }

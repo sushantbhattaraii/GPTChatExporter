@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-04T19:54:48.042Z",
+  "date": "2026-11-04T20:19:43.206Z",
   "browser": "141.0.7390.37",
   "environment": "Standalone Chromium renderer with synthetic DOM and mocked chrome.runtime/storage; no real Chrome download API",
   "results": [
@@ -26,6 +26,8 @@
     "Both PDF menus preserve three thumbnail-and-text rows, their visible labels and clickable links, plus distinct displayed sizes and crops for reused source images.",
     "Both PDF buttons export every line of static, virtualized and numbered code panes, including horizontal overflow, repeated and blank lines. Editor scroll positions are restored.",
     "Pair and conversation Word exports receive the same complete scrolling snippets.",
+    "Both PDF menus preserve inline, data URL, blob, responsive HTTPS and CSS-backed SVG drawings, with a print-resolution fallback for a filter.",
+    "The Word image export still embeds the raster representation of an SVG.",
     "The normal whole-chat PDF button sends an image-heavy document in acknowledged chunks and creates the complete PDF."
   ],
   "errors": [],
@@ -62,6 +64,9 @@
     "renderer-30.pdf",
     "renderer-31.docx",
     "renderer-32.docx",
-    "renderer-33.pdf"
+    "renderer-33.pdf",
+    "renderer-34.pdf",
+    "renderer-35.docx",
+    "renderer-36.pdf"
   ]
 }
