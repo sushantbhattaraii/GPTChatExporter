@@ -179,3 +179,57 @@ test("large text content is preserved", () => {
     text.trim(),
   );
 });
+
+test("Chat / Work search units expose one pair per grouped turn", () => {
+  for (const attr of [
+    "data-content-search-unit-key",
+    "data-chatgpt-search-unit-key",
+  ]) {
+    const turn = (i) =>
+      `<section data-turn-key="fallback-turn-${i}"><div ${attr}="fallback-turn-${i}:0:user"><div data-user-message-bubble="true">Q${i}</div></div><div class="turn-action-controls"><button>Copy question</button></div><div ${attr}="fallback-turn-${i}:1:assistant"><h4 data-conversation-role="assistant">ChatGPT said:</h4><div data-markdown-text-style="assistant-message"><p>A${i}</p></div></div><div class="turn-action-controls"><button>Copy answer</button></div></section>`;
+    const d = dom(fixture(turn(0) + turn(1) + turn(2)));
+    const nodes = messageNodes(d);
+    assert.equal(nodes.length, 6);
+    const middle = extractPair(nodes[3], d);
+    assert.deepEqual(
+      middle.map((m) => plainText(m.blocks)),
+      ["Q1", "A1"],
+    );
+    assert.deepEqual(
+      snapshot(d).map((m) => m.turnIndex),
+      [0, 0, 1, 1, 2, 2],
+    );
+    assert.equal(middle[1].parentId, "fallback-turn-1:0:user");
+    nodes[5].parentElement.lastElementChild.remove();
+    assert.equal(
+      completed(nodes[5], nodes),
+      false,
+      "a question toolbar cannot mark the answer complete",
+    );
+  }
+});
+test("section-only roles support pair extraction without legacy markers", () => {
+  const d = dom(
+    fixture(
+      '<section data-turn="user" data-testid="conversation-turn-0"><p>Hello</p></section><section data-turn="assistant" data-testid="conversation-turn-1"><p>Hi</p><button aria-label="Copy response">Copy</button></section>',
+    ),
+  );
+  const nodes = messageNodes(d);
+  assert.equal(nodes.length, 2);
+  assert.deepEqual(
+    extractPair(nodes[1], d).map((m) => plainText(m.blocks)),
+    ["Hello", "Hi"],
+  );
+});
+
+test("a partly mounted grouped turn cannot borrow an earlier question", () => {
+  const d = dom(
+    fixture(
+      '<section data-turn-key="fallback-turn-0"><div data-content-search-unit-key="fallback-turn-0:0:user">Earlier Q</div></section><section data-turn-key="fallback-turn-1"><div data-content-search-unit-key="fallback-turn-1:1:assistant">Answer to missing Q</div><button aria-label="Copy">Copy</button></section>',
+    ),
+  );
+  const nodes = messageNodes(d);
+  assert.equal(completed(nodes[1], nodes), true);
+  assert.throws(() => extractPair(nodes[1], d), /question from this response/);
+  assert.throws(() => associate(snapshot(d)), /question from this response/);
+});

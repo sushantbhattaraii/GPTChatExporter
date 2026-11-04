@@ -1,5 +1,6 @@
 import {
   messageNodes,
+  messageRole,
   completed,
   extractPair,
   title,
@@ -124,14 +125,19 @@ function scan() {
   }
   const nodes = messageNodes();
   for (const [el, entry] of pairs)
-    if (!el.isConnected || !nodes.includes(el) || !completed(el, nodes)) {
+    if (
+      !entry.host.isConnected ||
+      !el.isConnected ||
+      !nodes.includes(el) ||
+      !completed(el, nodes)
+    ) {
       entry.cleanup();
       entry.host.remove();
       pairs.delete(el);
     }
   for (const el of nodes) {
     if (
-      el.dataset.messageAuthorRole !== "assistant" ||
+      messageRole(el) !== "assistant" ||
       pairs.has(el) ||
       !completed(el, nodes)
     )
@@ -142,7 +148,17 @@ function scan() {
     );
     pairs.set(el, { ...ui, cleanup });
   }
-  panel.host.style.display = nodes.length ? "block" : "none";
+  if (!panel.host.isConnected) document.body.append(panel.host);
+  panel.host.style.display =
+    nodes.length || /\/(?:c|share)\//.test(location.pathname)
+      ? "block"
+      : "none";
+  if (!nodes.length && !busy)
+    feedback(
+      "No readable messages detected yet. Open a conversation with a finished reply.",
+    );
+  else if (status.textContent.startsWith("No readable messages detected"))
+    feedback("");
 }
 const observer = new MutationObserver((records) => {
   if (
@@ -151,8 +167,11 @@ const observer = new MutationObserver((records) => {
     )
   )
     return;
-  clearTimeout(scheduled);
-  scheduled = setTimeout(scan, 250);
+  if (!scheduled)
+    scheduled = setTimeout(() => {
+      scheduled = null;
+      scan();
+    }, 200);
 });
 observer.observe(document.body, {
   subtree: true,
@@ -160,6 +179,13 @@ observer.observe(document.body, {
   attributes: true,
   attributeFilter: [
     "data-message-id",
+    "data-message-author-role",
+    "data-content-search-unit-key",
+    "data-chatgpt-search-unit-key",
+    "data-turn",
+    "data-turn-key",
+    "data-markdown-text-style",
+    "data-conversation-role",
     "data-is-streaming",
     "aria-busy",
     "hidden",
@@ -204,6 +230,13 @@ window.addEventListener("pageshow", (event) => {
       attributes: true,
       attributeFilter: [
         "data-message-id",
+        "data-message-author-role",
+        "data-content-search-unit-key",
+        "data-chatgpt-search-unit-key",
+        "data-turn",
+        "data-turn-key",
+        "data-markdown-text-style",
+        "data-conversation-role",
         "data-is-streaming",
         "aria-busy",
         "hidden",

@@ -1,5 +1,11 @@
 # Validation report and release checklist
 
+## Version 1.0.1
+
+27 automated tests and nine Chromium renderer scenarios passed. See `test-results/check-1.0.1.log`. New regression cases exercise both variants of keyed user and assistant units, section-only role markers, grouped turns with a missing question, and the popup retry while messages hydrate. The renderer test bridges the popup probe to the actual bundled content script on a synthetic conversation, requests individual PDF and Word files and a whole-conversation Word file. The signed-in user’s conversation and native download completion remain unverified in this environment.
+
+## Version 1.0.0 baseline
+
 Date: November 3, 2026. All conversations used for testing were synthetic. No personal ChatGPT content was used.
 
 ## Executed successfully

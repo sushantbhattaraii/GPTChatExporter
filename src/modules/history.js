@@ -103,7 +103,7 @@ export async function collectHistory({
         scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4;
       bottomStable = atBottom ? bottomStable + 1 : 0;
     }
-    const result = [...seen.values()];
+    const result = everUnmounted ? [...seen.values()] : read();
     if (result.every((m) => m.turnIndex !== null)) {
       result.sort(
         (a, b) => a.turnIndex - b.turnIndex || (a.role === "user" ? -1 : 1),

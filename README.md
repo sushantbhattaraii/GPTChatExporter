@@ -1,6 +1,8 @@
 # ChatGPT Conversation Exporter
 
-Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.0.0.
+Export the displayed ChatGPT question–answer pair or the active conversation to a real PDF or editable Microsoft Word document. Runs locally in Chrome with Manifest V3. Version 1.0.1.
+
+**Updating from 1.0.0?** The previous version could show “No conversation found” on ChatGPT conversation layouts that use role-labelled search units. Extract this update, copy the contents of its `dist` folder into the `dist` folder Chrome already loads, click **Reload** on the extension card at `chrome://extensions/`, and refresh the conversation tab. The popup should show **v1.0.1**. It retries automatically while messages render.
 
 **Start here:** the `dist` folder is already built. You do **not** need Node.js to install it.
 
@@ -27,7 +29,7 @@ Export the displayed ChatGPT question–answer pair or the active conversation t
 5. Enable **Developer mode** using the switch in the upper-right corner.
 6. Click **Load unpacked**.
 7. Select the **`dist` folder inside `chatgpt-conversation-exporter`**. It contains `manifest.json`. Do not select the ZIP or the outer project folder.
-8. Confirm **ChatGPT Conversation Exporter 1.0.0** appears and its enable switch is on.
+8. Confirm **ChatGPT Conversation Exporter 1.0.1** appears and its enable switch is on.
 9. Optionally click Chrome's puzzle-piece icon, then the pin beside this extension.
 10. Open [ChatGPT](https://chatgpt.com/) and open a conversation. **Refresh any ChatGPT tab that was already open.**
 

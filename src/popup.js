@@ -2,11 +2,13 @@ const status = document.querySelector("#status"),
   pdf = document.querySelector("#pdf"),
   docx = document.querySelector("#docx");
 let tabId;
+let retryTimer;
 function show(text, error = false) {
   status.textContent = text;
   status.dataset.state = error ? "error" : "ready";
 }
 async function init() {
+  clearTimeout(retryTimer);
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url?.startsWith("https://chatgpt.com/")) {
     show("Open a conversation at chatgpt.com to begin.");
@@ -17,8 +19,10 @@ async function init() {
     const result = await chrome.tabs.sendMessage(tabId, { type: "CGE_PROBE" });
     if (!result?.messages) {
       show(
-        "No conversation found. Open a chat containing a completed response.",
+        "Connected to ChatGPT. No readable messages detected yet. Open a conversation and wait for a reply.",
       );
+      pdf.disabled = docx.disabled = true;
+      retryTimer = setTimeout(init, 1500);
       return;
     }
     pdf.disabled = docx.disabled = false;
@@ -28,7 +32,7 @@ async function init() {
       show(lastStatus.text, lastStatus.state === "error");
   } catch {
     show(
-      "Refresh the ChatGPT tab after installing or updating this extension.",
+      "Cannot reach the ChatGPT page script. In the extension’s Details, allow site access on chatgpt.com, then refresh your chat.",
       true,
     );
   }

@@ -25,7 +25,7 @@ export function visible(el) {
   return true;
 }
 const OMIT =
-  'button,nav,script,style,textarea,input,select,svg,[role="button"],[data-cge],[data-testid="thought-process"],[data-testid="reasoning"],.katex-html';
+  'button,nav,[data-conversation-role]:is(h1,h2,h3,h4,h5,h6),.turn-action-controls,script,style,textarea,input,select,svg,[role="button"],[data-cge],[data-testid="thought-process"],[data-testid="reasoning"],.katex-html';
 const BLOCK =
   "P,H1,H2,H3,H4,H5,H6,PRE,UL,OL,TABLE,BLOCKQUOTE,HR,DIV,SECTION,ARTICLE,FIGURE";
 function mathSource(el) {
@@ -43,7 +43,9 @@ export function inline(node, style = {}) {
       (/pre|break-spaces/.test(
         parent.ownerDocument.defaultView.getComputedStyle(parent).whiteSpace,
       ) ||
-        parent.closest('[data-message-author-role="user"]'));
+        parent.closest(
+          '[data-message-author-role="user"],[data-user-message-bubble="true"],[data-turn="user"]',
+        ));
     return [
       {
         text: preserve
@@ -137,16 +139,14 @@ export function blocks(root) {
           .map((n) => blocks(n)),
       });
     } else if (tag === "TABLE") {
-      const rows = [...el.rows]
-        .filter(visible)
-        .map((row) =>
-          [...row.cells].map((cell) => ({
-            blocks: blocks(cell),
-            header: cell.tagName === "TH",
-            colSpan: cell.colSpan,
-            rowSpan: cell.rowSpan,
-          })),
-        );
+      const rows = [...el.rows].filter(visible).map((row) =>
+        [...row.cells].map((cell) => ({
+          blocks: blocks(cell),
+          header: cell.tagName === "TH",
+          colSpan: cell.colSpan,
+          rowSpan: cell.rowSpan,
+        })),
+      );
       if (rows.length) out.push({ type: "table", rows });
     } else if (tag === "BLOCKQUOTE")
       out.push({ type: "quote", blocks: blocks(el) });

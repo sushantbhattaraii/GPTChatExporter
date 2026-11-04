@@ -1,5 +1,11 @@
-ChatGPT Conversation Exporter 1.0.0
+ChatGPT Conversation Exporter 1.0.1
 
+Updating from 1.0.0: Extract the ZIP and replace the contents of your
+previously loaded dist folder with the new dist contents. Click Reload
+on the extension card at chrome://extensions/, then refresh your chat.
+Verify the popup says v1.0.1.
+
+New installation:
 1. Extract this ZIP completely.
 2. Open Google Chrome and go to chrome://extensions/
 3. Turn on Developer mode.

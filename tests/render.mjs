@@ -45,6 +45,7 @@ await context.addInitScript(() => {
       ],
       sendMessage: async (id, msg) => {
         window.__popupRequest = msg;
+        if (window.__tabRelay) return window.__tabRelay(msg);
         return msg.type === "CGE_PROBE"
           ? { ok: true, messages: 6 }
           : { ok: true };
@@ -284,6 +285,57 @@ try {
   );
   results.push(
     "Virtualized 40-turn history recovered through ordinary scrolling without omissions/duplicates.",
+  );
+  // Replace the fixture with grouped Chat / Work turns without legacy role markers.
+  await page.evaluate(() => {
+    document.querySelector("main").outerHTML =
+      "<main>" +
+      Array.from(
+        { length: 3 },
+        (_, i) =>
+          `<section data-turn-key="fallback-turn-${i}"><div data-chatgpt-search-unit-key="fallback-turn-${i}:0:user"><div data-user-message-bubble="true">Updated Q${i}</div></div><div data-chatgpt-search-unit-key="fallback-turn-${i}:1:assistant"><div data-markdown-text-style="assistant-message"><p>Updated A${i}</p></div></div><div class="turn-action-controls"><button aria-label="Copy response">Copy</button></div></section>`,
+      ).join("") +
+      "</main>";
+  });
+  await page.waitForFunction(
+    () => document.querySelectorAll('[data-cge="pair"]').length === 3,
+  );
+  assert.equal(
+    (await page.evaluate(() => window.__invoke({ type: "CGE_PROBE" })))
+      .messages,
+    6,
+  );
+  await pair("pdf");
+  await pair("docx");
+  assert.equal(
+    requests.at(-1).document.messages[0].id,
+    "fallback-turn-1:0:user",
+  );
+  assert.equal(
+    requests.at(-1).document.messages[1].id,
+    "fallback-turn-1:1:assistant",
+  );
+  await collect("docx", 6);
+  results.push(
+    "New Chat / Work layout: real page probe finds six messages, controls appear, exact middle pair and full conversation generate.",
+  );
+  const connectedPopup = await context.newPage();
+  await connectedPopup.exposeFunction("__tabRelay", (msg) =>
+    page.evaluate((data) => window.__invoke(data), msg),
+  );
+  await page.evaluate(() => (document.querySelector("main").hidden = true));
+  await connectedPopup.goto("https://exporter.test/popup.html");
+  await connectedPopup.getByText(/Connected to ChatGPT/).waitFor();
+  assert.equal(await connectedPopup.locator("#pdf").isDisabled(), true);
+  await page.evaluate(() => (document.querySelector("main").hidden = false));
+  await connectedPopup
+    .getByText("Ready · 6 messages currently rendered.", { exact: true })
+    .waitFor();
+  assert.equal(await connectedPopup.locator("#pdf").isEnabled(), true);
+  assert.equal(await connectedPopup.locator("#docx").isEnabled(), true);
+  await connectedPopup.close();
+  results.push(
+    "Popup uses the content script's real probe, retries after hydration, and enables PDF and Word for the updated layout.",
   );
   const settings = await context.newPage();
   settings.on("pageerror", (e) => errors.push(e.message));

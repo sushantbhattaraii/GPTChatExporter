@@ -30,6 +30,12 @@
     "valid": true
   },
   {
+    "file": "renderer-7.pdf",
+    "pages": 1,
+    "bytes": 12019,
+    "valid": true
+  },
+  {
     "file": "settings.pdf",
     "pages": 2,
     "bytes": 35741,
@@ -37,27 +43,27 @@
   },
   {
     "file": "conversation.docx",
-    "bytes": 11986,
+    "bytes": 11984,
     "valid": true
   },
   {
     "file": "long.docx",
-    "bytes": 12238,
+    "bytes": 12233,
     "valid": true
   },
   {
     "file": "pair.docx",
-    "bytes": 11879,
+    "bytes": 11877,
     "valid": true
   },
   {
     "file": "renderer-2.docx",
-    "bytes": 11881,
+    "bytes": 11878,
     "valid": true
   },
   {
     "file": "renderer-4.docx",
-    "bytes": 11983,
+    "bytes": 11988,
     "valid": true
   },
   {
@@ -71,8 +77,18 @@
     "valid": true
   },
   {
+    "file": "renderer-8.docx",
+    "bytes": 10546,
+    "valid": true
+  },
+  {
+    "file": "renderer-9.docx",
+    "bytes": 10671,
+    "valid": true
+  },
+  {
     "file": "settings.docx",
-    "bytes": 11809,
+    "bytes": 11806,
     "valid": true
   },
   {
